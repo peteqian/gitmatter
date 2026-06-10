@@ -11,10 +11,10 @@ import { api, type FirmUser, type Matter, type MatterMember, type MatterRole } f
 import { useSession } from "../lib/auth-client";
 import { useMatters } from "../lib/matters-context";
 
-export const Route = createFileRoute("/matters/$id")({ component: MatterDetail });
+export const Route = createFileRoute("/matters_/$id")({ component: MatterDetail });
 
 function MatterDetail() {
-  const { id } = useParams({ from: "/matters/$id" });
+  const { id } = useParams({ from: "/matters_/$id" });
   const { data: session } = useSession();
   const { refresh: refreshMatters } = useMatters();
   const [matter, setMatter] = useState<Matter | null>(null);

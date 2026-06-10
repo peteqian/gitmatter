@@ -27,20 +27,22 @@ export const Route = createRootRoute({
 function Shell({ children }: { children: React.ReactNode }) {
   const { data: session, isPending } = useSession();
 
-  // Logged out (or still resolving on a public page): no sidebar chrome.
-  if (isPending || !session) {
+  // Still resolving the session: don't mount route children yet, so hooks that
+  // need a logged-in provider (useMatters) never run without one.
+  if (isPending) return <div className="min-h-dvh bg-background" />;
+
+  // Logged out: no sidebar chrome, no MattersProvider.
+  if (!session) {
     return (
       <div className="min-h-dvh bg-background">
-        {!isPending && !session && (
-          <header className="flex h-12 items-center justify-end gap-3 px-4 text-sm">
-            <Link to="/login" className="text-muted-foreground hover:text-foreground">
-              Log in
-            </Link>
-            <Link to="/signup" className="text-muted-foreground hover:text-foreground">
-              Sign up
-            </Link>
-          </header>
-        )}
+        <header className="flex h-12 items-center justify-end gap-3 px-4 text-sm">
+          <Link to="/login" className="text-muted-foreground hover:text-foreground">
+            Log in
+          </Link>
+          <Link to="/signup" className="text-muted-foreground hover:text-foreground">
+            Sign up
+          </Link>
+        </header>
         <main className="container mx-auto px-6 pt-page pb-12">{children}</main>
       </div>
     );

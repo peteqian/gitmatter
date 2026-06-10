@@ -20,7 +20,7 @@ import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReviewsIdRouteImport } from './routes/reviews.$id'
-import { Route as MattersIdRouteImport } from './routes/matters.$id'
+import { Route as MattersIdRouteImport } from './routes/matters_.$id'
 import { Route as ContractsIdRouteImport } from './routes/contracts.$id'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as DotwellKnownSplatRouteImport } from './routes/[.]well-known/$'
@@ -81,9 +81,9 @@ const ReviewsIdRoute = ReviewsIdRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const MattersIdRoute = MattersIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => MattersRoute,
+  id: '/matters_/$id',
+  path: '/matters/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ContractsIdRoute = ContractsIdRouteImport.update({
   id: '/$id',
@@ -108,7 +108,7 @@ export interface FileRoutesByFullPath {
   '/contracts': typeof ContractsRouteWithChildren
   '/documents': typeof DocumentsRoute
   '/login': typeof LoginRoute
-  '/matters': typeof MattersRouteWithChildren
+  '/matters': typeof MattersRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/workflows': typeof WorkflowsRoute
@@ -125,7 +125,7 @@ export interface FileRoutesByTo {
   '/contracts': typeof ContractsRouteWithChildren
   '/documents': typeof DocumentsRoute
   '/login': typeof LoginRoute
-  '/matters': typeof MattersRouteWithChildren
+  '/matters': typeof MattersRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/workflows': typeof WorkflowsRoute
@@ -143,14 +143,14 @@ export interface FileRoutesById {
   '/contracts': typeof ContractsRouteWithChildren
   '/documents': typeof DocumentsRoute
   '/login': typeof LoginRoute
-  '/matters': typeof MattersRouteWithChildren
+  '/matters': typeof MattersRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/workflows': typeof WorkflowsRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/api/$': typeof ApiSplatRoute
   '/contracts/$id': typeof ContractsIdRoute
-  '/matters/$id': typeof MattersIdRoute
+  '/matters_/$id': typeof MattersIdRoute
   '/reviews/$id': typeof ReviewsIdRoute
 }
 export interface FileRouteTypes {
@@ -203,7 +203,7 @@ export interface FileRouteTypes {
     | '/.well-known/$'
     | '/api/$'
     | '/contracts/$id'
-    | '/matters/$id'
+    | '/matters_/$id'
     | '/reviews/$id'
   fileRoutesById: FileRoutesById
 }
@@ -214,12 +214,13 @@ export interface RootRouteChildren {
   ContractsRoute: typeof ContractsRouteWithChildren
   DocumentsRoute: typeof DocumentsRoute
   LoginRoute: typeof LoginRoute
-  MattersRoute: typeof MattersRouteWithChildren
+  MattersRoute: typeof MattersRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
   WorkflowsRoute: typeof WorkflowsRoute
   DotwellKnownSplatRoute: typeof DotwellKnownSplatRoute
   ApiSplatRoute: typeof ApiSplatRoute
+  MattersIdRoute: typeof MattersIdRoute
   ReviewsIdRoute: typeof ReviewsIdRoute
 }
 
@@ -302,12 +303,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReviewsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/matters/$id': {
-      id: '/matters/$id'
-      path: '/$id'
+    '/matters_/$id': {
+      id: '/matters_/$id'
+      path: '/matters/$id'
       fullPath: '/matters/$id'
       preLoaderRoute: typeof MattersIdRouteImport
-      parentRoute: typeof MattersRoute
+      parentRoute: typeof rootRouteImport
     }
     '/contracts/$id': {
       id: '/contracts/$id'
@@ -345,17 +346,6 @@ const ContractsRouteWithChildren = ContractsRoute._addFileChildren(
   ContractsRouteChildren,
 )
 
-interface MattersRouteChildren {
-  MattersIdRoute: typeof MattersIdRoute
-}
-
-const MattersRouteChildren: MattersRouteChildren = {
-  MattersIdRoute: MattersIdRoute,
-}
-
-const MattersRouteWithChildren =
-  MattersRoute._addFileChildren(MattersRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatRoute: ChatRoute,
@@ -363,12 +353,13 @@ const rootRouteChildren: RootRouteChildren = {
   ContractsRoute: ContractsRouteWithChildren,
   DocumentsRoute: DocumentsRoute,
   LoginRoute: LoginRoute,
-  MattersRoute: MattersRouteWithChildren,
+  MattersRoute: MattersRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
   WorkflowsRoute: WorkflowsRoute,
   DotwellKnownSplatRoute: DotwellKnownSplatRoute,
   ApiSplatRoute: ApiSplatRoute,
+  MattersIdRoute: MattersIdRoute,
   ReviewsIdRoute: ReviewsIdRoute,
 }
 export const routeTree = rootRouteImport
