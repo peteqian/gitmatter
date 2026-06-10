@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocxView } from "@/components/DocxView";
 import { api, type Blame, type ContractDetail, type ContractEdit } from "../lib/api";
 
-export const Route = createFileRoute("/contracts/$id")({ component: ContractView });
+export const Route = createFileRoute("/contracts_/$id")({ component: ContractView });
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   pending: "outline",
