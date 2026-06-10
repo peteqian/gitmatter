@@ -10,6 +10,7 @@ import {
   diffCommits,
   ensureDefaultMatter,
   getContract,
+  getDocument,
   getReview,
   getUserApiKey,
   getWorkflow,
@@ -17,6 +18,7 @@ import {
   listClients,
   listCommits,
   listContracts,
+  listDocuments,
   listMattersForUser,
   listReviews,
   listWorkflows,
@@ -198,6 +200,90 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
         practiceArea,
       });
       return json({ matterId: matter.id });
+    }
+  );
+
+  // ---- search / fetch (ChatGPT company-knowledge schema) ----
+
+  server.registerTool(
+    "search",
+    {
+      description:
+        "Search your reviews, contracts, and documents by keyword. Returns ids to pass to `fetch`.",
+      inputSchema: { query: z.string() },
+    },
+    async ({ query }) => {
+      const ql = query.toLowerCase();
+      const hit = (title: string) => title.toLowerCase().includes(ql);
+      const [reviews, contracts, docs] = await Promise.all([
+        listReviews(actor.userId),
+        listContracts(actor.userId),
+        listDocuments(actor.userId),
+      ]);
+      const results = [
+        ...reviews
+          .filter((r) => hit(r.title))
+          .map((r) => ({ id: `review:${r.id}`, title: r.title, url: `/reviews/${r.id}` })),
+        ...contracts
+          .filter((c) => hit(c.title))
+          .map((c) => ({ id: `contract:${c.id}`, title: c.title, url: `/contracts/${c.id}` })),
+        ...docs
+          .filter((d) => hit(d.title))
+          .map((d) => ({ id: `document:${d.id}`, title: d.title, url: "/documents" })),
+      ];
+      return json({ results });
+    }
+  );
+
+  server.registerTool(
+    "fetch",
+    {
+      description: "Fetch the full content of a search result by its id.",
+      inputSchema: { id: z.string() },
+    },
+    async ({ id }) => {
+      const [kind, artifactId] = id.split(":");
+      if (!artifactId) return json({ error: "Not found" });
+      if (kind === "contract") {
+        if (!(await canAccessArtifact(actor.userId, "contract", artifactId)))
+          return json({ error: "Not found" });
+        const r = await getContract(artifactId);
+        if (!r) return json({ error: "Not found" });
+        return json({
+          id,
+          title: r.contract.title,
+          text: r.contract.body,
+          url: `/contracts/${artifactId}`,
+          metadata: { type: "contract" },
+        });
+      }
+      if (kind === "review") {
+        if (!(await canAccessArtifact(actor.userId, "tabular_review", artifactId)))
+          return json({ error: "Not found" });
+        const r = await getReview(artifactId);
+        if (!r) return json({ error: "Not found" });
+        return json({
+          id,
+          title: r.review.title,
+          text: JSON.stringify(r, null, 2),
+          url: `/reviews/${artifactId}`,
+          metadata: { type: "tabular_review" },
+        });
+      }
+      if (kind === "document") {
+        if (!(await canAccessArtifact(actor.userId, "document", artifactId)))
+          return json({ error: "Not found" });
+        const d = await getDocument(artifactId);
+        if (!d) return json({ error: "Not found" });
+        return json({
+          id,
+          title: d.title,
+          text: d.markdown ?? "",
+          url: "/documents",
+          metadata: { type: "document", status: d.status },
+        });
+      }
+      return json({ error: "Not found" });
     }
   );
 

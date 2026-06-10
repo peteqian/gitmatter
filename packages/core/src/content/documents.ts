@@ -15,6 +15,11 @@ export function listDocuments(userId: string) {
     .orderBy(desc(documents.createdAt));
 }
 
+export async function getDocument(id: string) {
+  const [row] = await db.select().from(documents).where(eq(documents.id, id));
+  return row ?? null;
+}
+
 export async function createDocument(
   userId: string,
   input: { title: string; markdown: string; fileType?: string; matterId: string }
