@@ -82,26 +82,44 @@ web image applies the schema on boot, then serves.
 
 ## Connect an AI agent (MCP)
 
-gitcounsel exposes an MCP server at `/api/mcp` (Streamable HTTP). In **Settings → Connect**, mint an
-access token, then point a client at it.
+gitcounsel exposes an MCP server at `/api/mcp` (Streamable HTTP). It accepts two kinds of auth: a
+static token you mint in **Settings → Connect**, or an OAuth login (for clients that require it,
+like ChatGPT). Whichever you use, the agent acts as your gitcounsel account and everything it does
+lands in the same commit log as an agent. It can drive product features (reviews, contracts,
+workflows, documents, audit) but never auth or user settings (keys, tokens, account).
 
-**Claude Code CLI:**
+> OAuth (ChatGPT, native Claude connectors) needs the server reachable over **HTTPS** at a real
+> hostname. For local testing, put a tunnel (`cloudflared`, `ngrok`) in front of `:4280` and use
+> the tunnel URL below in place of `http://localhost:4280`.
+
+**ChatGPT** (Developer Mode, paid plans): Settings → Connectors → add a custom connector with the
+server URL `https://<host>/api/mcp`. ChatGPT discovers the OAuth endpoints, walks you through the
+login + approval page, and connects. No token to paste.
+
+**Claude Desktop / web** (custom connector): add a connector with URL `https://<host>/api/mcp`. It
+runs the same OAuth login + approval. If you prefer a static token instead, use the `mcp-remote`
+bridge with an `Authorization: Bearer <token>` header.
+
+**Claude Code CLI** (static token): mint a token in Settings → Connect, then:
 
 ```bash
 claude mcp add --transport http gitcounsel http://localhost:4280/api/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-**Claude Desktop:** add a custom connector with URL `http://localhost:4280/api/mcp` and header
-`Authorization: Bearer <token>` (use the `mcp-remote` bridge if the connector UI requires it).
+**Codex CLI** (static token): in `~/.codex/config.toml`:
 
-The token maps to your gitcounsel account; everything the agent does is recorded in the same commit
-log, attributed as an agent. The agent can drive product features (reviews, contracts, workflows,
-documents, audit) but never auth or user settings (keys, tokens, account).
+```toml
+[mcp_servers.gitcounsel]
+url = "http://localhost:4280/api/mcp"
+bearer_token_env_var = "GITCOUNSEL_TOKEN"
+```
 
-> **ChatGPT and native OAuth connectors:** ChatGPT (and Claude's OAuth connector flow) require an
-> OAuth 2.1 authorization server, not a static token. That is built in roadmap Phase 1; until then,
-> use the bearer-token clients above.
+**How the OAuth side works:** gitcounsel is an OAuth 2.1 resource + authorization server. It serves
+discovery at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`,
+runs the authorization-code flow with PKCE (S256), and supports both Client ID Metadata Documents
+(ChatGPT's preferred path) and dynamic client registration. Access tokens are bound to the MCP
+server address (the token only works here) and the login step reuses your gitcounsel session.
 
 ### Consumed MCP + chat
 

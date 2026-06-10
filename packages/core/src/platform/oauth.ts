@@ -182,7 +182,7 @@ export async function refreshAccessToken(input: {
 }
 
 /**
- * Validate an OAuth access token for a specific audience (the canonical MCP URI).
+ * Validate an OAuth access token for a specific audience (the MCP server address).
  * Enforces the RFC 8707 audience binding: a token is only valid at the resource
  * it was issued for. Returns the bound user, or null.
  */

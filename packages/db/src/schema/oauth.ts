@@ -36,7 +36,7 @@ export const oauthAuthCodes = pgTable("oauth_auth_codes", {
 });
 
 // Access (and rotating refresh) tokens, bound to a user and an audience (the
-// canonical MCP server URI). Stored hashed; validated on every MCP request.
+// MCP server address). Stored hashed; validated on every MCP request.
 export const oauthAccessTokens = pgTable("oauth_access_tokens", {
   id: uuid("id").primaryKey().defaultRandom(),
   tokenHash: text("token_hash").notNull().unique(),

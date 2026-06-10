@@ -8,7 +8,7 @@ export function serverOrigin(c: Context): string {
   return `${proto}://${host}`;
 }
 
-/** The canonical MCP server URI — the OAuth resource identifier / token audience. */
-export function canonicalMcpUri(c: Context): string {
+/** The MCP server address, used as the OAuth resource id and token audience. */
+export function mcpResourceUri(c: Context): string {
   return `${serverOrigin(c)}/api/mcp`;
 }

@@ -6,9 +6,10 @@ import {
   getOAuthClient,
   refreshAccessToken,
   registerDcrClient,
+  upsertCimdClient,
 } from "@workspace/core";
 import { type AuthEnv, getUser } from "../middleware/auth.js";
-import { canonicalMcpUri, serverOrigin } from "../lib/origin.js";
+import { mcpResourceUri, serverOrigin } from "../lib/origin.js";
 
 export const oauthRoute = new Hono<AuthEnv>();
 
@@ -20,7 +21,7 @@ export const MCP_SCOPE = "mcp";
 
 function protectedResourceMetadata(c: Context) {
   return c.json({
-    resource: canonicalMcpUri(c),
+    resource: mcpResourceUri(c),
     authorization_servers: [serverOrigin(c)],
     scopes_supported: [MCP_SCOPE],
   });
@@ -57,12 +58,44 @@ function esc(s: string): string {
   );
 }
 
-// Resolve a registered client and validate the redirect_uri exactly. CIMD
-// (URL-formed client_id) is handled in a later increment.
+// Fetch + validate a Client ID Metadata Document. SSRF-guarded: https only, no
+// private/loopback hosts, timeout, size cap.
+async function fetchCimd(
+  clientId: string
+): Promise<{ client_name?: string; redirect_uris?: string[]; client_id?: string } | null> {
+  try {
+    const u = new URL(clientId);
+    if (u.protocol !== "https:") return null;
+    if (/^(localhost$|127\.|0\.0\.0\.0|10\.|192\.168\.|169\.254\.|::1$)/i.test(u.hostname))
+      return null;
+    const res = await fetch(clientId, {
+      signal: AbortSignal.timeout(5000),
+      headers: { accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (text.length > 100_000) return null;
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+// Resolve a client and validate the redirect_uri exactly. A registered client
+// (DCR/pre-registered) is used directly; an https URL client_id is treated as a
+// Client ID Metadata Document — fetched, validated, and cached on first use.
 async function authorizeClient(clientId: string, redirectUri: string): Promise<OAuthClient | null> {
-  const client = await getOAuthClient(clientId);
-  if (!client || !client.redirectUris.includes(redirectUri)) return null;
-  return client;
+  const existing = await getOAuthClient(clientId);
+  if (existing) return existing.redirectUris.includes(redirectUri) ? existing : null;
+  if (!clientId.startsWith("https://")) return null;
+  const doc = await fetchCimd(clientId);
+  if (!doc || doc.client_id !== clientId) return null;
+  if (!Array.isArray(doc.redirect_uris) || !doc.redirect_uris.includes(redirectUri)) return null;
+  return upsertCimdClient({
+    clientId,
+    clientName: doc.client_name ?? clientId,
+    redirectUris: doc.redirect_uris,
+  });
 }
 
 function consentPage(input: {
