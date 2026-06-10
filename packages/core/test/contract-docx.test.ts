@@ -39,7 +39,11 @@ afterAll(async () => {
   await sql.end();
 });
 
-describe("contract DOCX redline through the commit spine", () => {
+// Exercises real object storage (DOCX bytes -> S3/R2). Storage is S3-only with
+// no local fallback, so skip when no S3 credentials are configured.
+const hasS3 = !!process.env.S3_ACCESS_KEY;
+
+(hasS3 ? describe : describe.skip)("contract DOCX redline through the commit spine", () => {
   test("upload creates a versioned docx contract", async () => {
     contractId = await createContractFromDocx(actor, { title: "NDA", bytes: fixture(), matterId });
     const result = await getContract(contractId);

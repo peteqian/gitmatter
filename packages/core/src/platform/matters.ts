@@ -119,7 +119,15 @@ export async function addMember(matterId: string, userId: string, role: MatterRo
     .onConflictDoUpdate({ target: [matterMembers.matterId, matterMembers.userId], set: { role } });
 }
 
+/** Remove a member. Refuses to remove the matter's last owner (would orphan it). */
 export async function removeMember(matterId: string, userId: string) {
+  const owners = await db
+    .select({ userId: matterMembers.userId })
+    .from(matterMembers)
+    .where(and(eq(matterMembers.matterId, matterId), eq(matterMembers.role, "owner")));
+  if (owners.length <= 1 && owners.some((o) => o.userId === userId)) {
+    throw new Error("cannot remove the last owner of a matter");
+  }
   await db
     .delete(matterMembers)
     .where(and(eq(matterMembers.matterId, matterId), eq(matterMembers.userId, userId)));

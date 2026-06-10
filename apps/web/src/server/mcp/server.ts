@@ -57,6 +57,10 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
     return ensureDefaultMatter(actor.userId, account.label);
   };
 
+  // Viewer access to a review — guards the read-only audit tools below.
+  const canReadReview = (reviewId: string) =>
+    canAccessArtifact(actor.userId, "tabular_review", reviewId);
+
   server.registerTool(
     "list_reviews",
     { description: "List the user's tabular reviews.", inputSchema: {} },
@@ -127,7 +131,10 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
       description: "List the commit history for a review (newest first).",
       inputSchema: { reviewId: z.string() },
     },
-    async ({ reviewId }) => json(await listCommits("tabular_review", reviewId))
+    async ({ reviewId }) =>
+      (await canReadReview(reviewId))
+        ? json(await listCommits("tabular_review", reviewId))
+        : json({ error: "Not found" })
   );
 
   server.registerTool(
@@ -137,7 +144,9 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
       inputSchema: { reviewId: z.string(), fromSeq: z.number(), toSeq: z.number() },
     },
     async ({ reviewId, fromSeq, toSeq }) =>
-      json(await diffCommits("tabular_review", reviewId, fromSeq, toSeq))
+      (await canReadReview(reviewId))
+        ? json(await diffCommits("tabular_review", reviewId, fromSeq, toSeq))
+        : json({ error: "Not found" })
   );
 
   server.registerTool(
@@ -147,7 +156,10 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
         "Which commit last set a given field path (e.g. cell/<documentId>/<columnIndex>).",
       inputSchema: { reviewId: z.string(), path: z.string() },
     },
-    async ({ reviewId, path }) => json(await deriveBlame("tabular_review", reviewId, path))
+    async ({ reviewId, path }) =>
+      (await canReadReview(reviewId))
+        ? json(await deriveBlame("tabular_review", reviewId, path))
+        : json({ error: "Not found" })
   );
 
   // ---- Clients & matters (org structure). Matter-team management is UI-only. ----

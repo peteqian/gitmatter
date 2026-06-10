@@ -98,7 +98,11 @@ mattersRoute.delete("/api/matters/:id/members/:userId", async (c) => {
   const id = c.req.param("id");
   if (!(await hasMatterAccess(c.get("user").id, id, "owner")))
     return c.json({ error: "Forbidden" }, 403);
-  await removeMember(id, c.req.param("userId"));
+  try {
+    await removeMember(id, c.req.param("userId"));
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "failed" }, 400);
+  }
   return c.body(null, 204);
 });
 
