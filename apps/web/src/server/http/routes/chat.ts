@@ -3,10 +3,12 @@ import { zValidator } from "@hono/zod-validator";
 import Anthropic from "@anthropic-ai/sdk";
 import {
   buildDocxSpec,
+  CITATIONS_INSTRUCTION,
   createGeneratedDocument,
   DEFAULT_MODEL,
   getUserApiKey,
   getUserJurisdiction,
+  parseCitations,
   persistChat,
   searchCaseLaw,
   verifyCitations,
@@ -113,6 +115,7 @@ chatRoute.post("/api/chat", zValidator("json", chatSchema), async (c) => {
       const res = await anthropic.messages.create({
         model: DEFAULT_MODEL,
         max_tokens: 2048,
+        system: CITATIONS_INSTRUCTION,
         tools: tools.length ? tools : undefined,
         messages,
       });
@@ -187,14 +190,23 @@ chatRoute.post("/api/chat", zValidator("json", chatSchema), async (c) => {
     await Promise.all(servers.map((s) => s.client.close().catch(() => {})));
   }
 
+  // Split the citations block off the prose; store the array, show clean text.
+  const { text: displayText, citations } = parseCitations(finalText);
+
   // Persist conversation (append-only).
-  await persistChat(user.id, { message: body.message, finalText, toolCalls });
+  await persistChat(user.id, {
+    message: body.message,
+    finalText: displayText,
+    toolCalls,
+    citations,
+  });
 
   return c.json({
-    text: finalText,
+    text: displayText,
     toolCalls,
     tools: tools.map((t) => t.name),
     jurisdiction,
     documents: generated,
+    citations,
   });
 });

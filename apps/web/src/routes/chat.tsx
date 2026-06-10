@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "../lib/api";
+import { api, type Citation } from "../lib/api";
 
 export const Route = createFileRoute("/chat")({ component: Chat });
 
@@ -15,7 +15,19 @@ type Turn = {
   text: string;
   toolCalls?: Array<{ tool: string; input: unknown }>;
   documents?: Array<{ id: string; title: string; download: string }>;
+  citations?: Citation[];
 };
+
+function citationHref(cit: Citation): string {
+  if (cit.cluster_id) return `https://www.courtlistener.com/opinion/${cit.cluster_id}/`;
+  return "/documents";
+}
+
+function citationLabel(cit: Citation): string {
+  if (cit.cluster_id) return `Case law (opinion ${cit.opinion_id ?? cit.cluster_id})`;
+  if (cit.quotes?.length) return cit.quotes[0]!;
+  return "Document";
+}
 
 function Chat() {
   const [input, setInput] = useState("");
@@ -36,7 +48,13 @@ function Chat() {
       setJurisdiction(r.jurisdiction);
       setTurns((t) => [
         ...t,
-        { role: "assistant", text: r.text, toolCalls: r.toolCalls, documents: r.documents },
+        {
+          role: "assistant",
+          text: r.text,
+          toolCalls: r.toolCalls,
+          documents: r.documents,
+          citations: r.citations,
+        },
       ]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
@@ -71,6 +89,23 @@ function Chat() {
                     <Badge key={j} variant="outline" className="font-mono text-xs">
                       {tc.tool}
                     </Badge>
+                  ))}
+                </div>
+              )}
+              {t.citations && t.citations.length > 0 && (
+                <div className="flex flex-col gap-1 border-t border-border pt-2">
+                  <span className="text-xs font-medium text-muted-foreground">Sources</span>
+                  {t.citations.map((cit) => (
+                    <a
+                      key={cit.ref}
+                      href={citationHref(cit)}
+                      target={cit.cluster_id ? "_blank" : undefined}
+                      rel={cit.cluster_id ? "noreferrer" : undefined}
+                      className="flex gap-2 text-xs hover:text-foreground"
+                    >
+                      <span className="font-mono text-muted-foreground">[{cit.ref}]</span>
+                      <span className="truncate text-muted-foreground">{citationLabel(cit)}</span>
+                    </a>
                   ))}
                 </div>
               )}

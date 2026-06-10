@@ -1,10 +1,16 @@
 import { db } from "@workspace/db/client";
 import { chatMessages, chats } from "@workspace/db/schema";
+import type { Citation } from "../ai/citations.js";
 
 /** Persist a single-turn conversation (append-only). Returns the chat id. */
 export async function persistChat(
   userId: string,
-  turn: { message: string; finalText: string; toolCalls: Array<{ tool: string; input: unknown }> }
+  turn: {
+    message: string;
+    finalText: string;
+    toolCalls: Array<{ tool: string; input: unknown }>;
+    citations?: Citation[];
+  }
 ): Promise<string> {
   const [chat] = await db
     .insert(chats)
@@ -25,6 +31,7 @@ export async function persistChat(
       actorType: "agent",
       role: "assistant",
       content: { text: turn.finalText, toolCalls: turn.toolCalls },
+      annotations: turn.citations?.length ? { citations: turn.citations } : null,
     },
   ]);
   return chat!.id;

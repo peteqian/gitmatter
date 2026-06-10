@@ -76,6 +76,14 @@ export type MatterMember = {
 
 export type FirmUser = { id: string; name: string; email: string };
 
+export type Citation = {
+  ref: number;
+  doc_id?: string;
+  quotes?: string[];
+  cluster_id?: number;
+  opinion_id?: number;
+};
+
 export type DocStatus = "pending" | "processing" | "ready" | "failed";
 export type Doc = {
   id: string;
@@ -252,6 +260,7 @@ export const api = {
       tools: string[];
       jurisdiction: string;
       documents: Array<{ id: string; title: string; download: string }>;
+      citations: Citation[];
     }>("/api/chat", { method: "POST", body: JSON.stringify({ message }) }),
   documentDownloadUrl: (id: string) => `/api/documents/${id}/download`,
 };
