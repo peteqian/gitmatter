@@ -1,0 +1,202 @@
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { and, eq, isNull } from "drizzle-orm";
+import { db } from "@workspace/db/client";
+import {
+  type OAuthClient,
+  oauthAccessTokens,
+  oauthAuthCodes,
+  oauthClients,
+} from "@workspace/db/schema";
+import { hashToken } from "./mcp-tokens.js";
+
+const ACCESS_TTL_MS = 60 * 60 * 1000; // 1 hour
+const CODE_TTL_MS = 60 * 1000; // 60 seconds
+
+export type IssuedTokens = { accessToken: string; refreshToken: string; expiresIn: number };
+
+/** Verify a PKCE S256 challenge against the verifier (constant-time). */
+export function verifyPkce(verifier: string, challenge: string, method: string): boolean {
+  if (method !== "S256") return false;
+  const computed = createHash("sha256").update(verifier).digest().toString("base64url");
+  const a = Buffer.from(computed);
+  const b = Buffer.from(challenge);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// ---- Clients ----
+
+export async function getOAuthClient(clientId: string): Promise<OAuthClient | null> {
+  const [row] = await db.select().from(oauthClients).where(eq(oauthClients.clientId, clientId));
+  return row ?? null;
+}
+
+/** Register a Dynamic Client Registration (RFC 7591) client; generates a client_id. */
+export async function registerDcrClient(input: {
+  clientName: string;
+  redirectUris: string[];
+  tokenEndpointAuthMethod?: string;
+}): Promise<OAuthClient> {
+  const clientId = `gcc_${randomBytes(16).toString("hex")}`;
+  const [row] = await db
+    .insert(oauthClients)
+    .values({
+      clientId,
+      clientName: input.clientName,
+      redirectUris: input.redirectUris,
+      tokenEndpointAuthMethod: input.tokenEndpointAuthMethod ?? "none",
+      registration: "dcr",
+    })
+    .returning();
+  return row!;
+}
+
+/** Upsert a CIMD client keyed by its metadata-document URL (== client_id). */
+export async function upsertCimdClient(input: {
+  clientId: string;
+  clientName: string;
+  redirectUris: string[];
+}): Promise<OAuthClient> {
+  const [row] = await db
+    .insert(oauthClients)
+    .values({
+      clientId: input.clientId,
+      clientName: input.clientName,
+      redirectUris: input.redirectUris,
+      registration: "cimd",
+    })
+    .onConflictDoUpdate({
+      target: oauthClients.clientId,
+      set: { clientName: input.clientName, redirectUris: input.redirectUris },
+    })
+    .returning();
+  return row!;
+}
+
+// ---- Authorization codes ----
+
+export async function createAuthCode(input: {
+  clientId: string;
+  userId: string;
+  redirectUri: string;
+  codeChallenge: string;
+  codeChallengeMethod: string;
+  scope?: string;
+  resource?: string;
+}): Promise<string> {
+  const code = `gca_${randomBytes(32).toString("hex")}`;
+  await db.insert(oauthAuthCodes).values({
+    codeHash: hashToken(code),
+    clientId: input.clientId,
+    userId: input.userId,
+    redirectUri: input.redirectUri,
+    codeChallenge: input.codeChallenge,
+    codeChallengeMethod: input.codeChallengeMethod,
+    scope: input.scope ?? null,
+    resource: input.resource ?? null,
+    expiresAt: new Date(Date.now() + CODE_TTL_MS),
+  });
+  return code;
+}
+
+async function issueTokens(input: {
+  clientId: string;
+  userId: string;
+  scope: string | null;
+  audience: string;
+}): Promise<IssuedTokens> {
+  const accessToken = `gco_${randomBytes(32).toString("hex")}`;
+  const refreshToken = `gcr_${randomBytes(32).toString("hex")}`;
+  await db.insert(oauthAccessTokens).values({
+    tokenHash: hashToken(accessToken),
+    refreshTokenHash: hashToken(refreshToken),
+    clientId: input.clientId,
+    userId: input.userId,
+    scope: input.scope,
+    audience: input.audience,
+    expiresAt: new Date(Date.now() + ACCESS_TTL_MS),
+  });
+  return { accessToken, refreshToken, expiresIn: ACCESS_TTL_MS / 1000 };
+}
+
+/** Exchange an authorization code for tokens, verifying PKCE and the client/redirect. */
+export async function exchangeCode(input: {
+  code: string;
+  clientId: string;
+  redirectUri: string;
+  codeVerifier: string;
+}): Promise<IssuedTokens | { error: string }> {
+  const [row] = await db
+    .select()
+    .from(oauthAuthCodes)
+    .where(eq(oauthAuthCodes.codeHash, hashToken(input.code)));
+  if (
+    !row ||
+    row.consumedAt ||
+    row.expiresAt < new Date() ||
+    row.clientId !== input.clientId ||
+    row.redirectUri !== input.redirectUri ||
+    !verifyPkce(input.codeVerifier, row.codeChallenge, row.codeChallengeMethod)
+  ) {
+    return { error: "invalid_grant" };
+  }
+  await db
+    .update(oauthAuthCodes)
+    .set({ consumedAt: new Date() })
+    .where(eq(oauthAuthCodes.codeHash, row.codeHash));
+  return issueTokens({
+    clientId: row.clientId,
+    userId: row.userId,
+    scope: row.scope,
+    audience: row.resource ?? "",
+  });
+}
+
+/** Rotate a refresh token (OAuth 2.1 requires rotation for public clients). */
+export async function refreshAccessToken(input: {
+  refreshToken: string;
+  clientId: string;
+}): Promise<IssuedTokens | { error: string }> {
+  const [row] = await db
+    .select()
+    .from(oauthAccessTokens)
+    .where(
+      and(
+        eq(oauthAccessTokens.refreshTokenHash, hashToken(input.refreshToken)),
+        isNull(oauthAccessTokens.revokedAt)
+      )
+    );
+  if (!row || row.clientId !== input.clientId) return { error: "invalid_grant" };
+  await db
+    .update(oauthAccessTokens)
+    .set({ revokedAt: new Date() })
+    .where(eq(oauthAccessTokens.id, row.id));
+  return issueTokens({
+    clientId: row.clientId,
+    userId: row.userId,
+    scope: row.scope,
+    audience: row.audience,
+  });
+}
+
+/**
+ * Validate an OAuth access token for a specific audience (the canonical MCP URI).
+ * Enforces the RFC 8707 audience binding: a token is only valid at the resource
+ * it was issued for. Returns the bound user, or null.
+ */
+export async function resolveOAuthToken(
+  token: string,
+  audience: string
+): Promise<{ userId: string; clientId: string } | null> {
+  const [row] = await db
+    .select()
+    .from(oauthAccessTokens)
+    .where(
+      and(eq(oauthAccessTokens.tokenHash, hashToken(token)), isNull(oauthAccessTokens.revokedAt))
+    );
+  if (!row || row.expiresAt < new Date() || row.audience !== audience) return null;
+  await db
+    .update(oauthAccessTokens)
+    .set({ lastUsedAt: new Date() })
+    .where(eq(oauthAccessTokens.id, row.id));
+  return { userId: row.userId, clientId: row.clientId };
+}

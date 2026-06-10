@@ -13,11 +13,13 @@ import { contractRoute } from "./routes/contract.js";
 import { documentsRoute } from "./routes/documents.js";
 import { keysRoute } from "./routes/keys.js";
 import { mattersRoute } from "./routes/matters.js";
+import { oauthRoute } from "./routes/oauth.js";
 import { tabularRoute } from "./routes/tabular.js";
 import { tokensRoute } from "./routes/tokens.js";
 import { workflowRoute } from "./routes/workflow.js";
 import { authenticateMcp } from "../mcp/auth.js";
 import { buildMcpServer } from "../mcp/server.js";
+import { serverOrigin } from "./lib/origin.js";
 import { type AuthEnv, requireUser } from "./middleware/auth.js";
 
 // Seed system workflows + consumed-MCP connections once on boot (idempotent).
@@ -40,12 +42,21 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 // MCP endpoint authenticates separately via an access token.
 app.use("/api/*", (c, next) => {
   const p = c.req.path;
-  if (p === "/api/health" || p.startsWith("/api/auth/") || p === "/api/mcp") return next();
+  // Public: health, better-auth, the MCP endpoint (bearer/OAuth), and the OAuth
+  // authorization-server endpoints (which do their own per-endpoint auth).
+  if (
+    p === "/api/health" ||
+    p.startsWith("/api/auth/") ||
+    p === "/api/mcp" ||
+    p.startsWith("/api/oauth/")
+  )
+    return next();
   return requireUser(c, next);
 });
 
 app.route("/", keysRoute);
 app.route("/", mattersRoute);
+app.route("/", oauthRoute);
 app.route("/", documentsRoute);
 app.route("/", tabularRoute);
 app.route("/", contractRoute);
@@ -57,7 +68,15 @@ app.route("/", tokensRoute);
 // gitcounsel access token; a fresh stateless server/transport per request.
 app.all("/api/mcp", async (c) => {
   const account = await authenticateMcp(c);
-  if (!account) return c.json({ error: "Unauthorized" }, 401);
+  if (!account) {
+    // Point clients at the protected-resource metadata so they can discover the
+    // authorization server and run the OAuth flow (RFC 9728 §5.1).
+    c.header(
+      "WWW-Authenticate",
+      `Bearer resource_metadata="${serverOrigin(c)}/.well-known/oauth-protected-resource", scope="mcp"`
+    );
+    return c.json({ error: "Unauthorized" }, 401);
+  }
   const jurisdiction = resolveJurisdiction(null, await getUserJurisdiction(account.userId));
   const server = buildMcpServer({ ...account, jurisdiction });
   const transport = new StreamableHTTPTransport({ sessionIdGenerator: undefined });

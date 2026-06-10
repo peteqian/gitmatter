@@ -20,6 +20,7 @@ import { Route as IndexRouteImport } from "./routes/index";
 import { Route as ReviewsIdRouteImport } from "./routes/reviews.$id";
 import { Route as ContractsIdRouteImport } from "./routes/contracts.$id";
 import { Route as ApiSplatRouteImport } from "./routes/api/$";
+import { Route as DotwellKnownSplatRouteImport } from "./routes/[.]well-known/$";
 
 const WorkflowsRoute = WorkflowsRouteImport.update({
   id: "/workflows",
@@ -76,6 +77,11 @@ const ApiSplatRoute = ApiSplatRouteImport.update({
   path: "/api/$",
   getParentRoute: () => rootRouteImport,
 } as any);
+const DotwellKnownSplatRoute = DotwellKnownSplatRouteImport.update({
+  id: "/.well-known/$",
+  path: "/.well-known/$",
+  getParentRoute: () => rootRouteImport,
+} as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   "/settings": typeof SettingsRoute;
   "/signup": typeof SignupRoute;
   "/workflows": typeof WorkflowsRoute;
+  "/.well-known/$": typeof DotwellKnownSplatRoute;
   "/api/$": typeof ApiSplatRoute;
   "/contracts/$id": typeof ContractsIdRoute;
   "/reviews/$id": typeof ReviewsIdRoute;
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   "/settings": typeof SettingsRoute;
   "/signup": typeof SignupRoute;
   "/workflows": typeof WorkflowsRoute;
+  "/.well-known/$": typeof DotwellKnownSplatRoute;
   "/api/$": typeof ApiSplatRoute;
   "/contracts/$id": typeof ContractsIdRoute;
   "/reviews/$id": typeof ReviewsIdRoute;
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   "/settings": typeof SettingsRoute;
   "/signup": typeof SignupRoute;
   "/workflows": typeof WorkflowsRoute;
+  "/.well-known/$": typeof DotwellKnownSplatRoute;
   "/api/$": typeof ApiSplatRoute;
   "/contracts/$id": typeof ContractsIdRoute;
   "/reviews/$id": typeof ReviewsIdRoute;
@@ -128,6 +137,7 @@ export interface FileRouteTypes {
     | "/settings"
     | "/signup"
     | "/workflows"
+    | "/.well-known/$"
     | "/api/$"
     | "/contracts/$id"
     | "/reviews/$id";
@@ -141,6 +151,7 @@ export interface FileRouteTypes {
     | "/settings"
     | "/signup"
     | "/workflows"
+    | "/.well-known/$"
     | "/api/$"
     | "/contracts/$id"
     | "/reviews/$id";
@@ -154,6 +165,7 @@ export interface FileRouteTypes {
     | "/settings"
     | "/signup"
     | "/workflows"
+    | "/.well-known/$"
     | "/api/$"
     | "/contracts/$id"
     | "/reviews/$id";
@@ -168,6 +180,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute;
   SignupRoute: typeof SignupRoute;
   WorkflowsRoute: typeof WorkflowsRoute;
+  DotwellKnownSplatRoute: typeof DotwellKnownSplatRoute;
   ApiSplatRoute: typeof ApiSplatRoute;
   ReviewsIdRoute: typeof ReviewsIdRoute;
 }
@@ -251,6 +264,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof ApiSplatRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/.well-known/$": {
+      id: "/.well-known/$";
+      path: "/.well-known/$";
+      fullPath: "/.well-known/$";
+      preLoaderRoute: typeof DotwellKnownSplatRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
@@ -273,6 +293,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
   WorkflowsRoute: WorkflowsRoute,
+  DotwellKnownSplatRoute: DotwellKnownSplatRoute,
   ApiSplatRoute: ApiSplatRoute,
   ReviewsIdRoute: ReviewsIdRoute,
 };
