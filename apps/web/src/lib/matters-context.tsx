@@ -42,6 +42,14 @@ export function MattersProvider({ children }: { children: React.ReactNode }) {
     return matters.find((m) => m.matter.id === currentId) ?? matters[0]!;
   }, [matters, currentId]);
 
+  // If the stored matter is gone (access lost / closed), persist the fallback so
+  // localStorage doesn't keep a dead id around.
+  useEffect(() => {
+    if (currentId && matters.length && !matters.some((m) => m.matter.id === currentId)) {
+      setCurrent(matters[0]!.matter.id);
+    }
+  }, [currentId, matters, setCurrent]);
+
   const value = useMemo(
     () => ({ matters, current, setCurrent, refresh }),
     [matters, current, setCurrent, refresh]
