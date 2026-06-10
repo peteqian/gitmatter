@@ -4,7 +4,10 @@ import {
   canAccessArtifact,
   createDocument,
   deleteDocument,
+  DOCX_MIME,
   fileTypeFromName,
+  getDocument,
+  getObject,
   listDocuments,
   retryDocument,
   uploadDocument,
@@ -58,6 +61,24 @@ documentsRoute.post("/api/documents/upload", async (c) => {
   const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : file.name;
   const doc = await uploadDocument(user.id, { title, fileType, bytes, matterId });
   return c.json(doc, 202);
+});
+
+// Download the stored file (e.g. a generated .docx). Viewer access is enough.
+documentsRoute.get("/api/documents/:id/download", async (c) => {
+  const id = c.req.param("id");
+  if (!(await canAccessArtifact(c.get("user").id, "document", id)))
+    return c.json({ error: "Not found" }, 404);
+  const doc = await getDocument(id);
+  if (!doc?.storagePath) return c.json({ error: "no stored file" }, 404);
+  const bytes = await getObject(doc.storagePath);
+  const mime = doc.fileType === "docx" ? DOCX_MIME : "application/octet-stream";
+  const filename = doc.title.endsWith(".docx") ? doc.title : `${doc.title}.docx`;
+  return new Response(bytes as BodyInit, {
+    headers: {
+      "Content-Type": mime,
+      "Content-Disposition": `attachment; filename="${filename.replace(/"/g, "")}"`,
+    },
+  });
 });
 
 // Re-queue a failed extraction.

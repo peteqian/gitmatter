@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +14,7 @@ type Turn = {
   role: "user" | "assistant";
   text: string;
   toolCalls?: Array<{ tool: string; input: unknown }>;
+  documents?: Array<{ id: string; title: string; download: string }>;
 };
 
 function Chat() {
@@ -32,7 +34,10 @@ function Chat() {
       const r = await api.sendChat(message);
       setTools(r.tools);
       setJurisdiction(r.jurisdiction);
-      setTurns((t) => [...t, { role: "assistant", text: r.text, toolCalls: r.toolCalls }]);
+      setTurns((t) => [
+        ...t,
+        { role: "assistant", text: r.text, toolCalls: r.toolCalls, documents: r.documents },
+      ]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -69,6 +74,17 @@ function Chat() {
                   ))}
                 </div>
               )}
+              {t.documents?.map((d) => (
+                <a
+                  key={d.id}
+                  href={api.documentDownloadUrl(d.id)}
+                  className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm hover:bg-muted/50"
+                >
+                  <FileDown className="size-4 text-muted-foreground" />
+                  <span className="flex-1 truncate">{d.title}</span>
+                  <span className="text-xs text-muted-foreground">Download .docx</span>
+                </a>
+              ))}
             </CardContent>
           </Card>
         ))}

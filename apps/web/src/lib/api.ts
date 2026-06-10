@@ -251,7 +251,9 @@ export const api = {
       toolCalls: Array<{ tool: string; input: unknown }>;
       tools: string[];
       jurisdiction: string;
+      documents: Array<{ id: string; title: string; download: string }>;
     }>("/api/chat", { method: "POST", body: JSON.stringify({ message }) }),
+  documentDownloadUrl: (id: string) => `/api/documents/${id}/download`,
 };
 
 export type ContractEdit = {

@@ -3,10 +3,12 @@ import { z } from "zod";
 import {
   canAccessArtifact,
   createContract,
+  createGeneratedDocument,
   createMatter,
   createReview,
   createWorkflow,
   deriveBlame,
+  buildDocxSpec,
   diffCommits,
   ensureDefaultMatter,
   getContract,
@@ -200,6 +202,41 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
         practiceArea,
       });
       return json({ matterId: matter.id });
+    }
+  );
+
+  // ---- Document generation ----
+
+  server.registerTool(
+    "generate_docx",
+    {
+      description:
+        "Generate a downloadable Word (.docx) document from structured blocks and file it as a new document artifact. Blocks: {type:'heading',text,level?} | {type:'paragraph',text} | {type:'table',rows:[[..]]} (first row is the header).",
+      inputSchema: {
+        title: z.string(),
+        blocks: z.array(
+          z.object({
+            type: z.enum(["heading", "paragraph", "table"]),
+            text: z.string().optional(),
+            level: z.number().optional(),
+            rows: z.array(z.array(z.string())).optional(),
+          })
+        ),
+        matterId: z.string().optional(),
+      },
+    },
+    async ({ title, blocks, matterId }) => {
+      const resolved = await resolveMatter(matterId);
+      if (!resolved) return json({ error: "Forbidden: no access to that matter" });
+      const doc = await createGeneratedDocument(actor, {
+        matterId: resolved,
+        spec: buildDocxSpec(title, blocks),
+      });
+      return json({
+        documentId: doc.id,
+        title: doc.title,
+        download: `/api/documents/${doc.id}/download`,
+      });
     }
   );
 

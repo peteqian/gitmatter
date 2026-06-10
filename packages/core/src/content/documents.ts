@@ -1,11 +1,14 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db/client";
 import { documents, type Document } from "@workspace/db/schema";
-import { recordCommit } from "../core/commit.js";
+import { type Actor, recordCommit } from "../core/commit.js";
 import { extractMarkdown, type SupportedFileType } from "./extract.js";
+import { generateDocx, type DocxSpec } from "./docx/generate.js";
 import { getObject, putObject } from "../core/storage.js";
 
 const MAX_ATTEMPTS = 3;
+
+export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 export function listDocuments(userId: string) {
   return db
@@ -38,6 +41,44 @@ export async function createDocument(
     })
     .returning();
   return doc;
+}
+
+/**
+ * Generate a .docx from a structured spec, store it, and record a `create`
+ * commit so the new document lands in the same audit log as everything else.
+ * Used by the in-app chat tool and the MCP `generate_docx` tool.
+ */
+export async function createGeneratedDocument(
+  actor: Actor,
+  input: { matterId: string; spec: DocxSpec }
+): Promise<Document> {
+  const bytes = Buffer.from(await generateDocx(input.spec));
+  const [row] = await db
+    .insert(documents)
+    .values({
+      userId: actor.userId,
+      matterId: input.matterId,
+      title: input.spec.title,
+      fileType: "docx",
+      sizeBytes: bytes.length,
+      status: "ready",
+    })
+    .returning();
+  const storagePath = `documents/${row!.id}.docx`;
+  await putObject(storagePath, bytes, DOCX_MIME);
+  await recordCommit({
+    artifactType: "document",
+    artifactId: row!.id,
+    actor,
+    op: "create",
+    message: `Generated ${input.spec.title}`,
+    apply: async ({ tx }) => {
+      await tx.update(documents).set({ storagePath }).where(eq(documents.id, row!.id));
+      return { changes: [{ path: "file", before: null, after: storagePath }] };
+    },
+  });
+  const [final] = await db.select().from(documents).where(eq(documents.id, row!.id));
+  return final!;
 }
 
 /**

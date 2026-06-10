@@ -2,16 +2,20 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import Anthropic from "@anthropic-ai/sdk";
 import {
+  buildDocxSpec,
+  createGeneratedDocument,
   DEFAULT_MODEL,
   getUserApiKey,
   getUserJurisdiction,
   persistChat,
   searchCaseLaw,
   verifyCitations,
+  type LooseDocxBlock,
 } from "@workspace/core";
 import { providersFor, resolveJurisdiction } from "@workspace/registry";
 import { connectEnabledServers } from "../../mcp/client.js";
 import { type AuthEnv } from "../middleware/auth.js";
+import { resolveCreateMatter } from "../lib/matter.js";
 import { chatSchema } from "../schemas/chat.js";
 
 export const chatRoute = new Hono<AuthEnv>();
@@ -69,6 +73,35 @@ chatRoute.post("/api/chat", zValidator("json", chatSchema), async (c) => {
       verifyCitations((i as { citations: string[] }).citations)
     );
   }
+
+  // Document generation — always available. Generated files land as document
+  // artifacts and surface as download cards in the UI.
+  const generated: Array<{ id: string; title: string; download: string }> = [];
+  tools.push({
+    name: "generate_docx",
+    description:
+      "Generate a downloadable Word (.docx) from structured blocks: {type:'heading',text,level?} | {type:'paragraph',text} | {type:'table',rows:[[..]]} (first row is the header).",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        blocks: { type: "array", items: { type: "object" } },
+      },
+      required: ["title", "blocks"],
+    },
+  });
+  internal.set("generate_docx", async (i) => {
+    const matterId = await resolveCreateMatter(user);
+    if (!matterId) return { error: "No matter to file the document under" };
+    const { title, blocks } = i as { title: string; blocks: LooseDocxBlock[] };
+    const doc = await createGeneratedDocument(
+      { type: "agent", userId: user.id, agentLabel: "chat" },
+      { matterId, spec: buildDocxSpec(title, blocks ?? []) }
+    );
+    const download = `/api/documents/${doc.id}/download`;
+    generated.push({ id: doc.id, title: doc.title, download });
+    return { documentId: doc.id, title: doc.title, download };
+  });
 
   const anthropic = new Anthropic({ apiKey });
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: body.message }];
@@ -157,5 +190,11 @@ chatRoute.post("/api/chat", zValidator("json", chatSchema), async (c) => {
   // Persist conversation (append-only).
   await persistChat(user.id, { message: body.message, finalText, toolCalls });
 
-  return c.json({ text: finalText, toolCalls, tools: tools.map((t) => t.name), jurisdiction });
+  return c.json({
+    text: finalText,
+    toolCalls,
+    tools: tools.map((t) => t.name),
+    jurisdiction,
+    documents: generated,
+  });
 });
