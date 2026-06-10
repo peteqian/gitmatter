@@ -61,10 +61,10 @@ export function AppSidebar() {
             to="/"
             className="flex items-center gap-1.5 px-2 transition-opacity hover:opacity-80"
           >
-            <span className="grid size-6 place-items-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
+            <span className="grid size-6 place-items-center rounded-md bg-primary font-serif text-sm font-medium text-primary-foreground">
               g
             </span>
-            <span className="font-serif text-2xl font-light">gitcounsel</span>
+            <span className="font-serif text-2xl font-light tracking-tight">gitcounsel</span>
           </Link>
         )}
         <button
