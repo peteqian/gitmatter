@@ -1,5 +1,6 @@
 import { integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth.js";
+import { matters } from "./matters.js";
 import type { ArtifactType } from "./commits.js";
 
 export const chats = pgTable("chats", {
@@ -7,6 +8,7 @@ export const chats = pgTable("chats", {
   userId: text("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
+  matterId: uuid("matter_id").references(() => matters.id, { onDelete: "cascade" }),
   // Optionally scoped to an artifact (review/contract); null = global chat.
   artifactType: text("artifact_type").$type<ArtifactType>(),
   artifactId: uuid("artifact_id"),

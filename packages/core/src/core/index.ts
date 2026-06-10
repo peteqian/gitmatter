@@ -1,3 +1,4 @@
+export * from "./access.js";
 export * from "./commit.js";
 export * from "./crypto.js";
 export * from "./keys.js";

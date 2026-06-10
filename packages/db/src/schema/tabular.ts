@@ -1,5 +1,6 @@
 import { integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth.js";
+import { matters } from "./matters.js";
 
 export type TabularColumn = {
   index: number;
@@ -19,6 +20,7 @@ export const tabularReviews = pgTable("tabular_reviews", {
   userId: text("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
+  matterId: uuid("matter_id").references(() => matters.id, { onDelete: "cascade" }),
   createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   jurisdiction: text("jurisdiction"),

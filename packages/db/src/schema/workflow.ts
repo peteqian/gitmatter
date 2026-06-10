@@ -1,10 +1,13 @@
 import { boolean, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth.js";
+import { matters } from "./matters.js";
 import type { TabularColumn } from "./tabular.js";
 
 export const workflows = pgTable("workflows", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+  // Null for system templates (global, matter-agnostic); set for user workflows.
+  matterId: uuid("matter_id").references(() => matters.id, { onDelete: "cascade" }),
   createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   type: text("type").$type<"assistant" | "tabular">().notNull(),

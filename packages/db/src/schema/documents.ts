@@ -1,5 +1,6 @@
 import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth.js";
+import { matters } from "./matters.js";
 
 // Uploaded source documents. `markdown` holds the extracted text (via the
 // markitdown MCP sidecar or a local extractor) used as LLM context. Extraction
@@ -13,6 +14,7 @@ export const documents = pgTable("documents", {
   userId: text("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
+  matterId: uuid("matter_id").references(() => matters.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   fileType: text("file_type").notNull(),
   storagePath: text("storage_path"),
