@@ -12,6 +12,7 @@ import { chatRoute } from "./routes/chat.js";
 import { contractRoute } from "./routes/contract.js";
 import { documentsRoute } from "./routes/documents.js";
 import { keysRoute } from "./routes/keys.js";
+import { mattersRoute } from "./routes/matters.js";
 import { tabularRoute } from "./routes/tabular.js";
 import { tokensRoute } from "./routes/tokens.js";
 import { workflowRoute } from "./routes/workflow.js";
@@ -44,6 +45,7 @@ app.use("/api/*", (c, next) => {
 });
 
 app.route("/", keysRoute);
+app.route("/", mattersRoute);
 app.route("/", documentsRoute);
 app.route("/", tabularRoute);
 app.route("/", contractRoute);

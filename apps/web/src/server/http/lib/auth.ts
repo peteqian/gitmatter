@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
+import { ensureDefaultMatter } from "@workspace/core";
 import { db } from "@workspace/db/client";
 import { account, session, user, verification } from "@workspace/db/schema";
 
@@ -15,6 +16,17 @@ export const auth = betterAuth({
     schema: { user, session, account, verification },
   }),
   emailAndPassword: { enabled: true },
+  databaseHooks: {
+    user: {
+      create: {
+        // Every new user gets a personal client + home matter so they always
+        // have somewhere to put work. Idempotent.
+        after: async (u) => {
+          await ensureDefaultMatter(u.id, u.name);
+        },
+      },
+    },
+  },
   // Ensures Set-Cookie survives TanStack Start server-fn responses.
   plugins: [tanstackStartCookies()],
 });

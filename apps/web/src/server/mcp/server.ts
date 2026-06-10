@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
   createContract,
+  createMatter,
   createReview,
   createWorkflow,
   deriveBlame,
@@ -10,8 +11,10 @@ import {
   getReview,
   getUserApiKey,
   getWorkflow,
+  listClients,
   listCommits,
   listContracts,
+  listMattersForUser,
   listReviews,
   listWorkflows,
   proposeEdit,
@@ -126,6 +129,45 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
       inputSchema: { reviewId: z.string(), path: z.string() },
     },
     async ({ reviewId, path }) => json(await deriveBlame("tabular_review", reviewId, path))
+  );
+
+  // ---- Clients & matters (org structure). Matter-team management is UI-only. ----
+
+  server.registerTool(
+    "list_clients",
+    { description: "List the firm's clients.", inputSchema: {} },
+    async () => json(await listClients())
+  );
+
+  server.registerTool(
+    "list_matters",
+    {
+      description: "List the matters you're staffed on, with client and your role.",
+      inputSchema: {},
+    },
+    async () => json(await listMattersForUser(actor.userId))
+  );
+
+  server.registerTool(
+    "create_matter",
+    {
+      description: "Create a matter for a client. You become its owner.",
+      inputSchema: {
+        clientId: z.string(),
+        name: z.string(),
+        matterNumber: z.string().optional(),
+        practiceArea: z.string().optional(),
+      },
+    },
+    async ({ clientId, name, matterNumber, practiceArea }) => {
+      const matter = await createMatter(actor.userId, {
+        clientId,
+        name,
+        matterNumber,
+        practiceArea,
+      });
+      return json({ matterId: matter.id });
+    }
   );
 
   // --- Contracts (text redline) ---

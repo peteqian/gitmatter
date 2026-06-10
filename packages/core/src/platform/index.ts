@@ -1,4 +1,5 @@
 export * from "./chat.js";
+export * from "./matters.js";
 export * from "./workflow.js";
 export * from "./mcp-tokens.js";
 export * from "./connections.js";
