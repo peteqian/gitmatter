@@ -1,0 +1,52 @@
+{
+  "name": "web",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
+    "lint": "vp lint",
+    "format": "vp fmt \"**/*.{ts,tsx}\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.0",
+    "@hono/mcp": "^0.3.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@tailwindcss/vite": "^4",
+    "@tanstack/react-devtools": "latest",
+    "@tanstack/react-router": "latest",
+    "@tanstack/react-router-devtools": "latest",
+    "@tanstack/react-start": "latest",
+    "@tanstack/router-plugin": "latest",
+    "@workspace/core": "workspace:*",
+    "@workspace/db": "workspace:*",
+    "@workspace/registry": "workspace:*",
+    "@workspace/ui": "workspace:*",
+    "better-auth": "^1.6.15",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.44.6",
+    "hono": "^4.12.25",
+    "lucide-react": "^1.17.0",
+    "postgres": "^3.4.9",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@tanstack/devtools-vite": "latest",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6",
+    "dotenv": "^17.4.2",
+    "typescript": "^6",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

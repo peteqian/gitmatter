@@ -1,0 +1,38 @@
+import { integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { user } from "./auth.js";
+import type { ArtifactType } from "./commits.js";
+
+export const chats = pgTable("chats", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  // Optionally scoped to an artifact (review/contract); null = global chat.
+  artifactType: text("artifact_type").$type<ArtifactType>(),
+  artifactId: uuid("artifact_id"),
+  title: text("title"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Append-only conversation log. NOT part of the commit spine.
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    chatId: uuid("chat_id")
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    seq: integer("seq").notNull(),
+    actorType: text("actor_type").$type<"user" | "agent" | "tool">().notNull(),
+    actorId: text("actor_id"),
+    role: text("role").$type<"user" | "assistant">().notNull(),
+    content: jsonb("content").notNull(),
+    annotations: jsonb("annotations"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [unique("chat_message_seq_unique").on(t.chatId, t.seq)]
+);
+
+export type Chat = typeof chats.$inferSelect;
+export type ChatMessage = typeof chatMessages.$inferSelect;

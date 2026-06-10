@@ -1,0 +1,119 @@
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@workspace/ui/components/button";
+import { Input } from "@workspace/ui/components/input";
+import { Label } from "@workspace/ui/components/label";
+import { Textarea } from "@workspace/ui/components/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@workspace/ui/components/card";
+import { JURISDICTIONS } from "@workspace/registry";
+import { api } from "../lib/api";
+
+export const Route = createFileRoute("/contracts")({ component: Contracts });
+
+function Contracts() {
+  const router = useRouter();
+  const [contracts, setContracts] = useState<
+    Array<{ id: string; title: string; createdAt: string }>
+  >([]);
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [jurisdiction, setJurisdiction] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api
+      .listContracts()
+      .then(setContracts)
+      .catch(() => {});
+  }, []);
+
+  async function create() {
+    if (!title.trim() || !body.trim()) return;
+    setBusy(true);
+    try {
+      const { id } = await api.createContract({
+        title: title.trim(),
+        body,
+        jurisdiction: jurisdiction || null,
+      });
+      void router.navigate({ to: "/contracts/$id", params: { id } });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="pt-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Contracts</h1>
+        <Button onClick={() => setCreating((v) => !v)}>
+          {creating ? "Cancel" : "New contract"}
+        </Button>
+      </div>
+
+      {creating && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">New contract</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label>Title</Label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Acme MSA"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Governing jurisdiction (optional override)</Label>
+              <select
+                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                value={jurisdiction}
+                onChange={(e) => setJurisdiction(e.target.value)}
+              >
+                <option value="">Use my default</option>
+                {JURISDICTIONS.map((j) => (
+                  <option key={j.code} value={j.code}>
+                    {j.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Body</Label>
+              <Textarea rows={10} value={body} onChange={(e) => setBody(e.target.value)} />
+            </div>
+            <Button
+              onClick={create}
+              disabled={busy || !title.trim() || !body.trim()}
+              className="self-start"
+            >
+              {busy ? "Creating…" : "Create contract"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {contracts.map((c) => (
+          <Link key={c.id} to="/contracts/$id" params={{ id: c.id }}>
+            <Card className="transition-colors hover:bg-muted/50">
+              <CardHeader>
+                <CardTitle className="text-base">{c.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                {new Date(c.createdAt).toLocaleString()}
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+        {!contracts.length && <p className="text-muted-foreground">No contracts yet.</p>}
+      </div>
+    </div>
+  );
+}

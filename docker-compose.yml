@@ -1,0 +1,51 @@
+# Self-host stack. For development you typically only run `docker compose up -d
+# postgres` and `bun run dev`; this full compose runs the whole system.
+#
+#   docker compose up --build
+#
+# markitdown has no authentication, so it is NOT published to the host — it is
+# only reachable on the internal compose network.
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: gitcounsel
+      POSTGRES_PASSWORD: gitcounsel
+      POSTGRES_DB: gitcounsel
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gitcounsel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Microsoft MarkItDown as a Python sidecar. No auth -> internal network only.
+  markitdown:
+    image: python:3.12-slim
+    command: sh -c "pip install --no-cache-dir markitdown-mcp && markitdown-mcp --http --host 0.0.0.0 --port 4281"
+    expose:
+      - "4281"
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://gitcounsel:gitcounsel@postgres:5432/gitcounsel
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set in .env}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4280}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set in .env}
+      COURTLISTENER_API_TOKEN: ${COURTLISTENER_API_TOKEN:-}
+      MARKITDOWN_MCP_URL: http://markitdown:4281/mcp
+      PORT: "4280"
+    ports:
+      - "4280:4280"
+
+volumes:
+  pgdata:

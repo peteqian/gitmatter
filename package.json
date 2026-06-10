@@ -1,0 +1,44 @@
+{
+  "name": "gitcounsel",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "vp run -r build",
+    "dev": "vp run -r dev",
+    "lint": "vp lint",
+    "format": "vp fmt",
+    "typecheck": "vp run -r typecheck",
+    "test": "vp test",
+    "check": "vp check",
+    "prepare": "vp config"
+  },
+  "devDependencies": {
+    "dotenv": "^17.4.2",
+    "typescript": "^6",
+    "vite-plus": "catalog:"
+  },
+  "packageManager": "bun@1.3.14",
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "lightningcss"
+    ]
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "catalog": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest",
+    "vite-plus": "latest"
+  },
+  "overrides": {
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
