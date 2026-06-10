@@ -34,9 +34,9 @@ Copy `.env.example` to `.env` and fill in:
   `S3_FORCE_PATH_STYLE` — S3-compatible object storage (defaults target R2). **Required** — set up
   an R2 bucket or any S3 endpoint; there is no local-filesystem fallback.
 
-LLM provider keys (Claude / Gemini / OpenAI / OpenRouter) are **not** env vars — a user adds them
-in-app under Settings (encrypted, runtime-loaded). Optional server-wide fallback keys may be set in
-env.
+LLM provider keys (Claude / Gemini / OpenAI / OpenRouter) are added in-app under Settings
+(encrypted, runtime-loaded). A user's own key **overrides** the server key; an optional server-wide
+key may be set in env as a fallback when a user hasn't provided their own.
 
 ## Local development
 
