@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { db, sql } from "@workspace/db/client";
-import { contracts, user } from "@workspace/db/schema";
+import { clients, user } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { listCommits } from "../src/core/commit.js";
+import { ensureDefaultMatter } from "../src/platform/matters.js";
 import {
   createContractFromDocx,
   getContract,
@@ -19,6 +20,7 @@ const fixture = (): Buffer =>
   readFileSync(fileURLToPath(new URL("./fixtures/single-paragraph.docx", import.meta.url)));
 
 let contractId: string;
+let matterId: string;
 
 beforeAll(async () => {
   await db.insert(user).values({
@@ -27,17 +29,19 @@ beforeAll(async () => {
     email: `${userId}@example.com`,
     emailVerified: true,
   });
+  matterId = await ensureDefaultMatter(userId, "Test User");
 });
 
 afterAll(async () => {
-  await db.delete(contracts).where(eq(contracts.userId, userId));
+  // Deleting the client cascades its matters -> contracts -> members.
+  await db.delete(clients).where(eq(clients.createdBy, userId));
   await db.delete(user).where(eq(user.id, userId));
   await sql.end();
 });
 
 describe("contract DOCX redline through the commit spine", () => {
   test("upload creates a versioned docx contract", async () => {
-    contractId = await createContractFromDocx(actor, { title: "NDA", bytes: fixture() });
+    contractId = await createContractFromDocx(actor, { title: "NDA", bytes: fixture(), matterId });
     const result = await getContract(contractId);
     expect(result).not.toBeNull();
     expect(result!.contract.body).toContain("imported air");

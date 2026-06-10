@@ -12,7 +12,7 @@ import { getObject, putObject } from "../core/storage.js";
 
 export async function createContract(
   actor: Actor,
-  input: { title: string; body: string; jurisdiction?: string | null }
+  input: { title: string; body: string; jurisdiction?: string | null; matterId: string }
 ) {
   const contractId = randomUUID();
   await recordCommit({
@@ -25,6 +25,7 @@ export async function createContract(
       await tx.insert(contracts).values({
         id: contractId,
         userId: actor.userId,
+        matterId: input.matterId,
         createdBy: actor.userId,
         title: input.title,
         body: input.body,
@@ -63,7 +64,7 @@ async function loadDocxBytes(storagePath: string): Promise<Buffer> {
 /** Create a contract from an uploaded DOCX. Stores v1 bytes + extracted body text. */
 export async function createContractFromDocx(
   actor: Actor,
-  input: { title: string; bytes: Buffer; jurisdiction?: string | null }
+  input: { title: string; bytes: Buffer; jurisdiction?: string | null; matterId: string }
 ) {
   const contractId = randomUUID();
   const body = await extractDocxBodyText(input.bytes);
@@ -80,6 +81,7 @@ export async function createContractFromDocx(
       await tx.insert(contracts).values({
         id: contractId,
         userId: actor.userId,
+        matterId: input.matterId,
         createdBy: actor.userId,
         title: input.title,
         body,

@@ -6,6 +6,7 @@ export const createWorkflowSchema = z.object({
   type: z.enum(["assistant", "tabular"]),
   promptMd: z.string().min(1),
   columnsConfig: z.array(tabularColumnSchema).optional(),
+  matterId: z.string().uuid().optional(),
 });
 
 export const patchWorkflowSchema = z.object({

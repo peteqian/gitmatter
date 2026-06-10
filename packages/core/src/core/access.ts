@@ -10,6 +10,9 @@ import {
   workflows,
 } from "@workspace/db/schema";
 
+// Re-export so consumers can name the role type without reaching into the db pkg.
+export type { MatterRole } from "@workspace/db/schema";
+
 // Ordered so a higher role satisfies a lower requirement.
 const ROLE_RANK: Record<MatterRole, number> = { viewer: 0, editor: 1, owner: 2 };
 

@@ -10,6 +10,7 @@ export const createReviewSchema = z.object({
   title: z.string().min(1),
   columnsConfig: z.array(tabularColumnSchema).min(1),
   documentIds: z.array(z.string()).min(1),
+  matterId: z.string().uuid().optional(),
 });
 
 export const runCellSchema = z.object({

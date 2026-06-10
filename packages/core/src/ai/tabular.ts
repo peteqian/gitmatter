@@ -60,6 +60,7 @@ export async function createReview(
     documentIds: string[];
     workflowId?: string;
     jurisdiction?: string | null;
+    matterId: string;
   }
 ) {
   const reviewId = randomUUID();
@@ -73,6 +74,7 @@ export async function createReview(
       await tx.insert(tabularReviews).values({
         id: reviewId,
         userId: actor.userId,
+        matterId: input.matterId,
         createdBy: actor.userId,
         title: input.title,
         columnsConfig: input.columnsConfig,

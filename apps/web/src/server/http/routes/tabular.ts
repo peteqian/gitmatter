@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import {
+  type MatterRole,
+  canAccessArtifact,
   createReview,
   diffCommits,
   getReview,
@@ -10,9 +12,16 @@ import {
   runCell,
 } from "@workspace/core";
 import { type AuthEnv } from "../middleware/auth.js";
+import { resolveCreateMatter } from "../lib/matter.js";
 import { createReviewSchema, runCellSchema } from "../schemas/tabular.js";
 
 export const tabularRoute = new Hono<AuthEnv>();
+
+// Fetch a review only if the caller has matter access at `min` role.
+async function access(userId: string, reviewId: string, min: MatterRole = "viewer") {
+  if (!(await canAccessArtifact(userId, "tabular_review", reviewId, min))) return null;
+  return getReview(reviewId);
+}
 
 tabularRoute.get("/api/tabular/reviews", async (c) => {
   return c.json(await listReviews(c.get("user").id));
@@ -21,25 +30,30 @@ tabularRoute.get("/api/tabular/reviews", async (c) => {
 tabularRoute.post("/api/tabular/reviews", zValidator("json", createReviewSchema), async (c) => {
   const user = c.get("user");
   const body = c.req.valid("json");
+  const matterId = await resolveCreateMatter(user, body.matterId);
+  if (!matterId) return c.json({ error: "Forbidden" }, 403);
   const reviewId = await createReview(
     { type: "user", userId: user.id },
-    { title: body.title, columnsConfig: body.columnsConfig, documentIds: body.documentIds }
+    {
+      title: body.title,
+      columnsConfig: body.columnsConfig,
+      documentIds: body.documentIds,
+      matterId,
+    }
   );
   return c.json({ id: reviewId }, 201);
 });
 
 tabularRoute.get("/api/tabular/reviews/:id", async (c) => {
-  const user = c.get("user");
-  const result = await getReview(c.req.param("id"));
-  if (!result || result.review.userId !== user.id) return c.json({ error: "Not found" }, 404);
+  const result = await access(c.get("user").id, c.req.param("id"));
+  if (!result) return c.json({ error: "Not found" }, 404);
   return c.json(result);
 });
 
 tabularRoute.post("/api/tabular/reviews/:id/run", zValidator("json", runCellSchema), async (c) => {
   const user = c.get("user");
   const reviewId = c.req.param("id");
-  const result = await getReview(reviewId);
-  if (!result || result.review.userId !== user.id) return c.json({ error: "Not found" }, 404);
+  if (!(await access(user.id, reviewId, "editor"))) return c.json({ error: "Not found" }, 404);
 
   const apiKey = await getUserApiKey(user.id, "anthropic");
   if (!apiKey) return c.json({ error: "No Anthropic key set" }, 400);
@@ -57,16 +71,14 @@ tabularRoute.post("/api/tabular/reviews/:id/run", zValidator("json", runCellSche
 });
 
 tabularRoute.get("/api/tabular/reviews/:id/history", async (c) => {
-  const user = c.get("user");
-  const result = await getReview(c.req.param("id"));
-  if (!result || result.review.userId !== user.id) return c.json({ error: "Not found" }, 404);
+  if (!(await access(c.get("user").id, c.req.param("id"))))
+    return c.json({ error: "Not found" }, 404);
   return c.json(await listCommits("tabular_review", c.req.param("id")));
 });
 
 tabularRoute.get("/api/tabular/reviews/:id/diff", async (c) => {
-  const user = c.get("user");
-  const result = await getReview(c.req.param("id"));
-  if (!result || result.review.userId !== user.id) return c.json({ error: "Not found" }, 404);
+  if (!(await access(c.get("user").id, c.req.param("id"))))
+    return c.json({ error: "Not found" }, 404);
   const from = Number(c.req.query("from") ?? "0");
   const to = Number(c.req.query("to") ?? "0");
   return c.json(await diffCommits("tabular_review", c.req.param("id"), from, to));

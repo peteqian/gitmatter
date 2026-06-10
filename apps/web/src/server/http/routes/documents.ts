@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import {
+  canAccessArtifact,
   createDocument,
   deleteDocument,
   fileTypeFromName,
@@ -9,6 +10,7 @@ import {
   uploadDocument,
 } from "@workspace/core";
 import { type AuthEnv } from "../middleware/auth.js";
+import { resolveCreateMatter } from "../lib/matter.js";
 import { createDocumentSchema } from "../schemas/documents.js";
 
 export const documentsRoute = new Hono<AuthEnv>();
@@ -22,11 +24,15 @@ documentsRoute.get("/api/documents", async (c) => {
 // MVP: create a document from pasted text/markdown. File upload + markitdown
 // extraction lands in a later phase.
 documentsRoute.post("/api/documents", zValidator("json", createDocumentSchema), async (c) => {
+  const user = c.get("user");
   const body = c.req.valid("json");
-  const doc = await createDocument(c.get("user").id, {
+  const matterId = await resolveCreateMatter(user, body.matterId);
+  if (!matterId) return c.json({ error: "Forbidden" }, 403);
+  const doc = await createDocument(user.id, {
     title: body.title,
     markdown: body.markdown,
     fileType: body.fileType,
+    matterId,
   });
   return c.json(doc, 201);
 });
@@ -41,20 +47,33 @@ documentsRoute.post("/api/documents/upload", async (c) => {
   if (!fileType) return c.json({ error: "only PDF and DOCX/DOC are supported" }, 400);
   if (file.size > MAX_UPLOAD_BYTES) return c.json({ error: "file exceeds 25 MB limit" }, 400);
 
+  const user = c.get("user");
+  const matterId = await resolveCreateMatter(
+    user,
+    typeof body.matterId === "string" ? body.matterId : undefined
+  );
+  if (!matterId) return c.json({ error: "Forbidden" }, 403);
+
   const bytes = Buffer.from(await file.arrayBuffer());
   const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : file.name;
-  const doc = await uploadDocument(c.get("user").id, { title, fileType, bytes });
+  const doc = await uploadDocument(user.id, { title, fileType, bytes, matterId });
   return c.json(doc, 202);
 });
 
 // Re-queue a failed extraction.
 documentsRoute.post("/api/documents/:id/retry", async (c) => {
-  const doc = await retryDocument(c.get("user").id, c.req.param("id"));
+  const id = c.req.param("id");
+  if (!(await canAccessArtifact(c.get("user").id, "document", id, "editor")))
+    return c.json({ error: "Not found" }, 404);
+  const doc = await retryDocument(id);
   if (!doc) return c.json({ error: "document not found or not failed" }, 404);
   return c.json(doc);
 });
 
 documentsRoute.delete("/api/documents/:id", async (c) => {
-  await deleteDocument(c.get("user").id, c.req.param("id"));
+  const id = c.req.param("id");
+  if (!(await canAccessArtifact(c.get("user").id, "document", id, "editor")))
+    return c.json({ error: "Not found" }, 404);
+  await deleteDocument(id);
   return c.body(null, 204);
 });

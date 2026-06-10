@@ -4,6 +4,7 @@ export const createContractSchema = z.object({
   title: z.string().min(1),
   body: z.string().optional(),
   jurisdiction: z.string().nullable().optional(),
+  matterId: z.string().uuid().optional(),
 });
 
 export const proposeEditSchema = z.object({

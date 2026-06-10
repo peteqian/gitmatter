@@ -12,7 +12,7 @@ type WorkflowInput = {
   columnsConfig?: TabularColumn[];
 };
 
-export async function createWorkflow(actor: Actor, input: WorkflowInput) {
+export async function createWorkflow(actor: Actor, input: WorkflowInput & { matterId: string }) {
   const workflowId = randomUUID();
   await recordCommit({
     artifactType: "workflow",
@@ -30,6 +30,7 @@ export async function createWorkflow(actor: Actor, input: WorkflowInput) {
       await tx.insert(workflows).values({
         id: workflowId,
         userId: actor.userId,
+        matterId: input.matterId,
         createdBy: actor.userId,
         title: input.title,
         type: input.type,

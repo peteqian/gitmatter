@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import {
+  type MatterRole,
+  canAccessArtifact,
   createContract,
   createContractFromDocx,
   fileTypeFromName,
@@ -12,15 +14,17 @@ import {
   resolveEdit,
 } from "@workspace/core";
 import { type AuthEnv } from "../middleware/auth.js";
+import { resolveCreateMatter } from "../lib/matter.js";
 import { createContractSchema, proposeEditSchema, resolveEditSchema } from "../schemas/contract.js";
 
 export const contractRoute = new Hono<AuthEnv>();
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB
 
-async function owns(userId: string, contractId: string) {
-  const result = await getContract(contractId);
-  return result && result.contract.userId === userId ? result : null;
+// Fetch a contract only if the caller has matter access at `min` role.
+async function access(userId: string, contractId: string, min: MatterRole = "viewer") {
+  if (!(await canAccessArtifact(userId, "contract", contractId, min))) return null;
+  return getContract(contractId);
 }
 
 contractRoute.get("/api/contracts", async (c) => {
@@ -30,9 +34,11 @@ contractRoute.get("/api/contracts", async (c) => {
 contractRoute.post("/api/contracts", zValidator("json", createContractSchema), async (c) => {
   const user = c.get("user");
   const body = c.req.valid("json");
+  const matterId = await resolveCreateMatter(user, body.matterId);
+  if (!matterId) return c.json({ error: "Forbidden" }, 403);
   const id = await createContract(
     { type: "user", userId: user.id },
-    { title: body.title, body: body.body ?? "", jurisdiction: body.jurisdiction ?? null }
+    { title: body.title, body: body.body ?? "", jurisdiction: body.jurisdiction ?? null, matterId }
   );
   return c.json({ id }, 201);
 });
@@ -54,10 +60,16 @@ contractRoute.post("/api/contracts/upload", async (c) => {
       ? body.title.trim()
       : file.name.replace(/\.[^.]+$/, "");
   const jurisdiction = typeof body.jurisdiction === "string" ? body.jurisdiction : null;
+  const user = c.get("user");
+  const matterId = await resolveCreateMatter(
+    user,
+    typeof body.matterId === "string" ? body.matterId : undefined
+  );
+  if (!matterId) return c.json({ error: "Forbidden" }, 403);
   try {
     const id = await createContractFromDocx(
-      { type: "user", userId: c.get("user").id },
-      { title, bytes, jurisdiction }
+      { type: "user", userId: user.id },
+      { title, bytes, jurisdiction, matterId }
     );
     return c.json({ id }, 201);
   } catch (err) {
@@ -66,14 +78,14 @@ contractRoute.post("/api/contracts/upload", async (c) => {
 });
 
 contractRoute.get("/api/contracts/:id", async (c) => {
-  const result = await owns(c.get("user").id, c.req.param("id"));
+  const result = await access(c.get("user").id, c.req.param("id"));
   if (!result) return c.json({ error: "Not found" }, 404);
   return c.json(result);
 });
 
 // Stream the current DOCX bytes (for client-side docx-preview rendering).
 contractRoute.get("/api/contracts/:id/docx", async (c) => {
-  const result = await owns(c.get("user").id, c.req.param("id"));
+  const result = await access(c.get("user").id, c.req.param("id"));
   if (!result) return c.json({ error: "Not found" }, 404);
   const bytes = await getContractDocx(c.req.param("id"));
   if (!bytes) return c.json({ error: "No document version" }, 404);
@@ -87,7 +99,7 @@ contractRoute.get("/api/contracts/:id/docx", async (c) => {
 contractRoute.post("/api/contracts/:id/edits", zValidator("json", proposeEditSchema), async (c) => {
   const user = c.get("user");
   const id = c.req.param("id");
-  if (!(await owns(user.id, id))) return c.json({ error: "Not found" }, 404);
+  if (!(await access(user.id, id, "editor"))) return c.json({ error: "Not found" }, 404);
   const body = c.req.valid("json");
   try {
     await proposeEdit({ type: "user", userId: user.id }, id, {
@@ -107,7 +119,7 @@ contractRoute.post(
   async (c) => {
     const user = c.get("user");
     const id = c.req.param("id");
-    if (!(await owns(user.id, id))) return c.json({ error: "Not found" }, 404);
+    if (!(await access(user.id, id, "editor"))) return c.json({ error: "Not found" }, 404);
     try {
       await resolveEdit(
         { type: "user", userId: user.id },
@@ -123,7 +135,7 @@ contractRoute.post(
 );
 
 contractRoute.get("/api/contracts/:id/history", async (c) => {
-  if (!(await owns(c.get("user").id, c.req.param("id"))))
+  if (!(await access(c.get("user").id, c.req.param("id"))))
     return c.json({ error: "Not found" }, 404);
   return c.json(await listCommits("contract", c.req.param("id")));
 });

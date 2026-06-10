@@ -1,16 +1,19 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
+  canAccessArtifact,
   createContract,
   createMatter,
   createReview,
   createWorkflow,
   deriveBlame,
   diffCommits,
+  ensureDefaultMatter,
   getContract,
   getReview,
   getUserApiKey,
   getWorkflow,
+  hasMatterAccess,
   listClients,
   listCommits,
   listContracts,
@@ -45,6 +48,15 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
   const server = new McpServer({ name: "gitcounsel", version: "0.1.0" });
   const providerIds = new Set(providersFor(account.jurisdiction).map((p) => p.id));
 
+  // Resolve the matter a new artifact lands in: an explicit (editor-checked)
+  // matterId, or the agent user's default matter. Returns null when forbidden.
+  const resolveMatter = async (matterId?: string): Promise<string | null> => {
+    if (matterId) {
+      return (await hasMatterAccess(actor.userId, matterId, "editor")) ? matterId : null;
+    }
+    return ensureDefaultMatter(actor.userId, account.label);
+  };
+
   server.registerTool(
     "list_reviews",
     { description: "List the user's tabular reviews.", inputSchema: {} },
@@ -63,7 +75,8 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
     },
     async ({ reviewId }) => {
       const result = await getReview(reviewId);
-      if (!result || result.review.userId !== actor.userId) return json({ error: "Not found" });
+      if (!result || !(await canAccessArtifact(actor.userId, "tabular_review", reviewId)))
+        return json({ error: "Not found" });
       return json(result);
     }
   );
@@ -76,13 +89,17 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
         title: z.string(),
         documentIds: z.array(z.string()),
         columns: z.array(z.object({ name: z.string(), prompt: z.string() })),
+        matterId: z.string().optional(),
       },
     },
-    async ({ title, documentIds, columns }) => {
+    async ({ title, documentIds, columns, matterId }) => {
+      const resolved = await resolveMatter(matterId);
+      if (!resolved) return json({ error: "Forbidden: no access to that matter" });
       const reviewId = await createReview(actor, {
         title,
         documentIds,
         columnsConfig: columns.map((c, i) => ({ index: i, name: c.name, prompt: c.prompt })),
+        matterId: resolved,
       });
       return json({ reviewId });
     }
@@ -95,6 +112,8 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
       inputSchema: { reviewId: z.string(), documentId: z.string(), columnIndex: z.number() },
     },
     async ({ reviewId, documentId, columnIndex }) => {
+      if (!(await canAccessArtifact(actor.userId, "tabular_review", reviewId, "editor")))
+        return json({ error: "Not found" });
       const apiKey = await getUserApiKey(actor.userId, "anthropic");
       if (!apiKey) return json({ error: "No Anthropic key configured for this account" });
       const result = await runCell(actor, { reviewId, documentId, columnIndex, apiKey });
@@ -186,7 +205,8 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
     },
     async ({ contractId }) => {
       const result = await getContract(contractId);
-      if (!result || result.contract.userId !== actor.userId) return json({ error: "Not found" });
+      if (!result || !(await canAccessArtifact(actor.userId, "contract", contractId)))
+        return json({ error: "Not found" });
       return json(result);
     }
   );
@@ -195,9 +215,13 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
     "create_contract",
     {
       description: "Create a contract from text/markdown.",
-      inputSchema: { title: z.string(), body: z.string() },
+      inputSchema: { title: z.string(), body: z.string(), matterId: z.string().optional() },
     },
-    async ({ title, body }) => json({ contractId: await createContract(actor, { title, body }) })
+    async ({ title, body, matterId }) => {
+      const resolved = await resolveMatter(matterId);
+      if (!resolved) return json({ error: "Forbidden: no access to that matter" });
+      return json({ contractId: await createContract(actor, { title, body, matterId: resolved }) });
+    }
   );
 
   server.registerTool(
@@ -213,6 +237,8 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
       },
     },
     async ({ contractId, find, replace, reason }) => {
+      if (!(await canAccessArtifact(actor.userId, "contract", contractId, "editor")))
+        return json({ error: "Not found" });
       try {
         const changeId = await proposeEdit(actor, contractId, { find, replace, reason });
         return json({ changeId });
@@ -233,6 +259,8 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
       },
     },
     async ({ contractId, changeId, decision }) => {
+      if (!(await canAccessArtifact(actor.userId, "contract", contractId, "editor")))
+        return json({ error: "Not found" });
       try {
         const r = await resolveEdit(actor, contractId, changeId, decision);
         return json({ committed: r.commit?.seq });
@@ -264,7 +292,16 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
       description: "Read a workflow template and its per-field blame.",
       inputSchema: { workflowId: z.string() },
     },
-    async ({ workflowId }) => json(await getWorkflow(workflowId))
+    async ({ workflowId }) => {
+      const result = await getWorkflow(workflowId);
+      if (!result) return json({ error: "Not found" });
+      if (
+        !result.workflow.isSystem &&
+        !(await canAccessArtifact(actor.userId, "workflow", workflowId))
+      )
+        return json({ error: "Not found" });
+      return json(result);
+    }
   );
 
   server.registerTool(
@@ -276,16 +313,28 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
         title: z.string().optional(),
         type: z.enum(["assistant", "tabular"]).optional(),
         promptMd: z.string().optional(),
+        matterId: z.string().optional(),
       },
     },
-    async ({ workflowId, title, type, promptMd }) => {
+    async ({ workflowId, title, type, promptMd, matterId }) => {
       if (workflowId) {
+        const existing = await getWorkflow(workflowId);
+        if (
+          !existing ||
+          existing.workflow.isSystem ||
+          !(await canAccessArtifact(actor.userId, "workflow", workflowId, "editor"))
+        )
+          return json({ error: "Not found" });
         await updateWorkflow(actor, workflowId, { title, type, promptMd });
         return json({ workflowId });
       }
       if (!title || !type || !promptMd)
         return json({ error: "title, type, promptMd required to create" });
-      return json({ workflowId: await createWorkflow(actor, { title, type, promptMd }) });
+      const resolved = await resolveMatter(matterId);
+      if (!resolved) return json({ error: "Forbidden: no access to that matter" });
+      return json({
+        workflowId: await createWorkflow(actor, { title, type, promptMd, matterId: resolved }),
+      });
     }
   );
 

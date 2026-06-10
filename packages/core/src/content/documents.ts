@@ -17,13 +17,14 @@ export function listDocuments(userId: string) {
 
 export async function createDocument(
   userId: string,
-  input: { title: string; markdown: string; fileType?: string }
+  input: { title: string; markdown: string; fileType?: string; matterId: string }
 ) {
   // Pasted text needs no extraction — born ready.
   const [doc] = await db
     .insert(documents)
     .values({
       userId,
+      matterId: input.matterId,
       title: input.title,
       fileType: input.fileType ?? "text/markdown",
       markdown: input.markdown,
@@ -42,12 +43,13 @@ export async function createDocument(
  */
 export async function uploadDocument(
   userId: string,
-  input: { title: string; fileType: SupportedFileType; bytes: Buffer }
+  input: { title: string; fileType: SupportedFileType; bytes: Buffer; matterId: string }
 ) {
   const [row] = await db
     .insert(documents)
     .values({
       userId,
+      matterId: input.matterId,
       title: input.title,
       fileType: input.fileType,
       sizeBytes: input.bytes.length,
@@ -64,16 +66,18 @@ export async function uploadDocument(
   return updated;
 }
 
-export function deleteDocument(userId: string, id: string) {
-  return db.delete(documents).where(and(eq(documents.id, id), eq(documents.userId, userId)));
+// Access is checked at the route/tool layer via the matter guard; these operate
+// by id.
+export function deleteDocument(id: string) {
+  return db.delete(documents).where(eq(documents.id, id));
 }
 
 /** Re-queue a failed document for another extraction attempt. */
-export async function retryDocument(userId: string, id: string) {
+export async function retryDocument(id: string) {
   const [row] = await db
     .update(documents)
     .set({ status: "pending", extractionError: null, attempts: 0, claimedAt: null })
-    .where(and(eq(documents.id, id), eq(documents.userId, userId), eq(documents.status, "failed")))
+    .where(and(eq(documents.id, id), eq(documents.status, "failed")))
     .returning();
   return row ?? null;
 }
