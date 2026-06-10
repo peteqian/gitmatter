@@ -35,8 +35,10 @@ Copy `.env.example` to `.env` and fill in:
   an R2 bucket or any S3 endpoint; there is no local-filesystem fallback.
 
 LLM provider keys (Claude / Gemini / OpenAI / OpenRouter) are added in-app under Settings
-(encrypted, runtime-loaded). A user's own key **overrides** the server key; an optional server-wide
-key may be set in env as a fallback when a user hasn't provided their own.
+(encrypted, runtime-loaded), or set as a server-wide fallback in env (`ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`). A user's own key **overrides** the server
+key. Pick the model per chat message or per review run; OpenRouter is the zero-data-retention
+default.
 
 ## Local development
 
@@ -86,7 +88,8 @@ gitcounsel exposes an MCP server at `/api/mcp` (Streamable HTTP). It accepts two
 static token you mint in **Settings → Connect**, or an OAuth login (for clients that require it,
 like ChatGPT). Whichever you use, the agent acts as your gitcounsel account and everything it does
 lands in the same commit log as an agent. It can drive product features (reviews, contracts,
-workflows, documents, audit) but never auth or user settings (keys, tokens, account).
+workflows, documents, `generate_docx` to produce a downloadable Word file, `search`/`fetch`, audit)
+but never auth or user settings (keys, tokens, account).
 
 > OAuth (ChatGPT, native Claude connectors) needs the server reachable over **HTTPS** at a real
 > hostname. For local testing, put a tunnel (`cloudflared`, `ngrok`) in front of `:4280` and use

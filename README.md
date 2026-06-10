@@ -2,9 +2,11 @@
 
 **The audited legal backend that any AI agent plugs into.**
 
-gitcounsel does AI-assisted legal review — contract redline, tabular extraction, and reusable
-workflows — on a **git-style audit spine**: every change, whether made by a person in the UI or by
-an AI agent, is a commit with author, message, field-level diff, and blame, in one history.
+gitcounsel does AI-assisted legal review — contract redline, tabular extraction, document
+generation, and reusable workflows — on a **git-style audit spine**: every change, whether made by a
+person in the UI or by an AI agent, is a commit with author, message, field-level diff, and blame,
+in one history. Chat answers cite their sources, reviews export to CSV/XLSX, and any agent can
+generate a downloadable Word file.
 
 What makes it different:
 
