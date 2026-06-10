@@ -11,6 +11,11 @@ describe("gridToCsv", () => {
     });
     expect(csv).toBe('Document,Term\nNDA.pdf,"Says ""mutual"", indemnity"');
   });
+
+  test("neutralizes leading formula characters", () => {
+    const csv = gridToCsv({ title: "T", headers: ["A"], rows: [["=SUM(A1)"], ["@x"]] });
+    expect(csv).toBe("A\n'=SUM(A1)\n'@x");
+  });
 });
 
 describe("gridToXlsx", () => {

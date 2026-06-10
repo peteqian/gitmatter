@@ -95,7 +95,9 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
       inputSchema: {
         title: z.string(),
         documentIds: z.array(z.string()),
-        columns: z.array(z.object({ name: z.string(), prompt: z.string() })),
+        columns: z.array(
+          z.object({ name: z.string(), prompt: z.string(), format: z.string().optional() })
+        ),
         matterId: z.string().optional(),
       },
     },
@@ -105,7 +107,12 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
       const reviewId = await createReview(actor, {
         title,
         documentIds,
-        columnsConfig: columns.map((c, i) => ({ index: i, name: c.name, prompt: c.prompt })),
+        columnsConfig: columns.map((c, i) => ({
+          index: i,
+          name: c.name,
+          prompt: c.prompt,
+          format: c.format,
+        })),
         matterId: resolved,
       });
       return json({ reviewId });

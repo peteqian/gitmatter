@@ -4,6 +4,7 @@ export const tabularColumnSchema = z.object({
   index: z.number(),
   name: z.string(),
   prompt: z.string(),
+  format: z.string().optional(),
 });
 
 export const createReviewSchema = z.object({

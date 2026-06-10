@@ -12,6 +12,17 @@ import { useWorkingMatterId } from "../lib/matters-context";
 
 export const Route = createFileRoute("/")({ component: Home });
 
+const COLUMN_FORMATS = [
+  { value: "", label: "Free text" },
+  { value: "yes_no", label: "Yes / No" },
+  { value: "currency", label: "Currency" },
+  { value: "number", label: "Number" },
+  { value: "date", label: "Date" },
+  { value: "percentage", label: "Percentage" },
+  { value: "tag", label: "Tag" },
+  { value: "bulleted_list", label: "Bulleted list" },
+] as const;
+
 function Home() {
   const { data: session, isPending } = useSession();
   if (isPending) return null;
@@ -184,6 +195,17 @@ function CreateReview({ docs, onCreated }: { docs: Doc[]; onCreated: (id: string
                 value={c.prompt}
                 onChange={(e) => setCol(i, { prompt: e.target.value })}
               />
+              <select
+                className="h-9 w-32 rounded-md border border-input bg-background px-2 text-sm"
+                value={c.format ?? ""}
+                onChange={(e) => setCol(i, { format: e.target.value || undefined })}
+              >
+                {COLUMN_FORMATS.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
             </div>
           ))}
           <Button

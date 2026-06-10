@@ -35,7 +35,12 @@ export async function buildReviewGrid(reviewId: string): Promise<ReviewGrid | nu
 }
 
 export function gridToCsv(grid: ReviewGrid): string {
-  const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const esc = (v: string) => {
+    // Neutralize spreadsheet formula injection: cells (extracted from uploaded
+    // docs) that start with = + - @ are prefixed with a single quote.
+    const guarded = /^[=+\-@]/.test(v) ? `'${v}` : v;
+    return /[",\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded;
+  };
   return [grid.headers, ...grid.rows].map((r) => r.map(esc).join(",")).join("\n");
 }
 

@@ -16,11 +16,14 @@ type ProviderConfig = {
   baseURL?: string;
   // OpenRouter only routes to zero-retention endpoints when asked — our default.
   zdr?: boolean;
+  // OpenAI's reasoning-class models (gpt-5.x) reject max_tokens and require
+  // max_completion_tokens. Gemini/OpenRouter's compat layers still take max_tokens.
+  maxCompletionTokens?: boolean;
 };
 
 export const PROVIDERS: Record<LlmProvider, ProviderConfig> = {
   anthropic: { envKey: "ANTHROPIC_API_KEY", kind: "anthropic" },
-  openai: { envKey: "OPENAI_API_KEY", kind: "openai" },
+  openai: { envKey: "OPENAI_API_KEY", kind: "openai", maxCompletionTokens: true },
   gemini: {
     envKey: "GEMINI_API_KEY",
     kind: "openai",
@@ -198,9 +201,12 @@ class OpenAICompatClient implements LlmClient {
   ) {}
   async complete(req: CompleteRequest): Promise<CompleteResult> {
     const openai = new OpenAI({ apiKey: this.apiKey, baseURL: this.config.baseURL });
+    const limit = req.maxTokens ?? 2048;
     const params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming = {
       model: req.model,
-      max_tokens: req.maxTokens ?? 2048,
+      ...(this.config.maxCompletionTokens
+        ? { max_completion_tokens: limit }
+        : { max_tokens: limit }),
       messages: toOpenAIMessages(req.system, req.messages),
       tools: req.tools?.map((t) => ({
         type: "function",
