@@ -6,11 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
-import { api, type Column, type Doc } from "../lib/api";
-import { useSession } from "../lib/auth-client";
-import { useWorkingMatterId } from "../lib/matters-context";
+import { api, type Column, type Doc } from "../../lib/api";
+import { useWorkingMatterId } from "../../lib/matters-context";
 
-export const Route = createFileRoute("/")({ component: Home });
+export const Route = createFileRoute("/_auth/reviews")({ component: Reviews });
 
 const COLUMN_FORMATS = [
   { value: "", label: "Free text" },
@@ -22,29 +21,6 @@ const COLUMN_FORMATS = [
   { value: "tag", label: "Tag" },
   { value: "bulleted_list", label: "Bulleted list" },
 ] as const;
-
-function Home() {
-  const { data: session, isPending } = useSession();
-  if (isPending) return null;
-  if (!session)
-    return (
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold">gitcounsel</h1>
-        <p className="mt-2 text-muted-foreground">
-          Version-controlled legal review. Every change — yours or Claude's — is a commit.
-        </p>
-        <div className="mt-4 flex justify-center gap-3">
-          <Link to="/signup">
-            <Button>Get started</Button>
-          </Link>
-          <Link to="/login">
-            <Button variant="outline">Log in</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  return <Reviews />;
-}
 
 function Reviews() {
   const router = useRouter();

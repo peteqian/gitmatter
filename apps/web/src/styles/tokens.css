@@ -1,0 +1,36 @@
+/* Custom design tokens — everything we invented on top of the shadcn baseline.
+   The standard shadcn token set (and our re-themed values for it) stays in
+   globals.css; anything original lives here so the two never tangle. */
+
+@theme inline {
+  /* Editorial serif heading face (font-heading utility). */
+  --font-heading: var(--font-serif);
+
+  /* Subtle error surface (bg-destructive-surface, border-destructive-border).
+     Values per theme below; text on it stays --destructive. */
+  --color-destructive-surface: var(--destructive-surface);
+  --color-destructive-border: var(--destructive-border);
+
+  /* Semantic spacing scale. Use these named utilities instead of raw numbers
+     so vertical rhythm stays consistent across the app:
+       field   -> label <-> control inside one form field (gap-field)
+       stack   -> between sibling blocks in a list/form (gap-stack, space-y-stack)
+       section -> between distinct page sections (space-y-section, gap-section)
+       page    -> page top breathing room, set once on the shell container (pt-page) */
+  --spacing-field: 0.375rem;
+  --spacing-stack: 1rem;
+  --spacing-section: 2.5rem;
+  --spacing-page: 2rem;
+}
+
+:root {
+  /* Subtle error surface — tinted bg + border that read against the warm paper
+     background. Text on it stays --destructive. */
+  --destructive-surface: oklch(0.955 0.035 27);
+  --destructive-border: oklch(0.86 0.075 27);
+}
+
+.dark {
+  --destructive-surface: oklch(0.26 0.055 27);
+  --destructive-border: oklch(0.4 0.09 27);
+}

@@ -7,9 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ModelPicker } from "@/components/ModelPicker";
-import { api, type Citation } from "../lib/api";
+import { api, type Citation } from "../../lib/api";
 
-export const Route = createFileRoute("/chat")({ component: Chat });
+export const Route = createFileRoute("/_auth/chat")({ component: Chat });
 
 type Turn = {
   role: "user" | "assistant";

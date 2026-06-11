@@ -7,10 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { api, type WorkflowDetail } from "../lib/api";
-import { useWorkingMatterId } from "../lib/matters-context";
+import { api, type WorkflowDetail } from "../../lib/api";
+import { useWorkingMatterId } from "../../lib/matters-context";
 
-export const Route = createFileRoute("/workflows")({ component: Workflows });
+export const Route = createFileRoute("/_auth/workflows")({ component: Workflows });
 
 type Item = { id: string; title: string; type: string; isSystem: boolean };
 

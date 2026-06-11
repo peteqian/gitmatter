@@ -7,9 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
-import { api, type Client } from "../lib/api";
+import { api, type Client } from "../../lib/api";
 
-export const Route = createFileRoute("/clients")({ component: Clients });
+export const Route = createFileRoute("/_auth/clients")({ component: Clients });
 
 function Clients() {
   const [clients, setClients] = useState<Client[]>([]);

@@ -19,7 +19,7 @@ import { signOut, useSession } from "../lib/auth-client";
 import { useMatters } from "../lib/matters-context";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Reviews", icon: Table2, exact: true },
+  { href: "/reviews", label: "Reviews", icon: Table2, exact: true },
   { href: "/contracts", label: "Contracts", icon: FileText },
   { href: "/workflows", label: "Workflows", icon: Library },
   { href: "/chat", label: "Chat", icon: MessageSquare },
@@ -66,7 +66,7 @@ export function AppSidebar() {
       >
         {open && (
           <Link
-            to="/"
+            to="/reviews"
             className="flex items-center gap-1.5 px-2 transition-opacity hover:opacity-80"
           >
             <span className="grid size-6 place-items-center rounded-md bg-primary font-serif text-sm font-medium text-primary-foreground">

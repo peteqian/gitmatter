@@ -13,9 +13,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ModelPicker } from "@/components/ModelPicker";
-import { api, type Blame, type Cell, type Doc, type ReviewDetail } from "../lib/api";
+import { api, type Blame, type Cell, type Doc, type ReviewDetail } from "../../lib/api";
 
-export const Route = createFileRoute("/reviews/$id")({ component: ReviewView });
+export const Route = createFileRoute("/_auth/reviews/$id")({ component: ReviewView });
 
 const FLAG_COLOR: Record<string, string> = {
   green: "bg-emerald-500",

@@ -7,14 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
-import { api, type FirmUser, type Matter, type MatterMember, type MatterRole } from "../lib/api";
-import { useSession } from "../lib/auth-client";
-import { useMatters } from "../lib/matters-context";
+import { api, type FirmUser, type Matter, type MatterMember, type MatterRole } from "../../lib/api";
+import { useSession } from "../../lib/auth-client";
+import { useMatters } from "../../lib/matters-context";
 
-export const Route = createFileRoute("/matters_/$id")({ component: MatterDetail });
+export const Route = createFileRoute("/_auth/matters_/$id")({ component: MatterDetail });
 
 function MatterDetail() {
-  const { id } = useParams({ from: "/matters_/$id" });
+  const { id } = useParams({ from: "/_auth/matters_/$id" });
   const { data: session } = useSession();
   const { refresh: refreshMatters } = useMatters();
   const [matter, setMatter] = useState<Matter | null>(null);

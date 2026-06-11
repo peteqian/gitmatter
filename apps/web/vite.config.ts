@@ -13,7 +13,15 @@ loadEnv({ path: "../../.env" });
 // strictPort is off so a busy port falls through to the next free one.
 const port = Number(process.env.PORT) || 4280;
 
+// DEPLOYMENT=cloud ships the public marketing landing at "/"; anything else
+// (local/self-host) drops it and "/" redirects to login. Exposed as a build
+// constant so the cloud-only marketing chunk tree-shakes out of local builds.
+const deployment = process.env.DEPLOYMENT === "cloud" ? "cloud" : "local";
+
 const config = defineConfig({
+  define: {
+    "import.meta.env.VITE_DEPLOYMENT": JSON.stringify(deployment),
+  },
   // Vite DevTools (build-mode analysis: module graph, bundle, tree-shaking).
   // Off by default — it serves an interactive UI and blocks the build. Opt in
   // with ANALYZE=1 vp build. Experimental; needs @vitejs/devtools.

@@ -7,10 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
-import { api, type Client } from "../lib/api";
-import { useMatters } from "../lib/matters-context";
+import { api, type Client } from "../../lib/api";
+import { useMatters } from "../../lib/matters-context";
 
-export const Route = createFileRoute("/matters")({ component: Matters });
+export const Route = createFileRoute("/_auth/matters")({ component: Matters });
 
 function Matters() {
   const { matters, refresh, setCurrent } = useMatters();

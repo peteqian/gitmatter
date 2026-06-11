@@ -7,10 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
-import { api, type Doc } from "../lib/api";
-import { useWorkingMatterId } from "../lib/matters-context";
+import { api, type Doc } from "../../lib/api";
+import { useWorkingMatterId } from "../../lib/matters-context";
 
-export const Route = createFileRoute("/documents")({ component: Documents });
+export const Route = createFileRoute("/_auth/documents")({ component: Documents });
 
 function Documents() {
   const matterId = useWorkingMatterId();

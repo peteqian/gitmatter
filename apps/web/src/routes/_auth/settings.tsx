@@ -8,9 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { JURISDICTIONS, toolsFor } from "@workspace/registry";
-import { api } from "../lib/api";
+import { api } from "../../lib/api";
 
-export const Route = createFileRoute("/settings")({ component: Settings });
+export const Route = createFileRoute("/_auth/settings")({ component: Settings });
 
 function Settings() {
   return (

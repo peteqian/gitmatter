@@ -9,164 +9,202 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WorkflowsRouteImport } from './routes/workflows'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as MattersRouteImport } from './routes/matters'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as DocumentsRouteImport } from './routes/documents'
-import { Route as ContractsRouteImport } from './routes/contracts'
-import { Route as ClientsRouteImport } from './routes/clients'
-import { Route as ChatRouteImport } from './routes/chat'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as ReviewsIdRouteImport } from './routes/reviews.$id'
-import { Route as MattersIdRouteImport } from './routes/matters_.$id'
-import { Route as ContractsIdRouteImport } from './routes/contracts_.$id'
+import { Route as UnauthRouteRouteImport } from './routes/_unauth/route'
+import { Route as AuthRouteRouteImport } from './routes/_auth/route'
+import { Route as marketingRouteRouteImport } from './routes/(marketing)/route'
+import { Route as marketingIndexRouteImport } from './routes/(marketing)/index'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
+import { Route as UnauthSignupRouteImport } from './routes/_unauth/signup'
+import { Route as UnauthLoginRouteImport } from './routes/_unauth/login'
+import { Route as AuthWorkflowsRouteImport } from './routes/_auth/workflows'
+import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
+import { Route as AuthReviewsRouteImport } from './routes/_auth/reviews'
+import { Route as AuthMattersRouteImport } from './routes/_auth/matters'
+import { Route as AuthDocumentsRouteImport } from './routes/_auth/documents'
+import { Route as AuthContractsRouteImport } from './routes/_auth/contracts'
+import { Route as AuthClientsRouteImport } from './routes/_auth/clients'
+import { Route as AuthChatRouteImport } from './routes/_auth/chat'
 import { Route as DotwellKnownSplatRouteImport } from './routes/[.]well-known/$'
+import { Route as marketingAboutRouteImport } from './routes/(marketing)/about'
+import { Route as AuthReviewsIdRouteImport } from './routes/_auth/reviews.$id'
+import { Route as AuthMattersIdRouteImport } from './routes/_auth/matters_.$id'
+import { Route as AuthContractsIdRouteImport } from './routes/_auth/contracts_.$id'
 
-const WorkflowsRoute = WorkflowsRouteImport.update({
-  id: '/workflows',
-  path: '/workflows',
+const UnauthRouteRoute = UnauthRouteRouteImport.update({
+  id: '/_unauth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
+const AuthRouteRoute = AuthRouteRouteImport.update({
+  id: '/_auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const marketingRouteRoute = marketingRouteRouteImport.update({
+  id: '/(marketing)',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MattersRoute = MattersRouteImport.update({
-  id: '/matters',
-  path: '/matters',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DocumentsRoute = DocumentsRouteImport.update({
-  id: '/documents',
-  path: '/documents',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ContractsRoute = ContractsRouteImport.update({
-  id: '/contracts',
-  path: '/contracts',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ClientsRoute = ClientsRouteImport.update({
-  id: '/clients',
-  path: '/clients',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ChatRoute = ChatRouteImport.update({
-  id: '/chat',
-  path: '/chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
+const marketingIndexRoute = marketingIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReviewsIdRoute = ReviewsIdRouteImport.update({
-  id: '/reviews/$id',
-  path: '/reviews/$id',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MattersIdRoute = MattersIdRouteImport.update({
-  id: '/matters_/$id',
-  path: '/matters/$id',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ContractsIdRoute = ContractsIdRouteImport.update({
-  id: '/contracts_/$id',
-  path: '/contracts/$id',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => marketingRouteRoute,
 } as any)
 const ApiSplatRoute = ApiSplatRouteImport.update({
   id: '/api/$',
   path: '/api/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UnauthSignupRoute = UnauthSignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => UnauthRouteRoute,
+} as any)
+const UnauthLoginRoute = UnauthLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => UnauthRouteRoute,
+} as any)
+const AuthWorkflowsRoute = AuthWorkflowsRouteImport.update({
+  id: '/workflows',
+  path: '/workflows',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthSettingsRoute = AuthSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthReviewsRoute = AuthReviewsRouteImport.update({
+  id: '/reviews',
+  path: '/reviews',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthMattersRoute = AuthMattersRouteImport.update({
+  id: '/matters',
+  path: '/matters',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthDocumentsRoute = AuthDocumentsRouteImport.update({
+  id: '/documents',
+  path: '/documents',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthContractsRoute = AuthContractsRouteImport.update({
+  id: '/contracts',
+  path: '/contracts',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthClientsRoute = AuthClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthChatRoute = AuthChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
 const DotwellKnownSplatRoute = DotwellKnownSplatRouteImport.update({
   id: '/.well-known/$',
   path: '/.well-known/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const marketingAboutRoute = marketingAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => marketingRouteRoute,
+} as any)
+const AuthReviewsIdRoute = AuthReviewsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthReviewsRoute,
+} as any)
+const AuthMattersIdRoute = AuthMattersIdRouteImport.update({
+  id: '/matters_/$id',
+  path: '/matters/$id',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthContractsIdRoute = AuthContractsIdRouteImport.update({
+  id: '/contracts_/$id',
+  path: '/contracts/$id',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/chat': typeof ChatRoute
-  '/clients': typeof ClientsRoute
-  '/contracts': typeof ContractsRoute
-  '/documents': typeof DocumentsRoute
-  '/login': typeof LoginRoute
-  '/matters': typeof MattersRoute
-  '/settings': typeof SettingsRoute
-  '/signup': typeof SignupRoute
-  '/workflows': typeof WorkflowsRoute
+  '/': typeof marketingIndexRoute
+  '/about': typeof marketingAboutRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
+  '/chat': typeof AuthChatRoute
+  '/clients': typeof AuthClientsRoute
+  '/contracts': typeof AuthContractsRoute
+  '/documents': typeof AuthDocumentsRoute
+  '/matters': typeof AuthMattersRoute
+  '/reviews': typeof AuthReviewsRouteWithChildren
+  '/settings': typeof AuthSettingsRoute
+  '/workflows': typeof AuthWorkflowsRoute
+  '/login': typeof UnauthLoginRoute
+  '/signup': typeof UnauthSignupRoute
   '/api/$': typeof ApiSplatRoute
-  '/contracts/$id': typeof ContractsIdRoute
-  '/matters/$id': typeof MattersIdRoute
-  '/reviews/$id': typeof ReviewsIdRoute
+  '/contracts/$id': typeof AuthContractsIdRoute
+  '/matters/$id': typeof AuthMattersIdRoute
+  '/reviews/$id': typeof AuthReviewsIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/chat': typeof ChatRoute
-  '/clients': typeof ClientsRoute
-  '/contracts': typeof ContractsRoute
-  '/documents': typeof DocumentsRoute
-  '/login': typeof LoginRoute
-  '/matters': typeof MattersRoute
-  '/settings': typeof SettingsRoute
-  '/signup': typeof SignupRoute
-  '/workflows': typeof WorkflowsRoute
+  '/': typeof marketingIndexRoute
+  '/about': typeof marketingAboutRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
+  '/chat': typeof AuthChatRoute
+  '/clients': typeof AuthClientsRoute
+  '/contracts': typeof AuthContractsRoute
+  '/documents': typeof AuthDocumentsRoute
+  '/matters': typeof AuthMattersRoute
+  '/reviews': typeof AuthReviewsRouteWithChildren
+  '/settings': typeof AuthSettingsRoute
+  '/workflows': typeof AuthWorkflowsRoute
+  '/login': typeof UnauthLoginRoute
+  '/signup': typeof UnauthSignupRoute
   '/api/$': typeof ApiSplatRoute
-  '/contracts/$id': typeof ContractsIdRoute
-  '/matters/$id': typeof MattersIdRoute
-  '/reviews/$id': typeof ReviewsIdRoute
+  '/contracts/$id': typeof AuthContractsIdRoute
+  '/matters/$id': typeof AuthMattersIdRoute
+  '/reviews/$id': typeof AuthReviewsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/chat': typeof ChatRoute
-  '/clients': typeof ClientsRoute
-  '/contracts': typeof ContractsRoute
-  '/documents': typeof DocumentsRoute
-  '/login': typeof LoginRoute
-  '/matters': typeof MattersRoute
-  '/settings': typeof SettingsRoute
-  '/signup': typeof SignupRoute
-  '/workflows': typeof WorkflowsRoute
+  '/(marketing)': typeof marketingRouteRouteWithChildren
+  '/_auth': typeof AuthRouteRouteWithChildren
+  '/_unauth': typeof UnauthRouteRouteWithChildren
+  '/(marketing)/about': typeof marketingAboutRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
+  '/_auth/chat': typeof AuthChatRoute
+  '/_auth/clients': typeof AuthClientsRoute
+  '/_auth/contracts': typeof AuthContractsRoute
+  '/_auth/documents': typeof AuthDocumentsRoute
+  '/_auth/matters': typeof AuthMattersRoute
+  '/_auth/reviews': typeof AuthReviewsRouteWithChildren
+  '/_auth/settings': typeof AuthSettingsRoute
+  '/_auth/workflows': typeof AuthWorkflowsRoute
+  '/_unauth/login': typeof UnauthLoginRoute
+  '/_unauth/signup': typeof UnauthSignupRoute
   '/api/$': typeof ApiSplatRoute
-  '/contracts_/$id': typeof ContractsIdRoute
-  '/matters_/$id': typeof MattersIdRoute
-  '/reviews/$id': typeof ReviewsIdRoute
+  '/(marketing)/': typeof marketingIndexRoute
+  '/_auth/contracts_/$id': typeof AuthContractsIdRoute
+  '/_auth/matters_/$id': typeof AuthMattersIdRoute
+  '/_auth/reviews/$id': typeof AuthReviewsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
+    | '/.well-known/$'
     | '/chat'
     | '/clients'
     | '/contracts'
     | '/documents'
-    | '/login'
     | '/matters'
+    | '/reviews'
     | '/settings'
-    | '/signup'
     | '/workflows'
-    | '/.well-known/$'
+    | '/login'
+    | '/signup'
     | '/api/$'
     | '/contracts/$id'
     | '/matters/$id'
@@ -174,149 +212,83 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
+    | '/.well-known/$'
     | '/chat'
     | '/clients'
     | '/contracts'
     | '/documents'
-    | '/login'
     | '/matters'
+    | '/reviews'
     | '/settings'
-    | '/signup'
     | '/workflows'
-    | '/.well-known/$'
+    | '/login'
+    | '/signup'
     | '/api/$'
     | '/contracts/$id'
     | '/matters/$id'
     | '/reviews/$id'
   id:
     | '__root__'
-    | '/'
-    | '/chat'
-    | '/clients'
-    | '/contracts'
-    | '/documents'
-    | '/login'
-    | '/matters'
-    | '/settings'
-    | '/signup'
-    | '/workflows'
+    | '/(marketing)'
+    | '/_auth'
+    | '/_unauth'
+    | '/(marketing)/about'
     | '/.well-known/$'
+    | '/_auth/chat'
+    | '/_auth/clients'
+    | '/_auth/contracts'
+    | '/_auth/documents'
+    | '/_auth/matters'
+    | '/_auth/reviews'
+    | '/_auth/settings'
+    | '/_auth/workflows'
+    | '/_unauth/login'
+    | '/_unauth/signup'
     | '/api/$'
-    | '/contracts_/$id'
-    | '/matters_/$id'
-    | '/reviews/$id'
+    | '/(marketing)/'
+    | '/_auth/contracts_/$id'
+    | '/_auth/matters_/$id'
+    | '/_auth/reviews/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  ChatRoute: typeof ChatRoute
-  ClientsRoute: typeof ClientsRoute
-  ContractsRoute: typeof ContractsRoute
-  DocumentsRoute: typeof DocumentsRoute
-  LoginRoute: typeof LoginRoute
-  MattersRoute: typeof MattersRoute
-  SettingsRoute: typeof SettingsRoute
-  SignupRoute: typeof SignupRoute
-  WorkflowsRoute: typeof WorkflowsRoute
+  marketingRouteRoute: typeof marketingRouteRouteWithChildren
+  AuthRouteRoute: typeof AuthRouteRouteWithChildren
+  UnauthRouteRoute: typeof UnauthRouteRouteWithChildren
   DotwellKnownSplatRoute: typeof DotwellKnownSplatRoute
   ApiSplatRoute: typeof ApiSplatRoute
-  ContractsIdRoute: typeof ContractsIdRoute
-  MattersIdRoute: typeof MattersIdRoute
-  ReviewsIdRoute: typeof ReviewsIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/workflows': {
-      id: '/workflows'
-      path: '/workflows'
-      fullPath: '/workflows'
-      preLoaderRoute: typeof WorkflowsRouteImport
+    '/_unauth': {
+      id: '/_unauth'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof UnauthRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
+    '/_auth': {
+      id: '/_auth'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
+    '/(marketing)': {
+      id: '/(marketing)'
+      path: ''
+      fullPath: ''
+      preLoaderRoute: typeof marketingRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/matters': {
-      id: '/matters'
-      path: '/matters'
-      fullPath: '/matters'
-      preLoaderRoute: typeof MattersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/documents': {
-      id: '/documents'
-      path: '/documents'
-      fullPath: '/documents'
-      preLoaderRoute: typeof DocumentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/contracts': {
-      id: '/contracts'
-      path: '/contracts'
-      fullPath: '/contracts'
-      preLoaderRoute: typeof ContractsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/clients': {
-      id: '/clients'
-      path: '/clients'
-      fullPath: '/clients'
-      preLoaderRoute: typeof ClientsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/chat': {
-      id: '/chat'
-      path: '/chat'
-      fullPath: '/chat'
-      preLoaderRoute: typeof ChatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
+    '/(marketing)/': {
+      id: '/(marketing)/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reviews/$id': {
-      id: '/reviews/$id'
-      path: '/reviews/$id'
-      fullPath: '/reviews/$id'
-      preLoaderRoute: typeof ReviewsIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/matters_/$id': {
-      id: '/matters_/$id'
-      path: '/matters/$id'
-      fullPath: '/matters/$id'
-      preLoaderRoute: typeof MattersIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/contracts_/$id': {
-      id: '/contracts_/$id'
-      path: '/contracts/$id'
-      fullPath: '/contracts/$id'
-      preLoaderRoute: typeof ContractsIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof marketingIndexRouteImport
+      parentRoute: typeof marketingRouteRoute
     }
     '/api/$': {
       id: '/api/$'
@@ -325,6 +297,76 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_unauth/signup': {
+      id: '/_unauth/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof UnauthSignupRouteImport
+      parentRoute: typeof UnauthRouteRoute
+    }
+    '/_unauth/login': {
+      id: '/_unauth/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof UnauthLoginRouteImport
+      parentRoute: typeof UnauthRouteRoute
+    }
+    '/_auth/workflows': {
+      id: '/_auth/workflows'
+      path: '/workflows'
+      fullPath: '/workflows'
+      preLoaderRoute: typeof AuthWorkflowsRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/settings': {
+      id: '/_auth/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthSettingsRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/reviews': {
+      id: '/_auth/reviews'
+      path: '/reviews'
+      fullPath: '/reviews'
+      preLoaderRoute: typeof AuthReviewsRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/matters': {
+      id: '/_auth/matters'
+      path: '/matters'
+      fullPath: '/matters'
+      preLoaderRoute: typeof AuthMattersRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/documents': {
+      id: '/_auth/documents'
+      path: '/documents'
+      fullPath: '/documents'
+      preLoaderRoute: typeof AuthDocumentsRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/contracts': {
+      id: '/_auth/contracts'
+      path: '/contracts'
+      fullPath: '/contracts'
+      preLoaderRoute: typeof AuthContractsRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/clients': {
+      id: '/_auth/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof AuthClientsRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/chat': {
+      id: '/_auth/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof AuthChatRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
     '/.well-known/$': {
       id: '/.well-known/$'
       path: '/.well-known/$'
@@ -332,25 +374,113 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotwellKnownSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/(marketing)/about': {
+      id: '/(marketing)/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof marketingAboutRouteImport
+      parentRoute: typeof marketingRouteRoute
+    }
+    '/_auth/reviews/$id': {
+      id: '/_auth/reviews/$id'
+      path: '/$id'
+      fullPath: '/reviews/$id'
+      preLoaderRoute: typeof AuthReviewsIdRouteImport
+      parentRoute: typeof AuthReviewsRoute
+    }
+    '/_auth/matters_/$id': {
+      id: '/_auth/matters_/$id'
+      path: '/matters/$id'
+      fullPath: '/matters/$id'
+      preLoaderRoute: typeof AuthMattersIdRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/contracts_/$id': {
+      id: '/_auth/contracts_/$id'
+      path: '/contracts/$id'
+      fullPath: '/contracts/$id'
+      preLoaderRoute: typeof AuthContractsIdRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
   }
 }
 
+interface marketingRouteRouteChildren {
+  marketingAboutRoute: typeof marketingAboutRoute
+  marketingIndexRoute: typeof marketingIndexRoute
+}
+
+const marketingRouteRouteChildren: marketingRouteRouteChildren = {
+  marketingAboutRoute: marketingAboutRoute,
+  marketingIndexRoute: marketingIndexRoute,
+}
+
+const marketingRouteRouteWithChildren = marketingRouteRoute._addFileChildren(
+  marketingRouteRouteChildren,
+)
+
+interface AuthReviewsRouteChildren {
+  AuthReviewsIdRoute: typeof AuthReviewsIdRoute
+}
+
+const AuthReviewsRouteChildren: AuthReviewsRouteChildren = {
+  AuthReviewsIdRoute: AuthReviewsIdRoute,
+}
+
+const AuthReviewsRouteWithChildren = AuthReviewsRoute._addFileChildren(
+  AuthReviewsRouteChildren,
+)
+
+interface AuthRouteRouteChildren {
+  AuthChatRoute: typeof AuthChatRoute
+  AuthClientsRoute: typeof AuthClientsRoute
+  AuthContractsRoute: typeof AuthContractsRoute
+  AuthDocumentsRoute: typeof AuthDocumentsRoute
+  AuthMattersRoute: typeof AuthMattersRoute
+  AuthReviewsRoute: typeof AuthReviewsRouteWithChildren
+  AuthSettingsRoute: typeof AuthSettingsRoute
+  AuthWorkflowsRoute: typeof AuthWorkflowsRoute
+  AuthContractsIdRoute: typeof AuthContractsIdRoute
+  AuthMattersIdRoute: typeof AuthMattersIdRoute
+}
+
+const AuthRouteRouteChildren: AuthRouteRouteChildren = {
+  AuthChatRoute: AuthChatRoute,
+  AuthClientsRoute: AuthClientsRoute,
+  AuthContractsRoute: AuthContractsRoute,
+  AuthDocumentsRoute: AuthDocumentsRoute,
+  AuthMattersRoute: AuthMattersRoute,
+  AuthReviewsRoute: AuthReviewsRouteWithChildren,
+  AuthSettingsRoute: AuthSettingsRoute,
+  AuthWorkflowsRoute: AuthWorkflowsRoute,
+  AuthContractsIdRoute: AuthContractsIdRoute,
+  AuthMattersIdRoute: AuthMattersIdRoute,
+}
+
+const AuthRouteRouteWithChildren = AuthRouteRoute._addFileChildren(
+  AuthRouteRouteChildren,
+)
+
+interface UnauthRouteRouteChildren {
+  UnauthLoginRoute: typeof UnauthLoginRoute
+  UnauthSignupRoute: typeof UnauthSignupRoute
+}
+
+const UnauthRouteRouteChildren: UnauthRouteRouteChildren = {
+  UnauthLoginRoute: UnauthLoginRoute,
+  UnauthSignupRoute: UnauthSignupRoute,
+}
+
+const UnauthRouteRouteWithChildren = UnauthRouteRoute._addFileChildren(
+  UnauthRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  ChatRoute: ChatRoute,
-  ClientsRoute: ClientsRoute,
-  ContractsRoute: ContractsRoute,
-  DocumentsRoute: DocumentsRoute,
-  LoginRoute: LoginRoute,
-  MattersRoute: MattersRoute,
-  SettingsRoute: SettingsRoute,
-  SignupRoute: SignupRoute,
-  WorkflowsRoute: WorkflowsRoute,
+  marketingRouteRoute: marketingRouteRouteWithChildren,
+  AuthRouteRoute: AuthRouteRouteWithChildren,
+  UnauthRouteRoute: UnauthRouteRouteWithChildren,
   DotwellKnownSplatRoute: DotwellKnownSplatRoute,
   ApiSplatRoute: ApiSplatRoute,
-  ContractsIdRoute: ContractsIdRoute,
-  MattersIdRoute: MattersIdRoute,
-  ReviewsIdRoute: ReviewsIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

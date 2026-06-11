@@ -8,10 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { JURISDICTIONS } from "@workspace/registry";
-import { api } from "../lib/api";
-import { useWorkingMatterId } from "../lib/matters-context";
+import { api } from "../../lib/api";
+import { useWorkingMatterId } from "../../lib/matters-context";
 
-export const Route = createFileRoute("/contracts")({ component: Contracts });
+export const Route = createFileRoute("/_auth/contracts")({ component: Contracts });
 
 function Contracts() {
   const router = useRouter();
