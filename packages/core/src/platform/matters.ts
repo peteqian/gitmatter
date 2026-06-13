@@ -1,6 +1,15 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { db } from "@workspace/db/client";
-import { type MatterRole, clients, matterMembers, matters, user } from "@workspace/db/schema";
+import {
+  type MatterRole,
+  clients,
+  contracts,
+  documents,
+  matterMembers,
+  matters,
+  tabularReviews,
+  user,
+} from "@workspace/db/schema";
 
 // Clients and matters are firm organization, not commit-spine artifacts — plain
 // CRUD with a `createdBy` audit column. Access to the WORK inside a matter is
@@ -31,6 +40,69 @@ export async function listClients() {
 export async function getClient(id: string) {
   const [row] = await db.select().from(clients).where(eq(clients.id, id));
   return row ?? null;
+}
+
+/** Client plus the work under it the user can see: their matters on this client,
+ *  and the documents/contracts/reviews filed under those matters. Returns null if
+ *  the client doesn't exist. Artifact lists are empty when the user has no matters. */
+export async function getClientOverview(userId: string, clientId: string) {
+  const client = await getClient(clientId);
+  if (!client) return null;
+
+  const matterRows = await db
+    .select({ matter: matters, role: matterMembers.role })
+    .from(matterMembers)
+    .innerJoin(matters, eq(matterMembers.matterId, matters.id))
+    .where(and(eq(matterMembers.userId, userId), eq(matters.clientId, clientId)))
+    .orderBy(desc(matters.updatedAt));
+
+  const matterIds = matterRows.map((r) => r.matter.id);
+  if (!matterIds.length) {
+    return { client, matters: matterRows, documents: [], contracts: [], reviews: [] };
+  }
+
+  const [documentRows, contractRows, reviewRows] = await Promise.all([
+    db
+      .select({
+        id: documents.id,
+        title: documents.title,
+        fileType: documents.fileType,
+        status: documents.status,
+        matterId: documents.matterId,
+        createdAt: documents.createdAt,
+      })
+      .from(documents)
+      .where(inArray(documents.matterId, matterIds))
+      .orderBy(desc(documents.createdAt)),
+    db
+      .select({
+        id: contracts.id,
+        title: contracts.title,
+        matterId: contracts.matterId,
+        createdAt: contracts.createdAt,
+      })
+      .from(contracts)
+      .where(inArray(contracts.matterId, matterIds))
+      .orderBy(desc(contracts.createdAt)),
+    db
+      .select({
+        id: tabularReviews.id,
+        title: tabularReviews.title,
+        matterId: tabularReviews.matterId,
+        createdAt: tabularReviews.createdAt,
+      })
+      .from(tabularReviews)
+      .where(inArray(tabularReviews.matterId, matterIds))
+      .orderBy(desc(tabularReviews.createdAt)),
+  ]);
+
+  return {
+    client,
+    matters: matterRows,
+    documents: documentRows,
+    contracts: contractRows,
+    reviews: reviewRows,
+  };
 }
 
 // ---- Matters ----

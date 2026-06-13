@@ -3,7 +3,9 @@ import {
   type ChatMessage,
   providerForModel,
   toAnthropicMessages,
-  toOpenAIMessages,
+  toGeminiContents,
+  toOpenRouterMessages,
+  toResponsesInput,
 } from "../src/ai/provider.js";
 
 const convo: ChatMessage[] = [
@@ -39,13 +41,40 @@ describe("toAnthropicMessages", () => {
   });
 });
 
-describe("toOpenAIMessages", () => {
-  test("system prepended; assistant carries tool_calls; tool role matches id", () => {
-    const out = toOpenAIMessages("be precise", convo);
+describe("toResponsesInput", () => {
+  test("assistant function_call + a function_call_output keyed by call_id", () => {
+    const out = toResponsesInput(convo);
+    // user, assistant(text), function_call, function_call_output, assistant(text)
+    const call = out.find((i) => "type" in i && i.type === "function_call") as {
+      call_id: string;
+      name: string;
+    };
+    expect(call).toMatchObject({ call_id: "t1", name: "generate_docx" });
+    const result = out.find((i) => "type" in i && i.type === "function_call_output") as {
+      call_id: string;
+    };
+    expect(result.call_id).toBe("t1");
+  });
+});
+
+describe("toGeminiContents", () => {
+  test("tool result becomes a functionResponse keyed back to its call name", () => {
+    const out = toGeminiContents(convo);
+    expect(out.map((c) => c.role)).toEqual(["user", "model", "user", "model"]);
+    const fnCall = out[1]?.parts?.[1]?.functionCall;
+    expect(fnCall).toMatchObject({ name: "generate_docx" });
+    const fnResp = out[2]?.parts?.[0]?.functionResponse;
+    expect(fnResp).toMatchObject({ name: "generate_docx" });
+  });
+});
+
+describe("toOpenRouterMessages", () => {
+  test("system prepended; assistant carries toolCalls; tool role matches id", () => {
+    const out = toOpenRouterMessages("be precise", convo);
     expect(out[0]).toEqual({ role: "system", content: "be precise" });
-    const assistant = out[2] as { role: string; tool_calls?: Array<{ id: string }> };
+    const assistant = out[2] as { role: string; toolCalls?: Array<{ id: string }> };
     expect(assistant.role).toBe("assistant");
-    expect(assistant.tool_calls?.[0]?.id).toBe("t1");
-    expect(out[3]).toMatchObject({ role: "tool", tool_call_id: "t1" });
+    expect(assistant.toolCalls?.[0]?.id).toBe("t1");
+    expect(out[3]).toMatchObject({ role: "tool", toolCallId: "t1" });
   });
 });

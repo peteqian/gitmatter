@@ -1,3 +1,4 @@
+import { isDbConnectionError } from "@workspace/db/client";
 import { claimNextDocument, processDocument } from "./documents.js";
 
 // Background extraction worker. Polls Postgres for documents needing markdown
@@ -25,7 +26,13 @@ export function startExtractionWorker(): void {
       }
     } catch (err) {
       // Swallow loop errors (e.g. transient DB blips) so the worker keeps polling.
-      console.error("[extraction-worker] tick failed:", err);
+      // When Postgres is simply down, log one clean line instead of a full
+      // Drizzle query dump on every poll.
+      if (isDbConnectionError(err)) {
+        console.error("[extraction-worker] database unreachable — is Postgres running?");
+      } else {
+        console.error("[extraction-worker] tick failed:", err);
+      }
     }
     // Drain the queue back-to-back while there is work; idle-poll otherwise.
     setTimeout(() => void tick(), processedAny ? 0 : IDLE_INTERVAL_MS);

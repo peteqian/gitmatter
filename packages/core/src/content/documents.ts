@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db/client";
 import { documents, type Document } from "@workspace/db/schema";
@@ -91,25 +92,27 @@ export async function uploadDocument(
   userId: string,
   input: { title: string; fileType: SupportedFileType; bytes: Buffer; matterId: string }
 ) {
+  // Store the file BEFORE the row is visible to the extraction worker.
+  // Inserting as `pending` first lets a worker claim it in the gap before the
+  // object exists, which fails the doc with "no stored file to extract". So we
+  // pre-generate the id, write the object, then insert the row already complete.
+  const id = randomUUID();
+  const storagePath = `documents/${id}.${input.fileType}`;
+  await putObject(storagePath, input.bytes);
   const [row] = await db
     .insert(documents)
     .values({
+      id,
       userId,
       matterId: input.matterId,
       title: input.title,
       fileType: input.fileType,
       sizeBytes: input.bytes.length,
+      storagePath,
       status: "pending",
     })
     .returning();
-  const storagePath = `documents/${row!.id}.${input.fileType}`;
-  await putObject(storagePath, input.bytes);
-  const [updated] = await db
-    .update(documents)
-    .set({ storagePath })
-    .where(eq(documents.id, row!.id))
-    .returning();
-  return updated;
+  return row;
 }
 
 // Access is checked at the route/tool layer via the matter guard; these operate
