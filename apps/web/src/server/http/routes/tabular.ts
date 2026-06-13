@@ -6,16 +6,23 @@ import {
   canAccessArtifact,
   createReview,
   diffCommits,
+  generateColumnPrompt,
   getReview,
   gridToCsv,
   gridToXlsx,
   listCommits,
   listReviews,
   runCell,
+  runDocument,
 } from "@workspace/core";
 import { type AuthEnv } from "../middleware/auth.js";
 import { resolveCreateMatter } from "../lib/matter.js";
-import { createReviewSchema, runCellSchema } from "../schemas/tabular.js";
+import {
+  createReviewSchema,
+  promptSchema,
+  runCellSchema,
+  runDocSchema,
+} from "../schemas/tabular.js";
 
 export const tabularRoute = new Hono<AuthEnv>();
 
@@ -68,6 +75,42 @@ tabularRoute.post("/api/tabular/reviews/:id/run", zValidator("json", runCellSche
     return c.json({ error: msg }, msg.startsWith("No API key") ? 400 : 500);
   }
   return c.json(await getReview(reviewId));
+});
+
+// Run every column for one document in a single LLM call (batch path).
+tabularRoute.post(
+  "/api/tabular/reviews/:id/run-doc",
+  zValidator("json", runDocSchema),
+  async (c) => {
+    const user = c.get("user");
+    const reviewId = c.req.param("id");
+    if (!(await access(user.id, reviewId, "editor"))) return c.json({ error: "Not found" }, 404);
+
+    const body = c.req.valid("json");
+    try {
+      await runDocument(
+        { type: "user", userId: user.id },
+        { reviewId, documentId: body.documentId, model: body.model }
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "run failed";
+      return c.json({ error: msg }, msg.startsWith("No API key") ? 400 : 500);
+    }
+    return c.json(await getReview(reviewId));
+  }
+);
+
+// Draft a column extraction prompt from its title/format/tags.
+tabularRoute.post("/api/tabular/prompt", zValidator("json", promptSchema), async (c) => {
+  const user = c.get("user");
+  const body = c.req.valid("json");
+  try {
+    const prompt = await generateColumnPrompt({ userId: user.id, ...body });
+    return c.json({ prompt });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "prompt generation failed";
+    return c.json({ error: msg }, msg.startsWith("No API key") ? 400 : 502);
+  }
 });
 
 // Export the grid as CSV or XLSX (read-only, no commit).

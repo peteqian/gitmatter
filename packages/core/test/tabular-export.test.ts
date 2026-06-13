@@ -41,4 +41,15 @@ describe("normalizeCell", () => {
     expect(normalizeCell({ ...base, summary: "unspecified" }, "currency").flag).toBe("yellow");
     expect(normalizeCell({ ...base, summary: "$5,000" }, "currency").flag).toBe("green");
   });
+
+  test("snaps a tag column to the allowed set's canonical casing", () => {
+    const tags = ["High", "Medium", "Low"];
+    expect(normalizeCell({ ...base, summary: "high" }, "tag", tags).summary).toBe("High");
+  });
+
+  test("flags a tag outside the allowed set", () => {
+    expect(normalizeCell({ ...base, summary: "Critical" }, "tag", ["High", "Low"]).flag).toBe(
+      "yellow"
+    );
+  });
 });

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,21 +13,20 @@ import { useWorkingMatterId } from "../../lib/matters-context";
 
 export const Route = createFileRoute("/_auth/workflows")({ component: Workflows });
 
-type Item = { id: string; title: string; type: string; isSystem: boolean };
-
 function Workflows() {
-  const [items, setItems] = useState<Item[]>([]);
-  const [selected, setSelected] = useState<WorkflowDetail | null>(null);
+  const { data: items = [] } = useQuery({
+    queryKey: ["workflows"],
+    queryFn: () => api.listWorkflows(),
+  });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const refresh = () =>
-    api
-      .listWorkflows()
-      .then(setItems)
-      .catch(() => {});
-  useEffect(() => {
-    void refresh();
-  }, []);
+  // Selected workflow detail, cached per id — reopening a row is instant.
+  const { data: selected } = useQuery({
+    queryKey: ["workflow", selectedId],
+    queryFn: () => api.getWorkflow(selectedId!),
+    enabled: !!selectedId,
+  });
 
   return (
     <div className="grid gap-stack lg:grid-cols-[1fr_1.4fr]">
@@ -37,23 +37,21 @@ function Workflows() {
             size="sm"
             onClick={() => {
               setCreating(true);
-              setSelected(null);
+              setSelectedId(null);
             }}
           >
             New
           </Button>
         </div>
-        <ul className="flex flex-col gap-2">
+        {/* Hairline-divided rows — no box per item (DESIGN.md). */}
+        <ul className="flex flex-col divide-y divide-border">
           {items.map((w) => (
             <li key={w.id}>
               <button
-                className="w-full rounded-md border p-2 text-left text-sm hover:bg-muted/50"
+                className="-mx-2 w-[calc(100%+1rem)] rounded-md px-2 py-2.5 text-left text-sm transition-colors hover:bg-muted/50"
                 onClick={() => {
                   setCreating(false);
-                  api
-                    .getWorkflow(w.id)
-                    .then(setSelected)
-                    .catch(() => {});
+                  setSelectedId(w.id);
                 }}
               >
                 <span className="flex items-center gap-2">
@@ -68,23 +66,8 @@ function Workflows() {
       </div>
 
       <div>
-        {creating && (
-          <CreateWorkflow
-            onCreated={() => {
-              setCreating(false);
-              void refresh();
-            }}
-          />
-        )}
-        {!creating && selected && (
-          <EditWorkflow
-            detail={selected}
-            onSaved={(d) => {
-              setSelected(d);
-              void refresh();
-            }}
-          />
-        )}
+        {creating && <CreateWorkflow onCreated={() => setCreating(false)} />}
+        {!creating && selected && <EditWorkflow detail={selected} />}
         {!creating && !selected && (
           <p className="pt-2 text-muted-foreground">Select a workflow or create one.</p>
         )}
@@ -94,24 +77,25 @@ function Workflows() {
 }
 
 function CreateWorkflow({ onCreated }: { onCreated: () => void }) {
+  const qc = useQueryClient();
   const matterId = useWorkingMatterId();
   const [title, setTitle] = useState("");
   const [type, setType] = useState<"assistant" | "tabular">("assistant");
   const [promptMd, setPromptMd] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  async function create() {
-    if (!title.trim() || !promptMd.trim()) return;
-    setBusy(true);
-    try {
-      await api.createWorkflow({ title: title.trim(), type, promptMd, matterId });
+  const createMutation = useMutation({
+    mutationFn: () => api.createWorkflow({ title: title.trim(), type, promptMd, matterId }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["workflows"] });
       toast.success("Workflow created");
       onCreated();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  function create() {
+    if (!title.trim() || !promptMd.trim()) return;
+    createMutation.mutate();
   }
 
   return (
@@ -140,25 +124,19 @@ function CreateWorkflow({ onCreated }: { onCreated: () => void }) {
           <Label>Prompt</Label>
           <Textarea rows={6} value={promptMd} onChange={(e) => setPromptMd(e.target.value)} />
         </div>
-        <Button onClick={create} disabled={busy} className="self-start">
-          {busy ? "Creating…" : "Create"}
+        <Button onClick={create} disabled={createMutation.isPending} className="self-start">
+          {createMutation.isPending ? "Creating…" : "Create"}
         </Button>
       </CardContent>
     </Card>
   );
 }
 
-function EditWorkflow({
-  detail,
-  onSaved,
-}: {
-  detail: WorkflowDetail;
-  onSaved: (d: WorkflowDetail) => void;
-}) {
+function EditWorkflow({ detail }: { detail: WorkflowDetail }) {
+  const qc = useQueryClient();
   const { workflow, blame } = detail;
   const [title, setTitle] = useState(workflow.title);
   const [promptMd, setPromptMd] = useState(workflow.promptMd);
-  const [busy, setBusy] = useState(false);
   const readOnly = workflow.isSystem;
   const promptBlame = blame["field/prompt_md"];
 
@@ -167,18 +145,15 @@ function EditWorkflow({
     setPromptMd(workflow.promptMd);
   }, [workflow.id, workflow.title, workflow.promptMd]);
 
-  async function save() {
-    setBusy(true);
-    try {
-      const updated = await api.updateWorkflow(workflow.id, { title, promptMd });
-      onSaved(updated);
+  const saveMutation = useMutation({
+    mutationFn: () => api.updateWorkflow(workflow.id, { title, promptMd }),
+    onSuccess: (updated) => {
+      qc.setQueryData(["workflow", workflow.id], updated);
+      void qc.invalidateQueries({ queryKey: ["workflows"] });
       toast.success("Saved — new commit recorded");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
 
   return (
     <Card>
@@ -212,8 +187,12 @@ function EditWorkflow({
           />
         </div>
         {!readOnly && (
-          <Button onClick={save} disabled={busy} className="self-start">
-            {busy ? "Saving…" : "Save"}
+          <Button
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending}
+            className="self-start"
+          >
+            {saveMutation.isPending ? "Saving…" : "Save"}
           </Button>
         )}
       </CardContent>

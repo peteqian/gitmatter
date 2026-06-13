@@ -5,6 +5,7 @@ export const tabularColumnSchema = z.object({
   name: z.string(),
   prompt: z.string(),
   format: z.string().optional(),
+  tags: z.array(z.string()).optional(),
 });
 
 export const createReviewSchema = z.object({
@@ -17,5 +18,18 @@ export const createReviewSchema = z.object({
 export const runCellSchema = z.object({
   documentId: z.string(),
   columnIndex: z.number().int(),
+  model: z.string().optional(),
+});
+
+export const runDocSchema = z.object({
+  documentId: z.string(),
+  model: z.string().optional(),
+});
+
+export const promptSchema = z.object({
+  title: z.string().min(1),
+  format: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  documentName: z.string().optional(),
   model: z.string().optional(),
 });

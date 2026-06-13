@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { api, type Column, type Doc } from "../../lib/api";
+import { queryKeys } from "../../lib/queries";
 import { useWorkingMatterId } from "../../lib/matters-context";
 
 export const Route = createFileRoute("/_auth/reviews")({ component: Reviews });
@@ -24,22 +26,15 @@ const COLUMN_FORMATS = [
 
 function Reviews() {
   const router = useRouter();
-  const [reviews, setReviews] = useState<Array<{ id: string; title: string; createdAt: string }>>(
-    []
-  );
-  const [docs, setDocs] = useState<Doc[]>([]);
+  const { data: reviews = [] } = useQuery({
+    queryKey: queryKeys.reviews,
+    queryFn: () => api.listReviews(),
+  });
+  const { data: docs = [] } = useQuery({
+    queryKey: queryKeys.documents,
+    queryFn: () => api.listDocuments(),
+  });
   const [creating, setCreating] = useState(false);
-
-  useEffect(() => {
-    api
-      .listReviews()
-      .then(setReviews)
-      .catch(() => {});
-    api
-      .listDocuments()
-      .then(setDocs)
-      .catch(() => {});
-  }, []);
 
   return (
     <div className="flex flex-col gap-section">
@@ -73,44 +68,49 @@ function Reviews() {
             </Card>
           </Link>
         ))}
-        {!reviews.length && <p className="text-muted-foreground">No reviews yet.</p>}
+        {!reviews.length && (
+          <p className="col-span-full py-section text-center text-sm text-muted-foreground">
+            No reviews yet. Start one from a contract or ask the assistant.
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
 function CreateReview({ docs, onCreated }: { docs: Doc[]; onCreated: (id: string) => void }) {
+  const qc = useQueryClient();
   const matterId = useWorkingMatterId();
   const [title, setTitle] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [columns, setColumns] = useState<Column[]>([{ index: 0, name: "", prompt: "" }]);
-  const [busy, setBusy] = useState(false);
 
   function setCol(i: number, patch: Partial<Column>) {
     setColumns((cols) => cols.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
   }
 
-  async function create() {
+  const createMutation = useMutation({
+    mutationFn: (d: Parameters<typeof api.createReview>[0]) => api.createReview(d),
+    onSuccess: ({ id }) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.reviews });
+      onCreated(id);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  function create() {
     const cols = columns
       .filter((c) => c.name.trim() && c.prompt.trim())
       .map((c, i) => ({ ...c, index: i }));
     if (!title.trim() || !selected.length || !cols.length) {
       return toast.error("Need a title, at least one document, and one column");
     }
-    setBusy(true);
-    try {
-      const { id } = await api.createReview({
-        title: title.trim(),
-        columnsConfig: cols,
-        documentIds: selected,
-        matterId,
-      });
-      onCreated(id);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
+    createMutation.mutate({
+      title: title.trim(),
+      columnsConfig: cols,
+      documentIds: selected,
+      matterId,
+    });
   }
 
   return (
@@ -197,8 +197,8 @@ function CreateReview({ docs, onCreated }: { docs: Doc[]; onCreated: (id: string
           </Button>
         </div>
 
-        <Button onClick={create} disabled={busy} className="self-start">
-          {busy ? "Creating…" : "Create review"}
+        <Button onClick={create} disabled={createMutation.isPending} className="self-start">
+          {createMutation.isPending ? "Creating…" : "Create review"}
         </Button>
       </CardContent>
     </Card>

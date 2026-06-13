@@ -7,6 +7,8 @@ export type TabularColumn = {
   name: string;
   prompt: string;
   format?: string;
+  // For the "tag" format: the closed set of labels the model must choose from.
+  tags?: string[];
 };
 
 export type CellContent = {
@@ -14,6 +16,10 @@ export type CellContent = {
   flag: "green" | "grey" | "yellow" | "red";
   reasoning: string;
 };
+
+// One piece of grounding evidence for a cell: a verbatim quote and, when known,
+// the page it came from. Stored in the tabular_cells.citations column.
+export type CellCitation = { page?: number; quote: string };
 
 export const tabularReviews = pgTable("tabular_reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -44,7 +50,7 @@ export const tabularCells = pgTable(
     documentId: uuid("document_id").notNull(),
     columnIndex: integer("column_index").notNull(),
     content: jsonb("content").$type<CellContent | null>(),
-    citations: jsonb("citations"),
+    citations: jsonb("citations").$type<CellCitation[] | null>(),
     status: text("status")
       .$type<"pending" | "generating" | "done" | "error">()
       .default("pending")
