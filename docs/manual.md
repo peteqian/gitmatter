@@ -42,11 +42,22 @@ default.
 
 ## Local development
 
+`bun run dev` brings up deps (Postgres + the markitdown sidecar) in docker,
+applies the schema, then runs the app:
+
 ```bash
 bun install
+bun run dev                           # deps in docker + web on http://localhost:4280
+```
+
+Flags: `--skip-deps` (deps already up), `--skip-migrate`, `--dry-run`.
+
+Or do it by hand (equivalent to `--skip-deps --skip-migrate`):
+
+```bash
 docker compose up -d postgres        # Postgres with pgvector
 cd packages/db && bun run migrate     # apply schema
-bun run dev                           # web on http://localhost:4280
+turbo run dev                         # web on http://localhost:4280
 ```
 
 ## Tooling (Vite+)
