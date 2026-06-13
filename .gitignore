@@ -22,3 +22,6 @@ todos.json
 
 # local plans
 .plans
+
+# gitcounsel CLI build artifacts
+cli/dist/
