@@ -25,7 +25,7 @@ function Signup() {
     const { error: signUpError } = await signUp.email({ name, email, password });
     setBusy(false);
     if (signUpError) return setError(signUpError.message ?? "Sign up failed");
-    void router.navigate({ to: "/reviews" });
+    void router.navigate({ to: "/assistant" });
   }
 
   return (

@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api, type MatterListItem } from "./api";
+import { queryKeys } from "./queries";
 
 type MattersContext = {
   matters: MatterListItem[];
@@ -17,20 +19,17 @@ const STORAGE_KEY = "workingMatter";
  * remembered in localStorage. Read lists stay firm-wide for now.
  */
 export function MattersProvider({ children }: { children: React.ReactNode }) {
-  const [matters, setMatters] = useState<MatterListItem[]>([]);
-  const [currentId, setCurrentId] = useState<string | null>(null);
+  const { data: matters = [], refetch } = useQuery({
+    queryKey: queryKeys.matters,
+    queryFn: () => api.listMatters(),
+  });
+  const [currentId, setCurrentId] = useState<string | null>(() =>
+    typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null
+  );
 
   const refresh = useCallback(() => {
-    api
-      .listMatters()
-      .then(setMatters)
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    setCurrentId(typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null);
-  }, [refresh]);
+    void refetch();
+  }, [refetch]);
 
   const setCurrent = useCallback((matterId: string) => {
     setCurrentId(matterId);

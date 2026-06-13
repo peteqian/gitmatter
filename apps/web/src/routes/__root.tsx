@@ -1,8 +1,11 @@
 import { HeadContent, Link, Scripts, createRootRoute } from "@tanstack/react-router";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "../components/AppSidebar";
 import { useSession } from "../lib/auth-client";
 import { MattersProvider } from "../lib/matters-context";
+import { queryClient } from "../lib/query";
 
 import appCss from "@/styles/globals.css?url";
 
@@ -68,7 +71,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <Shell>{children}</Shell>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <Shell>{children}</Shell>
+          </TooltipProvider>
+        </QueryClientProvider>
         <Toaster />
         <Scripts />
       </body>

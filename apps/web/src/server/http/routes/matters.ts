@@ -7,6 +7,7 @@ import {
   closeMatter,
   createClient,
   createMatter,
+  getClientOverview,
   getMatter,
   hasMatterAccess,
   listClients,
@@ -33,6 +34,11 @@ mattersRoute.get("/api/clients", async (c) => c.json(await listClients()));
 mattersRoute.post("/api/clients", zValidator("json", createClientSchema), async (c) => {
   const client = await createClient(c.get("user").id, c.req.valid("json"));
   return c.json(client, 201);
+});
+
+mattersRoute.get("/api/clients/:id", async (c) => {
+  const overview = await getClientOverview(c.get("user").id, c.req.param("id"));
+  return overview ? c.json(overview) : c.json({ error: "Not found" }, 404);
 });
 
 // ---- Matters ----

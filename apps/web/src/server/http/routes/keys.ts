@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import {
+  buildModelCatalog,
   deleteUserApiKey,
   getUserJurisdiction,
   hasUserApiKey,
-  LLM_MODELS,
   type LlmProvider,
   resolveLlmKey,
+  searchOpenRouterModels,
   saveUserApiKey,
   setUserJurisdiction,
 } from "@workspace/core";
@@ -27,8 +28,22 @@ keysRoute.put("/api/settings", zValidator("json", settingsSchema), async (c) => 
   return c.json({ jurisdiction });
 });
 
-// The chat/tabular model picker lists these.
-keysRoute.get("/api/models", (c) => c.json(LLM_MODELS));
+// The chat/tabular model picker lists these: native-key providers grouped with
+// their models, availability, and key source. Unavailable providers (no key) are
+// still listed so the picker can grey them out with a reason.
+keysRoute.get("/api/models", async (c) => {
+  return c.json(await buildModelCatalog(c.get("user").id));
+});
+
+// Live OpenRouter search backing the picker's "search any model" box. Failures
+// (network, OpenRouter down) degrade to an empty list rather than erroring the UI.
+keysRoute.get("/api/models/openrouter", async (c) => {
+  try {
+    return c.json(await searchOpenRouterModels(c.req.query("q") ?? ""));
+  } catch {
+    return c.json([]);
+  }
+});
 
 // Per-provider key status: whether the user set their own key, and which key is
 // active (their own > server env > none).

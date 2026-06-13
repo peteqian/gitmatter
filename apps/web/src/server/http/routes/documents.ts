@@ -59,8 +59,14 @@ documentsRoute.post("/api/documents/upload", async (c) => {
 
   const bytes = Buffer.from(await file.arrayBuffer());
   const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : file.name;
-  const doc = await uploadDocument(user.id, { title, fileType, bytes, matterId });
-  return c.json(doc, 202);
+  try {
+    const doc = await uploadDocument(user.id, { title, fileType, bytes, matterId });
+    return c.json(doc, 202);
+  } catch (err) {
+    // Storage/extraction-setup failures (e.g. S3 not configured) surface here.
+    const message = err instanceof Error ? err.message : "upload failed";
+    return c.json({ error: `Could not store file: ${message}` }, 502);
+  }
 });
 
 // Download the stored file (e.g. a generated .docx). Viewer access is enough.

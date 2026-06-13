@@ -16,7 +16,8 @@ export function PageHeader({
   return (
     <div className="flex items-start justify-between gap-4 border-b border-border pb-stack">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl tracking-tight">{title}</h1>
+        {/* Display step (DESIGN.md): one per screen; serif comes from the base h1 style. */}
+        <h1 className="text-[2rem] leading-[1.15] font-medium tracking-tight">{title}</h1>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
       {action && <div className="shrink-0 pt-1">{action}</div>}

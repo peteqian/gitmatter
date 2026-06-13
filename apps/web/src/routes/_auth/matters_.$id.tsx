@@ -1,5 +1,7 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
+import { StateCue } from "@/components/StateCue";
 import { api, type FirmUser, type Matter, type MatterMember, type MatterRole } from "../../lib/api";
 import { useSession } from "../../lib/auth-client";
 import { useMatters } from "../../lib/matters-context";
@@ -15,23 +18,27 @@ export const Route = createFileRoute("/_auth/matters_/$id")({ component: MatterD
 
 function MatterDetail() {
   const { id } = useParams({ from: "/_auth/matters_/$id" });
+  const qc = useQueryClient();
   const { data: session } = useSession();
   const { refresh: refreshMatters } = useMatters();
-  const [matter, setMatter] = useState<Matter | null>(null);
-  const [members, setMembers] = useState<MatterMember[]>([]);
-  const [notFound, setNotFound] = useState(false);
+  const { data: matter, isError: notFound } = useQuery({
+    queryKey: ["matter", id],
+    queryFn: () => api.getMatter(id),
+  });
+  const { data: members = [] } = useQuery({
+    queryKey: ["matter-members", id],
+    queryFn: () => api.listMembers(id),
+  });
 
-  const load = () => {
-    api
-      .getMatter(id)
-      .then(setMatter)
-      .catch(() => setNotFound(true));
-    api
-      .listMembers(id)
-      .then(setMembers)
-      .catch(() => {});
-  };
-  useEffect(load, [id]);
+  const closeMutation = useMutation({
+    mutationFn: () => api.closeMatter(id),
+    onSuccess: () => {
+      toast.success("Matter closed");
+      void qc.invalidateQueries({ queryKey: ["matter", id] });
+      refreshMatters();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
 
   if (notFound)
     return (
@@ -56,12 +63,8 @@ function MatterDetail() {
           isOwner && matter.status === "active" ? (
             <Button
               variant="outline"
-              onClick={async () => {
-                await api.closeMatter(id);
-                toast.success("Matter closed");
-                load();
-                refreshMatters();
-              }}
+              disabled={closeMutation.isPending}
+              onClick={() => closeMutation.mutate()}
             >
               Close matter
             </Button>
@@ -75,36 +78,30 @@ function MatterDetail() {
           {matter.status}
         </Badge>
         {matter.conflictCleared ? (
-          <Badge variant="secondary">Conflicts cleared</Badge>
+          <StateCue tone="muted">Conflicts cleared</StateCue>
         ) : (
-          <Badge variant="outline" className="border-amber-500/50 text-amber-700">
-            Conflicts pending
-          </Badge>
+          <StateCue tone="bronze">Conflicts pending</StateCue>
         )}
       </div>
 
-      <ConflictsCard matter={matter} canEdit={isOwner} onChange={load} />
-      <TeamCard
-        matterId={id}
-        members={members}
-        canEdit={isOwner}
-        selfId={session?.user.id}
-        onChange={load}
-      />
+      <ConflictsCard matter={matter} canEdit={isOwner} />
+      <TeamCard matterId={id} members={members} canEdit={isOwner} selfId={session?.user.id} />
     </div>
   );
 }
 
-function ConflictsCard({
-  matter,
-  canEdit,
-  onChange,
-}: {
-  matter: Matter;
-  canEdit: boolean;
-  onChange: () => void;
-}) {
+function ConflictsCard({ matter, canEdit }: { matter: Matter; canEdit: boolean }) {
+  const qc = useQueryClient();
   const [notes, setNotes] = useState(matter.conflictNotes ?? "");
+
+  const clearMutation = useMutation({
+    mutationFn: () => api.clearConflicts(matter.id, notes.trim() || undefined),
+    onSuccess: () => {
+      toast.success("Conflicts cleared");
+      void qc.invalidateQueries({ queryKey: ["matter", matter.id] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
 
   return (
     <Card>
@@ -139,17 +136,14 @@ function ConflictsCard({
             />
             <Button
               className="mt-1 self-start"
-              onClick={async () => {
-                await api.clearConflicts(matter.id, notes.trim() || undefined);
-                toast.success("Conflicts cleared");
-                onChange();
-              }}
+              disabled={clearMutation.isPending}
+              onClick={() => clearMutation.mutate()}
             >
               Mark cleared
             </Button>
           </div>
         ) : (
-          <p className="text-amber-700">Conflicts not yet cleared by an owner.</p>
+          <StateCue tone="bronze">Conflicts not yet cleared by an owner.</StateCue>
         )}
       </CardContent>
     </Card>
@@ -163,51 +157,46 @@ function TeamCard({
   members,
   canEdit,
   selfId,
-  onChange,
 }: {
   matterId: string;
   members: MatterMember[];
   canEdit: boolean;
   selfId?: string;
-  onChange: () => void;
 }) {
+  const qc = useQueryClient();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FirmUser[]>([]);
   const [role, setRole] = useState<MatterRole>("editor");
 
+  // Debounced 250ms so we hit the search endpoint once the user pauses typing.
+  const [debouncedQuery] = useDebouncedValue(query.trim(), { wait: 250 });
   useEffect(() => {
-    const q = query.trim();
-    if (!q) return setResults([]);
-    const t = setTimeout(() => {
-      api
-        .searchUsers(q)
-        .then(setResults)
-        .catch(() => {});
-    }, 250);
-    return () => clearTimeout(t);
-  }, [query]);
+    if (!debouncedQuery) return setResults([]);
+    api
+      .searchUsers(debouncedQuery)
+      .then(setResults)
+      .catch(() => {});
+  }, [debouncedQuery]);
+
+  const invalidateMembers = () => qc.invalidateQueries({ queryKey: ["matter-members", matterId] });
 
   const memberIds = new Set(members.map((m) => m.userId));
 
-  async function add(userId: string) {
-    try {
-      await api.addMember(matterId, userId, role);
+  const addMutation = useMutation({
+    mutationFn: (userId: string) => api.addMember(matterId, userId, role),
+    onSuccess: () => {
       setQuery("");
       setResults([]);
-      onChange();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    }
-  }
+      void invalidateMembers();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
 
-  async function remove(userId: string) {
-    try {
-      await api.removeMember(matterId, userId);
-      onChange();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    }
-  }
+  const removeMutation = useMutation({
+    mutationFn: (userId: string) => api.removeMember(matterId, userId),
+    onSuccess: () => invalidateMembers(),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
 
   return (
     <Card>
@@ -227,7 +216,7 @@ function TeamCard({
                   {m.role}
                 </Badge>
                 {canEdit && m.userId !== selfId && (
-                  <Button size="xs" variant="ghost" onClick={() => remove(m.userId)}>
+                  <Button size="xs" variant="ghost" onClick={() => removeMutation.mutate(m.userId)}>
                     Remove
                   </Button>
                 )}
@@ -271,7 +260,11 @@ function TeamCard({
                         {u.name || u.email}{" "}
                         <span className="text-xs text-muted-foreground">{u.email}</span>
                       </span>
-                      <Button size="xs" disabled={already} onClick={() => add(u.id)}>
+                      <Button
+                        size="xs"
+                        disabled={already || addMutation.isPending}
+                        onClick={() => addMutation.mutate(u.id)}
+                      >
                         {already ? "Added" : "Add"}
                       </Button>
                     </li>

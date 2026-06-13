@@ -1,20 +1,31 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
-import { api, type Client } from "../../lib/api";
+import { StateCue } from "@/components/StateCue";
+import { api } from "../../lib/api";
+import { queryKeys } from "../../lib/queries";
 import { useMatters } from "../../lib/matters-context";
 
-export const Route = createFileRoute("/_auth/matters")({ component: Matters });
+export const Route = createFileRoute("/_auth/matters")({
+  component: Matters,
+  // ?view filters the list by status (set from the sidebar): all | active | closed.
+  validateSearch: (s: Record<string, unknown>): { view?: string } => ({
+    view: typeof s.view === "string" ? s.view : undefined,
+  }),
+});
 
 function Matters() {
   const { matters, refresh, setCurrent } = useMatters();
+  const { view = "all" } = Route.useSearch();
   const [creating, setCreating] = useState(false);
+
+  const shown = view === "all" ? matters : matters.filter((m) => m.matter.status === view);
 
   return (
     <div className="flex flex-col gap-section">
@@ -38,59 +49,61 @@ function Matters() {
         />
       )}
 
-      <div className="grid gap-stack sm:grid-cols-2 lg:grid-cols-3">
-        {matters.map(({ matter, client, role }) => (
-          <Link key={matter.id} to="/matters/$id" params={{ id: matter.id }}>
-            <Card className="h-full transition-colors hover:bg-muted/50">
-              <CardHeader>
-                <CardTitle className="flex items-start justify-between gap-2 text-base">
-                  <span className="truncate">{matter.name}</span>
-                  <Badge variant="outline" className="shrink-0 font-normal capitalize">
-                    {role}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-1 text-sm text-muted-foreground">
-                <span className="truncate">{client.name}</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {matter.practiceArea && (
-                    <Badge variant="secondary" className="font-normal">
-                      {matter.practiceArea}
-                    </Badge>
-                  )}
-                  {matter.status === "closed" && <Badge variant="outline">Closed</Badge>}
-                  {!matter.conflictCleared && (
-                    <Badge variant="outline" className="border-amber-500/50 text-amber-700">
-                      Conflicts pending
-                    </Badge>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+      {/* Quiet rows over hairlines — lawyers scan by name; no card grid (DESIGN.md). */}
+      <div className="flex flex-col divide-y divide-border">
+        {shown.map(({ matter, client, role }) => (
+          <Link
+            key={matter.id}
+            to="/matters/$id"
+            params={{ id: matter.id }}
+            className="-mx-3 flex items-center justify-between gap-4 rounded-md px-3 py-4 transition-colors hover:bg-muted/50"
+          >
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <span className="truncate font-semibold">{matter.name}</span>
+              <span className="truncate text-sm text-muted-foreground">
+                {client.name}
+                {matter.practiceArea && ` · ${matter.practiceArea}`}
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-4">
+              {matter.status === "closed" && <StateCue tone="muted">Closed</StateCue>}
+              {!matter.conflictCleared && <StateCue tone="bronze">Conflicts pending</StateCue>}
+              <span className="text-xs font-medium text-muted-foreground capitalize">{role}</span>
+            </div>
           </Link>
         ))}
-        {!matters.length && <p className="text-muted-foreground">No matters yet.</p>}
+        {!shown.length && (
+          <p className="py-section text-center text-sm text-muted-foreground">
+            {matters.length
+              ? "No matters match this filter."
+              : "No matters yet. Create one to start filing work."}
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
 function CreateMatter({ onCreated }: { onCreated: (id: string) => void }) {
-  const [clients, setClients] = useState<Client[]>([]);
+  const { data: clients = [] } = useQuery({
+    queryKey: queryKeys.clients,
+    queryFn: () => api.listClients(),
+  });
   const [clientId, setClientId] = useState("");
   const [name, setName] = useState("");
   const [matterNumber, setMatterNumber] = useState("");
   const [practiceArea, setPracticeArea] = useState("");
   const [adverse, setAdverse] = useState("");
   const [conflicts, setConflicts] = useState<string[] | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    api
-      .listClients()
-      .then(setClients)
-      .catch(() => {});
-  }, []);
+  const createMutation = useMutation({
+    mutationFn: (d: Parameters<typeof api.createMatter>[0]) => api.createMatter(d),
+    onSuccess: (m) => {
+      toast.success("Matter created");
+      onCreated(m.id);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
 
   const adverseParties = () =>
     adverse
@@ -111,25 +124,16 @@ function CreateMatter({ onCreated }: { onCreated: (id: string) => void }) {
     );
   }
 
-  async function create() {
+  function create() {
     if (!clientId) return toast.error("Pick a client");
     if (!name.trim()) return toast.error("Matter name is required");
-    setBusy(true);
-    try {
-      const m = await api.createMatter({
-        clientId,
-        name: name.trim(),
-        matterNumber: matterNumber.trim() || undefined,
-        practiceArea: practiceArea.trim() || undefined,
-        adverseParties: adverseParties(),
-      });
-      toast.success("Matter created");
-      onCreated(m.id);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
+    createMutation.mutate({
+      clientId,
+      name: name.trim(),
+      matterNumber: matterNumber.trim() || undefined,
+      practiceArea: practiceArea.trim() || undefined,
+      adverseParties: adverseParties(),
+    });
   }
 
   return (
@@ -225,8 +229,8 @@ function CreateMatter({ onCreated }: { onCreated: (id: string) => void }) {
           <Button variant="outline" onClick={check} disabled={!clientId}>
             Check conflicts
           </Button>
-          <Button onClick={create} disabled={busy}>
-            {busy ? "Creating…" : "Create matter"}
+          <Button onClick={create} disabled={createMutation.isPending}>
+            {createMutation.isPending ? "Creating…" : "Create matter"}
           </Button>
         </div>
       </CardContent>

@@ -1,13 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CommitHistory } from "@/components/CommitHistory";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocxView } from "@/components/DocxView";
-import { api, type Blame, type ContractDetail, type ContractEdit } from "../../lib/api";
+import { api, type ContractDetail, type ContractEdit } from "../../lib/api";
 
 export const Route = createFileRoute("/_auth/contracts_/$id")({ component: ContractView });
 
@@ -19,55 +22,52 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "dest
 
 function ContractView() {
   const { id } = Route.useParams();
-  const [data, setData] = useState<ContractDetail | null>(null);
-  const [history, setHistory] = useState<Blame[]>([]);
+  const qc = useQueryClient();
+  const contractKey = ["contract", id];
+  const { data } = useQuery({ queryKey: contractKey, queryFn: () => api.getContract(id) });
+  const { data: history = [] } = useQuery({
+    queryKey: ["contract-history", id],
+    queryFn: () => api.contractHistory(id),
+  });
   const [find, setFind] = useState("");
   const [replace, setReplace] = useState("");
   const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  const loadHistory = useCallback(
-    () =>
-      api
-        .contractHistory(id)
-        .then(setHistory)
-        .catch(() => {}),
-    [id]
-  );
-  useEffect(() => {
-    api
-      .getContract(id)
-      .then(setData)
-      .catch(() => {});
-    void loadHistory();
-  }, [id, loadHistory]);
+  // Both mutations return the updated contract; seed it into the cache and
+  // refresh the blame history.
+  const onEdited = (updated: ContractDetail) => {
+    qc.setQueryData(contractKey, updated);
+    void qc.invalidateQueries({ queryKey: ["contract-history", id] });
+  };
 
-  if (!data) return <p className="pt-6 text-muted-foreground">Loading…</p>;
-
-  async function propose() {
-    if (!find) return;
-    setBusy(true);
-    try {
-      setData(await api.proposeEdit(id, { find, replace, reason: reason || undefined }));
+  const proposeMutation = useMutation({
+    mutationFn: () => api.proposeEdit(id, { find, replace, reason: reason || undefined }),
+    onSuccess: (updated) => {
+      onEdited(updated);
       setFind("");
       setReplace("");
       setReason("");
-      await loadHistory();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
 
-  async function resolve(edit: ContractEdit, decision: "accept" | "reject") {
-    try {
-      setData(await api.resolveEdit(id, edit.changeId, decision));
-      await loadHistory();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    }
-  }
+  const resolveMutation = useMutation({
+    mutationFn: (v: { edit: ContractEdit; decision: "accept" | "reject" }) =>
+      api.resolveEdit(id, v.edit.changeId, v.decision),
+    onSuccess: onEdited,
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  if (!data)
+    return (
+      <div className="grid gap-6 pt-6 lg:grid-cols-[1fr_300px]">
+        <div className="flex flex-col gap-4">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-96 w-full" />
+        </div>
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
 
   const { contract, edits } = data;
   const pending = edits.filter((e) => e.status === "pending");
@@ -76,7 +76,7 @@ function ContractView() {
   return (
     <div className="grid gap-6 pt-6 lg:grid-cols-[1fr_300px]">
       <div className="flex min-w-0 flex-col gap-4">
-        <h1 className="text-xl font-semibold">{contract.title}</h1>
+        <h1 className="text-2xl tracking-tight">{contract.title}</h1>
 
         <Card>
           <CardHeader>
@@ -88,7 +88,10 @@ function ContractView() {
             {isDocx ? (
               <DocxView url={api.contractDocxUrl(id)} versionToken={contract.currentVersionId} />
             ) : (
-              <pre className="text-sm leading-relaxed whitespace-pre-wrap">{contract.body}</pre>
+              // Legal text gets the serif and a readable measure — it is the hero (DESIGN.md).
+              <pre className="max-w-[70ch] font-serif text-base leading-relaxed whitespace-pre-wrap">
+                {contract.body}
+              </pre>
             )}
           </CardContent>
         </Card>
@@ -110,8 +113,12 @@ function ContractView() {
               <Label>Reason (optional)</Label>
               <Input value={reason} onChange={(e) => setReason(e.target.value)} />
             </div>
-            <Button onClick={propose} disabled={busy || !find} className="self-start">
-              {busy ? "Proposing…" : "Propose edit"}
+            <Button
+              onClick={() => find && proposeMutation.mutate()}
+              disabled={proposeMutation.isPending || !find}
+              className="self-start"
+            >
+              {proposeMutation.isPending ? "Proposing…" : "Propose edit"}
             </Button>
           </CardContent>
         </Card>
@@ -125,8 +132,11 @@ function ContractView() {
                   <Badge variant={STATUS_VARIANT[e.status]}>{e.status}</Badge>
                   {e.blame && (
                     <span className="text-xs text-muted-foreground">
-                      by {e.blame.actorType === "agent" ? (e.blame.agentLabel ?? "agent") : "you"} ·
-                      #{e.blame.seq}
+                      by{" "}
+                      <span className={e.blame.actorType === "agent" ? "text-bronze" : undefined}>
+                        {e.blame.actorType === "agent" ? (e.blame.agentLabel ?? "agent") : "you"}
+                      </span>{" "}
+                      · #{e.blame.seq}
                     </span>
                   )}
                 </div>
@@ -141,10 +151,17 @@ function ContractView() {
                 {e.reason && <p className="text-xs text-muted-foreground">{e.reason}</p>}
                 {e.status === "pending" && (
                   <div className="flex gap-2">
-                    <Button size="xs" onClick={() => resolve(e, "accept")}>
+                    <Button
+                      size="xs"
+                      onClick={() => resolveMutation.mutate({ edit: e, decision: "accept" })}
+                    >
                       Accept
                     </Button>
-                    <Button size="xs" variant="outline" onClick={() => resolve(e, "reject")}>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => resolveMutation.mutate({ edit: e, decision: "reject" })}
+                    >
                       Reject
                     </Button>
                   </div>
@@ -158,23 +175,7 @@ function ContractView() {
 
       <aside>
         <h2 className="mb-2 text-sm font-semibold">History</h2>
-        <ol className="flex flex-col gap-2">
-          {history.map((c) => (
-            <li key={c.id} className="rounded-md border p-2 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-muted-foreground">#{c.seq}</span>
-                <Badge variant={c.actorType === "agent" ? "default" : "secondary"}>
-                  {c.actorType === "agent" ? (c.agentLabel ?? "agent") : "you"}
-                </Badge>
-                <span className="font-mono">{c.op}</span>
-              </div>
-              <p className="mt-1">{c.message}</p>
-              <p className="mt-0.5 text-muted-foreground">
-                {new Date(c.createdAt).toLocaleString()}
-              </p>
-            </li>
-          ))}
-        </ol>
+        <CommitHistory commits={history} />
       </aside>
     </div>
   );

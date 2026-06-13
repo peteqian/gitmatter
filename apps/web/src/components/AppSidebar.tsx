@@ -10,6 +10,7 @@ import {
   Library,
   MessageSquare,
   PanelLeft,
+  Plus,
   Settings as SettingsIcon,
   Table2,
 } from "lucide-react";
@@ -17,17 +18,55 @@ import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { signOut, useSession } from "../lib/auth-client";
 import { useMatters } from "../lib/matters-context";
+import { useChats } from "../lib/queries";
 
 const NAV_ITEMS = [
-  { href: "/reviews", label: "Reviews", icon: Table2, exact: true },
+  { href: "/assistant", label: "Assistant", icon: MessageSquare },
+  { href: "/reviews", label: "Reviews", icon: Table2 },
   { href: "/contracts", label: "Contracts", icon: FileText },
   { href: "/workflows", label: "Workflows", icon: Library },
-  { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/documents", label: "Documents", icon: FolderOpen },
   { href: "/clients", label: "Clients", icon: Building2 },
   { href: "/matters", label: "Matters", icon: Briefcase },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ] as const;
+
+// Sub-context per main route. Each item writes a `?view` filter the route reads.
+// Only sections whose list data actually carries a status are listed — the rest
+// have no panel rather than a filter that doesn't filter. `/assistant` is special
+// (it shows real conversations, not a filter).
+const SUB_NAV: Record<string, { title: string; items: { label: string; view: string }[] }> = {
+  "/documents": {
+    title: "Documents",
+    items: [
+      { label: "All", view: "all" },
+      { label: "Ready", view: "ready" },
+      { label: "Processing", view: "processing" },
+      { label: "Failed", view: "failed" },
+    ],
+  },
+  "/clients": {
+    title: "Clients",
+    items: [
+      { label: "All", view: "all" },
+      { label: "Active", view: "active" },
+      { label: "Archived", view: "inactive" },
+    ],
+  },
+  "/matters": {
+    title: "Matters",
+    items: [
+      { label: "All", view: "all" },
+      { label: "Open", view: "active" },
+      { label: "Closed", view: "closed" },
+    ],
+  },
+};
+
+function activeSection(pathname: string): string | null {
+  const hit = NAV_ITEMS.find((i) => pathname === i.href || pathname.startsWith(`${i.href}/`));
+  return hit?.href ?? null;
+}
 
 export function AppSidebar() {
   const { data: session } = useSession();
@@ -51,6 +90,14 @@ export function AppSidebar() {
   if (!session) return null;
 
   const initial = (session.user.name || session.user.email).charAt(0).toUpperCase();
+  const subSection = activeSection(pathname);
+  // The assistant shows real conversations; document/client/matter sections show a
+  // filter sub-nav. When a sub-panel exists, nav (top) and sub-panel (bottom) each
+  // take half the height and scroll independently — otherwise nav sits at the top
+  // and a spacer pushes the footer down.
+  const showChats = open && subSection === "/assistant";
+  const showSub = open && !!subSection && subSection !== "/assistant" && !!SUB_NAV[subSection];
+  const hasSubPanel = showChats || showSub;
 
   return (
     <div
@@ -66,7 +113,7 @@ export function AppSidebar() {
       >
         {open && (
           <Link
-            to="/reviews"
+            to="/assistant"
             className="flex items-center gap-1.5 px-2 transition-opacity hover:opacity-80"
           >
             <span className="grid size-6 place-items-center rounded-md bg-primary font-serif text-sm font-medium text-primary-foreground">
@@ -90,7 +137,7 @@ export function AppSidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex flex-col">
+      <nav className={cn("flex flex-col", hasSubPanel && "min-h-0 flex-1 overflow-y-auto")}>
         {NAV_ITEMS.map((item) => {
           const { href, label, icon: Icon } = item;
           const exact = "exact" in item && item.exact;
@@ -111,14 +158,21 @@ export function AppSidebar() {
                 )}
               >
                 <Icon className="size-4 shrink-0" />
-                {open && <span className="text-sm font-medium">{label}</span>}
+                {open && <span className="flex-1 text-sm font-medium">{label}</span>}
+                {/* Bronze dot — the quiet "you are here" cue (DESIGN.md). */}
+                {open && active && <span className="size-1.5 shrink-0 rounded-full bg-bronze" />}
               </Link>
             </div>
           );
         })}
       </nav>
 
-      <div className="flex-1" />
+      {/* Dynamic sub-context — bottom half when present. Keyed so it remounts fresh. */}
+      {showChats && <ChatHistoryPanel />}
+      {showSub && <SubContext key={subSection} section={subSection} />}
+
+      {/* No sub-panel: a spacer pushes the footer to the bottom. */}
+      {!hasSubPanel && <div className="flex-1" />}
 
       {/* User footer */}
       <div className="border-t border-sidebar-border p-2">
@@ -141,6 +195,98 @@ export function AppSidebar() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SubContext({ section }: { section: string | null }) {
+  const sub = section ? SUB_NAV[section] : null;
+  // The active filter is the route's ?view param (default "all" = first item).
+  const view = useRouterState({
+    select: (s) => (s.location.search as { view?: string }).view ?? "all",
+  });
+
+  if (!sub || !section) return null;
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col border-t border-sidebar-border py-2">
+      <div className="px-5 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        {sub.title}
+      </div>
+      <nav className="min-h-0 flex-1 overflow-y-auto">
+        {sub.items.map((item) => {
+          const isActive = item.view === view;
+          return (
+            <div key={item.view} className="px-2.5 py-0.5">
+              <Link
+                to={section}
+                search={{ view: item.view }}
+                className={cn(
+                  "flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-left text-sm transition-colors",
+                  isActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60"
+                )}
+              >
+                <span className="flex-1 truncate font-medium">{item.label}</span>
+                {isActive && <span className="size-1.5 shrink-0 rounded-full bg-bronze" />}
+              </Link>
+            </div>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
+// Real conversation list for the assistant section. "New chat" starts a fresh
+// thread; each row resumes a conversation.
+function ChatHistoryPanel() {
+  const { data: chats = [] } = useChats();
+  const activeChat = useRouterState({
+    select: (s) => /^\/assistant\/(.+)$/.exec(s.location.pathname)?.[1],
+  });
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col border-t border-sidebar-border py-2">
+      <div className="px-5 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        Conversations
+      </div>
+      <div className="px-2.5 py-0.5">
+        <Link
+          to="/assistant"
+          className="flex h-9 items-center gap-3 rounded-md px-2.5 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/60"
+        >
+          <Plus className="size-4 shrink-0" />
+          <span className="flex-1">New chat</span>
+        </Link>
+      </div>
+      <nav className="mt-1 min-h-0 flex-1 overflow-y-auto">
+        {chats.length === 0 && (
+          <p className="px-5 py-2 text-xs text-muted-foreground">No conversations yet.</p>
+        )}
+        {chats.map((chat) => {
+          const active = chat.id === activeChat;
+          return (
+            <div key={chat.id} className="px-2.5 py-0.5">
+              <Link
+                to="/assistant/$id"
+                params={{ id: chat.id }}
+                title={chat.title ?? "Untitled"}
+                className={cn(
+                  "flex h-8 items-center gap-3 rounded-md px-2.5 text-left text-sm transition-colors",
+                  active
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60"
+                )}
+              >
+                <span className="flex-1 truncate">{chat.title ?? "Untitled"}</span>
+                {active && <span className="size-1.5 shrink-0 rounded-full bg-bronze" />}
+              </Link>
+            </div>
+          );
+        })}
+      </nav>
     </div>
   );
 }

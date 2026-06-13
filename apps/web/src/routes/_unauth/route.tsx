@@ -13,7 +13,7 @@ function UnauthLayout() {
 
   useEffect(() => {
     if (!isPending && session) {
-      void router.navigate({ to: "/reviews" });
+      void router.navigate({ to: "/assistant" });
     }
   }, [isPending, session, router]);
 

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { JURISDICTIONS, toolsFor } from "@workspace/registry";
-import { api } from "../../lib/api";
+import { api, type LlmProvider, type ProviderKeyStatus } from "../../lib/api";
 
 export const Route = createFileRoute("/_auth/settings")({ component: Settings });
 
@@ -27,28 +28,30 @@ function Settings() {
 }
 
 function JurisdictionCard() {
-  const [jurisdiction, setJurisdiction] = useState<string>("");
-  const [saved, setSaved] = useState<string>("");
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => api.getSettings(),
+  });
+  const saved = data?.jurisdiction ?? "";
+  // Local draft shows the pick immediately; cleared once the server confirms and
+  // the query reflects the new value.
+  const [draft, setDraft] = useState<string | null>(null);
+  const jurisdiction = draft ?? saved;
 
-  useEffect(() => {
-    api
-      .getSettings()
-      .then((r) => {
-        setJurisdiction(r.jurisdiction ?? "");
-        setSaved(r.jurisdiction ?? "");
-      })
-      .catch(() => {});
-  }, []);
-
-  async function save(next: string) {
-    setJurisdiction(next);
-    try {
-      await api.setSettings(next || null);
-      setSaved(next);
+  const saveMutation = useMutation({
+    mutationFn: (next: string) => api.setSettings(next || null),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["settings"] });
+      setDraft(null);
       toast.success("Jurisdiction updated");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    }
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  function save(next: string) {
+    setDraft(next);
+    saveMutation.mutate(next);
   }
 
   const effective = saved || "US";
@@ -89,9 +92,6 @@ function JurisdictionCard() {
   );
 }
 
-type LlmProvider = "anthropic" | "openai" | "gemini" | "openrouter";
-type ProviderStatus = { provider: LlmProvider; hasUserKey: boolean; source: "user" | "env" | null };
-
 const PROVIDER_META: Record<LlmProvider, { label: string; placeholder: string; note?: string }> = {
   anthropic: { label: "Claude (Anthropic)", placeholder: "sk-ant-…" },
   openai: { label: "OpenAI", placeholder: "sk-…" },
@@ -104,16 +104,11 @@ const PROVIDER_META: Record<LlmProvider, { label: string; placeholder: string; n
 };
 
 function ProviderKeys() {
-  const [providers, setProviders] = useState<ProviderStatus[]>([]);
-
-  const refresh = () =>
-    api
-      .getKeys()
-      .then((r) => setProviders(r.providers))
-      .catch(() => {});
-  useEffect(() => {
-    void refresh();
-  }, []);
+  const { data } = useQuery({
+    queryKey: ["keys"],
+    queryFn: () => api.getKeys(),
+  });
+  const providers = data?.providers ?? [];
 
   return (
     <Card>
@@ -126,37 +121,41 @@ function ProviderKeys() {
           extraction. Your key overrides any server key; pick the model per chat or review.
         </p>
         {providers.map((p) => (
-          <ProviderRow key={p.provider} status={p} onChange={refresh} />
+          <ProviderRow key={p.provider} status={p} />
         ))}
       </CardContent>
     </Card>
   );
 }
 
-function ProviderRow({ status, onChange }: { status: ProviderStatus; onChange: () => void }) {
+function ProviderRow({ status }: { status: ProviderKeyStatus }) {
+  const qc = useQueryClient();
   const meta = PROVIDER_META[status.provider];
   const [key, setKey] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  async function save() {
-    if (!key.trim()) return;
-    setBusy(true);
-    try {
-      await api.setKey(status.provider, key.trim());
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["keys"] });
+
+  const saveMutation = useMutation({
+    mutationFn: () => api.setKey(status.provider, key.trim()),
+    onSuccess: () => {
       setKey("");
-      onChange();
+      void invalidate();
       toast.success(`${meta.label} key saved`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
 
-  async function remove() {
-    await api.deleteKey(status.provider);
-    onChange();
-    toast.success(`${meta.label} key removed`);
+  const removeMutation = useMutation({
+    mutationFn: () => api.deleteKey(status.provider),
+    onSuccess: () => {
+      void invalidate();
+      toast.success(`${meta.label} key removed`);
+    },
+  });
+
+  function save() {
+    if (!key.trim()) return;
+    saveMutation.mutate();
   }
 
   return (
@@ -179,11 +178,11 @@ function ProviderRow({ status, onChange }: { status: ProviderStatus; onChange: (
           value={key}
           onChange={(e) => setKey(e.target.value)}
         />
-        <Button onClick={save} disabled={busy || !key.trim()}>
+        <Button onClick={save} disabled={saveMutation.isPending || !key.trim()}>
           Save
         </Button>
         {status.hasUserKey && (
-          <Button variant="ghost" onClick={remove}>
+          <Button variant="ghost" onClick={() => removeMutation.mutate()}>
             Remove
           </Button>
         )}
@@ -191,14 +190,6 @@ function ProviderRow({ status, onChange }: { status: ProviderStatus; onChange: (
     </div>
   );
 }
-
-type Token = {
-  id: string;
-  label: string;
-  createdAt: string;
-  lastUsedAt: string | null;
-  revokedAt: string | null;
-};
 
 const CONNECT_TABS = ["ChatGPT", "Claude", "Claude Code", "Codex"] as const;
 type ConnectTab = (typeof CONNECT_TABS)[number];
@@ -212,42 +203,34 @@ function Code({ children }: { children: React.ReactNode }) {
 }
 
 function ConnectAgent() {
-  const [tokens, setTokens] = useState<Token[]>([]);
+  const qc = useQueryClient();
+  const { data: tokens = [] } = useQuery({
+    queryKey: ["tokens"],
+    queryFn: () => api.listTokens(),
+  });
   const [label, setLabel] = useState("");
   const [fresh, setFresh] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<ConnectTab>("ChatGPT");
 
   const mcpUrl = typeof window !== "undefined" ? `${window.location.origin}/api/mcp` : "/api/mcp";
   const usesOAuth = tab === "ChatGPT" || tab === "Claude";
 
-  const refresh = () =>
-    api
-      .listTokens()
-      .then(setTokens)
-      .catch(() => {});
-  useEffect(() => {
-    void refresh();
-  }, []);
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["tokens"] });
 
-  async function mint() {
-    setBusy(true);
-    try {
-      const { token } = await api.mintToken(label.trim() || "default");
+  const mintMutation = useMutation({
+    mutationFn: () => api.mintToken(label.trim() || "default"),
+    onSuccess: ({ token }) => {
       setFresh(token);
       setLabel("");
-      await refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+      void invalidate();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
 
-  async function revoke(id: string) {
-    await api.revokeToken(id);
-    await refresh();
-  }
+  const revokeMutation = useMutation({
+    mutationFn: (id: string) => api.revokeToken(id),
+    onSuccess: () => invalidate(),
+  });
 
   return (
     <Card>
@@ -332,13 +315,13 @@ function ConnectAgent() {
                   onChange={(e) => setLabel(e.target.value)}
                 />
               </div>
-              <Button onClick={mint} disabled={busy}>
-                {busy ? "Minting…" : "Mint token"}
+              <Button onClick={() => mintMutation.mutate()} disabled={mintMutation.isPending}>
+                {mintMutation.isPending ? "Minting…" : "Mint token"}
               </Button>
             </div>
 
             {fresh && (
-              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+              <div className="rounded-md border border-bronze/40 bg-bronze-tint p-3 text-sm">
                 <p className="font-medium">Copy this token now — it won't be shown again:</p>
                 <Code>{fresh}</Code>
               </div>
@@ -360,7 +343,7 @@ function ConnectAgent() {
                             : "never used"}
                         </span>
                       </span>
-                      <Button size="xs" variant="ghost" onClick={() => revoke(t.id)}>
+                      <Button size="xs" variant="ghost" onClick={() => revokeMutation.mutate(t.id)}>
                         Revoke
                       </Button>
                     </li>

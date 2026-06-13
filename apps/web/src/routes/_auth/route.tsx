@@ -5,7 +5,11 @@ import { useSession } from "../../lib/auth-client";
 // Pathless layout that gates every route nested under it. Session is resolved
 // client-side, so the guard runs in the component (a beforeLoad check would
 // wrongly redirect logged-in users on SSR/hard-refresh, before cookies load).
-export const Route = createFileRoute("/_auth")({ component: AuthLayout });
+// The sidebar's conversation list is fetched client-side via useChats() — a
+// route loader here would fetch with a relative URL that fails under SSR.
+export const Route = createFileRoute("/_auth")({
+  component: AuthLayout,
+});
 
 function AuthLayout() {
   const { data: session, isPending } = useSession();

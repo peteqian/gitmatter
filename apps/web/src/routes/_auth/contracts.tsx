@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,61 +10,56 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { JURISDICTIONS } from "@workspace/registry";
 import { api } from "../../lib/api";
+import { queryKeys } from "../../lib/queries";
 import { useWorkingMatterId } from "../../lib/matters-context";
 
 export const Route = createFileRoute("/_auth/contracts")({ component: Contracts });
 
 function Contracts() {
   const router = useRouter();
+  const qc = useQueryClient();
   const matterId = useWorkingMatterId();
-  const [contracts, setContracts] = useState<
-    Array<{ id: string; title: string; createdAt: string }>
-  >([]);
+  const { data: contracts = [] } = useQuery({
+    queryKey: queryKeys.contracts,
+    queryFn: () => api.listContracts(),
+  });
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [jurisdiction, setJurisdiction] = useState("");
   const [creating, setCreating] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
-  useEffect(() => {
-    api
-      .listContracts()
-      .then(setContracts)
-      .catch(() => {});
-  }, []);
+  const openCreated = ({ id }: { id: string }) => {
+    void qc.invalidateQueries({ queryKey: queryKeys.contracts });
+    void router.navigate({ to: "/contracts/$id", params: { id } });
+  };
 
-  async function create() {
-    if (!title.trim() || !body.trim()) return;
-    setBusy(true);
-    try {
-      const { id } = await api.createContract({
+  const createMutation = useMutation({
+    mutationFn: () =>
+      api.createContract({
         title: title.trim(),
         body,
         jurisdiction: jurisdiction || null,
         matterId,
-      });
-      void router.navigate({ to: "/contracts/$id", params: { id } });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
+      }),
+    onSuccess: openCreated,
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => api.uploadContract(file, undefined, jurisdiction || null, matterId),
+    onSuccess: openCreated,
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Upload failed"),
+  });
+
+  function create() {
+    if (!title.trim() || !body.trim()) return;
+    createMutation.mutate();
   }
 
-  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file) return;
-    setUploading(true);
-    try {
-      const { id } = await api.uploadContract(file, undefined, jurisdiction || null, matterId);
-      void router.navigate({ to: "/contracts/$id", params: { id } });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setUploading(false);
-    }
+    if (file) uploadMutation.mutate(file);
   }
 
   return (
@@ -74,11 +70,11 @@ function Contracts() {
         action={
           <div className="flex items-center gap-2">
             <label className="cursor-pointer rounded-md border px-3 py-1.5 text-sm hover:bg-muted/50">
-              {uploading ? "Uploading…" : "Upload DOCX"}
+              {uploadMutation.isPending ? "Uploading…" : "Upload DOCX"}
               <input
                 type="file"
                 accept=".docx,.doc"
-                disabled={uploading}
+                disabled={uploadMutation.isPending}
                 onChange={onUpload}
                 className="hidden"
               />
@@ -125,10 +121,10 @@ function Contracts() {
             </div>
             <Button
               onClick={create}
-              disabled={busy || !title.trim() || !body.trim()}
+              disabled={createMutation.isPending || !title.trim() || !body.trim()}
               className="self-start"
             >
-              {busy ? "Creating…" : "Create contract"}
+              {createMutation.isPending ? "Creating…" : "Create contract"}
             </Button>
           </CardContent>
         </Card>
@@ -147,7 +143,11 @@ function Contracts() {
             </Card>
           </Link>
         ))}
-        {!contracts.length && <p className="text-muted-foreground">No contracts yet.</p>}
+        {!contracts.length && (
+          <p className="py-section text-center text-sm text-muted-foreground">
+            No contracts yet. Upload one to start a redline.
+          </p>
+        )}
       </div>
     </div>
   );

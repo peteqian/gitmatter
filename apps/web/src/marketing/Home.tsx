@@ -7,10 +7,14 @@ export default function Home() {
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-6rem)] max-w-2xl flex-col items-center justify-center gap-section text-center">
       <div className="flex flex-col gap-stack">
-        <h1 className="font-heading text-4xl tracking-tight">
+        {/* Eyebrow label + serif display — the editorial rhythm (DESIGN.md Label/Display). */}
+        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          Audited legal AI
+        </span>
+        <h1 className="font-heading text-5xl leading-[1.1] tracking-tight text-balance">
           The audited legal backend any AI agent plugs into.
         </h1>
-        <p className="text-lg text-muted-foreground">
+        <p className="mx-auto max-w-[60ch] text-lg text-muted-foreground">
           Version-controlled legal review — contract redline, tabular extraction, and document
           generation, where every change is a commit with author, message, and blame.
         </p>

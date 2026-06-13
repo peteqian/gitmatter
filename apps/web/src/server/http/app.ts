@@ -4,6 +4,7 @@ import { StreamableHTTPTransport } from "@hono/mcp";
 import { auth } from "./lib/auth.js";
 import {
   getUserJurisdiction,
+  probeEnvProviders,
   seedBuiltinWorkflows,
   seedMcpConnections,
   startExtractionWorker,
@@ -22,6 +23,20 @@ import { authenticateMcp } from "../mcp/auth.js";
 import { buildMcpServer } from "../mcp/server.js";
 import { serverOrigin } from "./lib/origin.js";
 import { type AuthEnv, requireUser } from "./middleware/auth.js";
+
+// Probe which AI providers have a server env key at boot, so the model catalog
+// can mark unavailable ones. Logs the result for ops visibility.
+{
+  const status = probeEnvProviders();
+  const available = Object.entries(status)
+    .filter(([, ok]) => ok)
+    .map(([p]) => p);
+  console.log(
+    available.length
+      ? `[ai] providers available from env: ${available.join(", ")}`
+      : "[ai] no provider env keys set — models depend on per-user keys"
+  );
+}
 
 // Seed system workflows + consumed-MCP connections once on boot (idempotent).
 void seedBuiltinWorkflows().catch(() => {});

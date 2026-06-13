@@ -1,3 +1,18 @@
+export type {
+  LlmModel,
+  LlmProvider,
+  ModelCapabilities,
+  OpenRouterModel,
+  ProviderCatalog,
+  ProviderKeyStatus,
+} from "@workspace/contracts";
+import type {
+  LlmProvider,
+  OpenRouterModel,
+  ProviderCatalog,
+  ProviderKeyStatus,
+} from "@workspace/contracts";
+
 export type Blame = {
   id: string;
   seq: number;
@@ -14,17 +29,26 @@ export type CellContent = {
   reasoning: string;
 };
 
+export type CellCitation = { page?: number; quote: string };
+
 export type Cell = {
   id: string;
   documentId: string;
   columnIndex: number;
   content: CellContent | null;
+  citations: CellCitation[] | null;
   status: "pending" | "generating" | "done" | "error";
   lastCommitId: string | null;
   blame: Blame | null;
 };
 
-export type Column = { index: number; name: string; prompt: string; format?: string };
+export type Column = {
+  index: number;
+  name: string;
+  prompt: string;
+  format?: string;
+  tags?: string[];
+};
 
 export type ReviewDetail = {
   review: {
@@ -66,6 +90,22 @@ export type Matter = {
 // listMattersForUser joins matter + client + the caller's role.
 export type MatterListItem = { matter: Matter; client: Client; role: MatterRole };
 
+// getClientOverview: the client plus the work the caller can see under it.
+export type ClientOverview = {
+  client: Client;
+  matters: Array<{ matter: Matter; role: MatterRole }>;
+  documents: Array<{
+    id: string;
+    title: string;
+    fileType: string;
+    status: DocStatus;
+    matterId: string;
+    createdAt: string;
+  }>;
+  contracts: Array<{ id: string; title: string; matterId: string; createdAt: string }>;
+  reviews: Array<{ id: string; title: string; matterId: string; createdAt: string }>;
+};
+
 export type MatterMember = {
   userId: string;
   role: MatterRole;
@@ -76,20 +116,23 @@ export type MatterMember = {
 
 export type FirmUser = { id: string; name: string; email: string };
 
+// A context item the user attaches to a chat message. The backend prepends a
+// reference line so the model reads it via the tool catalog (fetch/get_review/…).
+export type ChatAttachment = {
+  kind: "document" | "matter" | "client" | "review";
+  id: string;
+  label: string;
+};
+
+// Thinking effort for reasoning-capable models. Undefined = "Instant" (off).
+export type ReasoningEffort = "low" | "medium" | "high";
+
 export type Citation = {
   ref: number;
   doc_id?: string;
   quotes?: string[];
   cluster_id?: number;
   opinion_id?: number;
-};
-
-export type LlmProvider = "anthropic" | "openai" | "gemini" | "openrouter";
-export type LlmModel = { id: string; label: string; provider: LlmProvider };
-export type ProviderStatus = {
-  provider: LlmProvider;
-  hasUserKey: boolean;
-  source: "user" | "env" | null;
 };
 
 export type DocStatus = "pending" | "processing" | "ready" | "failed";
@@ -107,33 +150,36 @@ async function req<T>(path: string, opts?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json" },
     ...opts,
   });
-  if (!r.ok) {
-    const body = (await r.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error || r.statusText);
-  }
+  if (!r.ok) throw await httpError(r);
   if (r.status === 204) return null as T;
   return (await r.json()) as T;
+}
+
+// statusText is empty over HTTP/2, so always fall back to the status code.
+async function httpError(r: Response): Promise<Error> {
+  const body = (await r.json().catch(() => ({}))) as { error?: string };
+  return new Error(body.error || r.statusText || `Request failed (${r.status})`);
 }
 
 // Multipart upload — let the browser set the multipart boundary (no JSON header).
 async function upload<T>(path: string, form: FormData): Promise<T> {
   const r = await fetch(path, { method: "POST", body: form });
-  if (!r.ok) {
-    const body = (await r.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error || r.statusText);
-  }
+  if (!r.ok) throw await httpError(r);
   return (await r.json()) as T;
 }
 
 export const api = {
-  getKeys: () => req<{ providers: ProviderStatus[] }>("/api/keys"),
+  getKeys: () => req<{ providers: ProviderKeyStatus[] }>("/api/keys"),
   setKey: (provider: LlmProvider, key: string) =>
     req<{ ok: true }>("/api/keys", { method: "PUT", body: JSON.stringify({ provider, key }) }),
   deleteKey: (provider: LlmProvider) =>
     req<{ ok: true }>(`/api/keys?provider=${provider}`, { method: "DELETE" }),
-  listModels: () => req<LlmModel[]>("/api/models"),
+  listModels: () => req<ProviderCatalog[]>("/api/models"),
+  searchOpenRouterModels: (q: string) =>
+    req<OpenRouterModel[]>(`/api/models/openrouter?q=${encodeURIComponent(q)}`),
   // Clients & matters (firm organization)
   listClients: () => req<Client[]>("/api/clients"),
+  getClient: (id: string) => req<ClientOverview>(`/api/clients/${id}`),
   createClient: (d: {
     name: string;
     type?: "organization" | "individual";
@@ -262,8 +308,15 @@ export const api = {
   updateWorkflow: (id: string, patch: { title?: string; promptMd?: string }) =>
     req<WorkflowDetail>(`/api/workflows/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
 
-  // Chat (consumes external MCP tools)
-  sendChat: (message: string, model?: string) =>
+  // Chat (consumes the shared gitcounsel tool catalog + external MCP tools)
+  sendChat: (
+    message: string,
+    opts?: {
+      model?: string;
+      attachments?: ChatAttachment[];
+      reasoning?: ReasoningEffort;
+    }
+  ) =>
     req<{
       text: string;
       toolCalls: Array<{ tool: string; input: unknown }>;
@@ -271,9 +324,103 @@ export const api = {
       jurisdiction: string;
       documents: Array<{ id: string; title: string; download: string }>;
       citations: Citation[];
-    }>("/api/chat", { method: "POST", body: JSON.stringify({ message, model }) }),
+    }>("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({ message, ...opts }),
+    }),
+  // Streaming variant: token deltas arrive via handlers, the final payload via
+  // onDone. Same request body as sendChat.
+  streamChat: (message: string, opts: ChatSendOpts, handlers: ChatStreamHandlers) =>
+    streamChat(message, opts, handlers),
+  // Conversation history.
+  listChats: () => req<ChatSummary[]>("/api/chats"),
+  getChat: (id: string) => req<ChatDetail>(`/api/chats/${id}`),
   documentDownloadUrl: (id: string) => `/api/documents/${id}/download`,
 };
+
+export type ChatSendOpts = {
+  model?: string;
+  attachments?: ChatAttachment[];
+  reasoning?: ReasoningEffort;
+  chatId?: string;
+};
+
+export type ChatResult = {
+  chatId: string;
+  text: string;
+  toolCalls: Array<{ tool: string; input: unknown }>;
+  tools: string[];
+  jurisdiction: string;
+  documents: Array<{ id: string; title: string; download: string }>;
+  citations: Citation[];
+};
+
+export type ChatSummary = { id: string; title: string | null; updatedAt: string };
+export type ChatTurn = {
+  role: "user" | "assistant";
+  text: string;
+  toolCalls?: Array<{ tool: string; input: unknown }>;
+  citations?: Citation[];
+};
+export type ChatDetail = { id: string; title: string | null; turns: ChatTurn[] };
+
+export type ChatStreamHandlers = {
+  onText?: (delta: string) => void;
+  onReasoning?: (delta: string) => void;
+  onTool?: (name: string) => void;
+  onDone?: (result: ChatResult) => void;
+  onError?: (message: string) => void;
+};
+
+// POSTs to the SSE chat endpoint and dispatches events to handlers. Parses the
+// text/event-stream frames off the response body (fetch, not EventSource, so we
+// can POST with the session cookie).
+async function streamChat(
+  message: string,
+  opts: ChatSendOpts,
+  handlers: ChatStreamHandlers
+): Promise<void> {
+  const r = await fetch("/api/chat/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, ...opts }),
+  });
+  if (!r.ok || !r.body) {
+    handlers.onError?.(await r.text().catch(() => "stream failed"));
+    return;
+  }
+
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const dispatch = (event: string, data: string) => {
+    const value = data ? (JSON.parse(data) as unknown) : null;
+    if (event === "text") handlers.onText?.(value as string);
+    else if (event === "reasoning") handlers.onReasoning?.(value as string);
+    else if (event === "tool") handlers.onTool?.(value as string);
+    else if (event === "done") handlers.onDone?.(value as ChatResult);
+    else if (event === "error") handlers.onError?.(value as string);
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // SSE frames are separated by a blank line.
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      let event = "message";
+      let data = "";
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      if (data) dispatch(event, data);
+    }
+  }
+}
 
 export type ContractEdit = {
   id: string;
