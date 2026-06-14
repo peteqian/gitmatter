@@ -25,3 +25,6 @@ todos.json
 
 # gitcounsel CLI build artifacts
 cli/dist/
+
+# test artifacts
+test-results/
