@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1781085489207,
-      "tag": "0000_cultured_blue_blade",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1781106414916,
-      "tag": "0001_add_clients_matters",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1781106707972,
-      "tag": "0002_matter_indexes",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1781109551983,
-      "tag": "0003_matter_not_null",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1781110871634,
-      "tag": "0004_oauth",
+      "when": 1781420447821,
+      "tag": "0000_init",
       "breakpoints": true
     }
   ]

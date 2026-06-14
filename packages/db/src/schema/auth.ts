@@ -1,19 +1,29 @@
-import { boolean, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 
 // better-auth core tables live in a dedicated `auth` Postgres schema, isolated
 // from the application tables in `public`. Column/table names match
 // better-auth's default Drizzle output so the drizzleAdapter maps cleanly.
 export const authSchema = pgSchema("auth");
 
-export const user = authSchema.table("user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").default(false).notNull(),
-  image: text("image"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const user = authSchema.table(
+  "user",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").default(false).notNull(),
+    image: text("image"),
+    // Tenant the user belongs to (the public `tenants` row id, stored as text — no
+    // cross-schema FK). Nullable at the column level because better-auth inserts
+    // the row before our signup hook stamps it, but it is always set by that hook.
+    // Registered as a better-auth `additionalField`.
+    tenantId: text("tenant_id"),
+    tenantRole: text("tenant_role").$type<"admin" | "member">().default("member").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("user_tenant_idx").on(t.tenantId)]
+);
 
 export const session = authSchema.table("session", {
   id: text("id").primaryKey(),

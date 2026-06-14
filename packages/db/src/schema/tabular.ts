@@ -1,6 +1,7 @@
-import { integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth.js";
 import { matters } from "./matters.js";
+import { tenants } from "./tenants.js";
 
 export type TabularColumn = {
   index: number;
@@ -21,24 +22,31 @@ export type CellContent = {
 // the page it came from. Stored in the tabular_cells.citations column.
 export type CellCitation = { page?: number; quote: string };
 
-export const tabularReviews = pgTable("tabular_reviews", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  matterId: uuid("matter_id")
-    .notNull()
-    .references(() => matters.id, { onDelete: "cascade" }),
-  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
-  title: text("title").notNull(),
-  jurisdiction: text("jurisdiction"),
-  columnsConfig: jsonb("columns_config").$type<TabularColumn[]>().notNull(),
-  documentIds: jsonb("document_ids").$type<string[]>().notNull(),
-  workflowId: uuid("workflow_id"),
-  headCommitId: uuid("head_commit_id"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const tabularReviews = pgTable(
+  "tabular_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    matterId: uuid("matter_id")
+      .notNull()
+      .references(() => matters.id, { onDelete: "cascade" }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    jurisdiction: text("jurisdiction"),
+    columnsConfig: jsonb("columns_config").$type<TabularColumn[]>().notNull(),
+    documentIds: jsonb("document_ids").$type<string[]>().notNull(),
+    workflowId: uuid("workflow_id"),
+    headCommitId: uuid("head_commit_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("tabular_reviews_tenant_idx").on(t.tenantId)]
+);
 
 export const tabularCells = pgTable(
   "tabular_cells",

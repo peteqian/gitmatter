@@ -1,21 +1,29 @@
-import { integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth.js";
 import { matters } from "./matters.js";
+import { tenants } from "./tenants.js";
 import type { ArtifactType } from "./commits.js";
 
-export const chats = pgTable("chats", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  matterId: uuid("matter_id").references(() => matters.id, { onDelete: "cascade" }),
-  // Optionally scoped to an artifact (review/contract); null = global chat.
-  artifactType: text("artifact_type").$type<ArtifactType>(),
-  artifactId: uuid("artifact_id"),
-  title: text("title"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const chats = pgTable(
+  "chats",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    matterId: uuid("matter_id").references(() => matters.id, { onDelete: "cascade" }),
+    // Optionally scoped to an artifact (review/contract); null = global chat.
+    artifactType: text("artifact_type").$type<ArtifactType>(),
+    artifactId: uuid("artifact_id"),
+    title: text("title"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("chats_tenant_idx").on(t.tenantId)]
+);
 
 // Append-only conversation log. NOT part of the commit spine.
 export const chatMessages = pgTable(

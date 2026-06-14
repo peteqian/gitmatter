@@ -1,6 +1,7 @@
 import { boolean, index, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth.js";
 import { clients } from "./clients.js";
+import { tenants } from "./tenants.js";
 
 // Per-matter access role. Ordered viewer < editor < owner; read needs viewer,
 // mutate needs editor, manage-team/close needs owner (see core access guard).
@@ -12,6 +13,9 @@ export const matters = pgTable(
   "matters",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
     clientId: uuid("client_id")
       .notNull()
       .references(() => clients.id, { onDelete: "cascade" }),
@@ -31,7 +35,7 @@ export const matters = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [index("matters_client_idx").on(t.clientId)]
+  (t) => [index("matters_client_idx").on(t.clientId), index("matters_tenant_idx").on(t.tenantId)]
 );
 
 export const matterMembers = pgTable(
