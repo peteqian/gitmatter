@@ -1,15 +1,29 @@
 import { HeadContent, Link, Scripts, createRootRoute } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/sonner";
+import { Suspense, lazy } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AppSidebar } from "../components/AppSidebar";
-import { useSession } from "../lib/auth-client";
 import { MattersProvider } from "../lib/matters-context";
 import { queryClient } from "../lib/query";
+import { getServerSession } from "../lib/session";
 
 import appCss from "@/styles/globals.css?url";
 
+// Authed-only chrome, lazy-loaded so its weight (base-ui Popover, lucide icons,
+// the chats query, sonner) leaves the shared entry chunk. The logged-out / login
+// path — the cold-load case — then ships none of it, cutting hydration work
+// (faster TTI/INP). On authed pages these load in parallel after first paint.
+const AppSidebar = lazy(() =>
+  import("../components/AppSidebar").then((m) => ({ default: m.AppSidebar }))
+);
+const Toaster = lazy(() => import("@/components/ui/sonner").then((m) => ({ default: m.Toaster })));
+
 export const Route = createRootRoute({
+  // Resolve the session on the server so every route's beforeLoad (and the
+  // shell below) can render the correct logged-in/out chrome in the SSR HTML,
+  // instead of a blank screen that only fills in after client hydration.
+  // Session changes (login/logout) do a full reload, so this stays accurate
+  // for the lifetime of the loaded app.
+  beforeLoad: async () => ({ session: await getServerSession() }),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -28,11 +42,9 @@ export const Route = createRootRoute({
 });
 
 function Shell({ children }: { children: React.ReactNode }) {
-  const { data: session, isPending } = useSession();
-
-  // Still resolving the session: don't mount route children yet, so hooks that
-  // need a logged-in provider (useMatters) never run without one.
-  if (isPending) return <div className="min-h-dvh bg-background" />;
+  // Server-resolved (see root beforeLoad): known during SSR, so the shell
+  // renders real chrome in the server HTML — no blank-screen wait.
+  const { session } = Route.useRouteContext();
 
   // Logged out: bare chrome (no sidebar, no MattersProvider). Access control
   // for protected routes lives in the _auth pathless layout, not here.
@@ -55,9 +67,17 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <MattersProvider>
       <div className="flex h-dvh bg-background">
-        <AppSidebar />
+        <Suspense
+          fallback={
+            <div className="my-2 ml-2 h-[calc(100dvh-1.5rem)] w-14 shrink-0 rounded-2xl glass-panel md:my-3 md:ml-3 md:w-64" />
+          }
+        >
+          <AppSidebar session={session} />
+        </Suspense>
         <main className="h-dvh flex-1 overflow-y-auto">
-          <div className="container mx-auto px-6 pt-page pb-12">{children}</div>
+          <div className="container mx-auto flex h-full flex-col px-6 pt-page pb-12">
+            {children}
+          </div>
         </main>
       </div>
     </MattersProvider>
@@ -76,7 +96,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             <Shell>{children}</Shell>
           </TooltipProvider>
         </QueryClientProvider>
-        <Toaster />
+        <Suspense fallback={null}>
+          <Toaster />
+        </Suspense>
         <Scripts />
       </body>
     </html>

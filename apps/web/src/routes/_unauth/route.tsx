@@ -1,22 +1,18 @@
-import { Outlet, createFileRoute, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { useSession } from "../../lib/auth-client";
+import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 
 // Mirror of _auth: a guest-only layout. A logged-in visitor has no business on
-// the marketing/login/signup pages, so bounce them to the app home. Session is
-// resolved client-side, so the redirect runs in the component (see _auth).
-export const Route = createFileRoute("/_unauth")({ component: UnauthLayout });
+// the marketing/login/signup pages, so bounce them to the app home. The session
+// is server-resolved in the root beforeLoad (cookies available), so this runs
+// correctly during SSR and renders the public content directly.
+export const Route = createFileRoute("/_unauth")({
+  beforeLoad: ({ context }) => {
+    if (context.session) {
+      throw redirect({ to: "/assistant" });
+    }
+  },
+  component: UnauthLayout,
+});
 
 function UnauthLayout() {
-  const { data: session, isPending } = useSession();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isPending && session) {
-      void router.navigate({ to: "/assistant" });
-    }
-  }, [isPending, session, router]);
-
-  if (isPending || session) return <div className="min-h-dvh bg-background" />;
   return <Outlet />;
 }

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,6 @@ import { FormError } from "../../components/form/FormError";
 export const Route = createFileRoute("/_unauth/signup")({ component: Signup });
 
 function Signup() {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +24,9 @@ function Signup() {
     const { error: signUpError } = await signUp.email({ name, email, password });
     setBusy(false);
     if (signUpError) return setError(signUpError.message ?? "Sign up failed");
-    void router.navigate({ to: "/assistant" });
+    // Full reload so the server beforeLoad re-resolves the new session and SSRs
+    // the app shell (mirrors login).
+    window.location.href = "/assistant";
   }
 
   return (

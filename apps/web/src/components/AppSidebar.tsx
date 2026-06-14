@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useRouterState, useRouter } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Briefcase,
   Building2,
   Check,
   ChevronsUpDown,
-  FileText,
   FolderOpen,
   Library,
   MessageSquare,
@@ -16,14 +15,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { signOut, useSession } from "../lib/auth-client";
+import { signOut } from "../lib/auth-client";
 import { useMatters } from "../lib/matters-context";
 import { useChats } from "../lib/queries";
+import type { ServerSession } from "../lib/session";
 
 const NAV_ITEMS = [
   { href: "/assistant", label: "Assistant", icon: MessageSquare },
   { href: "/reviews", label: "Reviews", icon: Table2 },
-  { href: "/contracts", label: "Contracts", icon: FileText },
   { href: "/workflows", label: "Workflows", icon: Library },
   { href: "/documents", label: "Documents", icon: FolderOpen },
   { href: "/clients", label: "Clients", icon: Building2 },
@@ -68,26 +67,35 @@ function activeSection(pathname: string): string | null {
   return hit?.href ?? null;
 }
 
-export function AppSidebar() {
-  const { data: session } = useSession();
-  const router = useRouter();
+export function AppSidebar({ session }: { session: NonNullable<ServerSession> }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [open, setOpen] = useState(true);
+  // User's saved preference. Below md the sidebar force-collapses regardless.
+  const [userOpen, setUserOpen] = useState(true);
+  const [narrow, setNarrow] = useState(false);
 
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("sidebarOpen") : null;
-    if (saved !== null) setOpen(saved === "true");
+    if (saved !== null) setUserOpen(saved === "true");
   }, []);
 
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  // Narrow viewport wins — collapsed and not togglable open.
+  const open = userOpen && !narrow;
+
   function toggle() {
-    setOpen((v) => {
+    setUserOpen((v) => {
       const next = !v;
       localStorage.setItem("sidebarOpen", String(next));
       return next;
     });
   }
-
-  if (!session) return null;
 
   const initial = (session.user.name || session.user.email).charAt(0).toUpperCase();
   const subSection = activeSection(pathname);
@@ -103,7 +111,7 @@ export function AppSidebar() {
     <div
       className={cn(
         open ? "w-64" : "w-14",
-        "my-2 mr-0 ml-2 flex flex-col rounded-2xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-xs md:my-3 md:ml-3",
+        "my-2 mr-0 ml-2 flex flex-col rounded-2xl glass-panel text-sidebar-foreground md:my-3 md:ml-3",
         "h-[calc(100dvh-1.5rem)] transition-all duration-300"
       )}
     >
@@ -186,7 +194,7 @@ export function AppSidebar() {
             <div className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-xs font-medium">{session.user.email}</span>
               <button
-                onClick={() => signOut().then(() => router.navigate({ to: "/login" }))}
+                onClick={() => signOut().then(() => (window.location.href = "/login"))}
                 className="self-start text-xs text-muted-foreground hover:text-foreground"
               >
                 Sign out

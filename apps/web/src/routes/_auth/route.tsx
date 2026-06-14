@@ -1,29 +1,18 @@
-import { Outlet, createFileRoute, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { useSession } from "../../lib/auth-client";
+import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 
-// Pathless layout that gates every route nested under it. Session is resolved
-// client-side, so the guard runs in the component (a beforeLoad check would
-// wrongly redirect logged-in users on SSR/hard-refresh, before cookies load).
-// The sidebar's conversation list is fetched client-side via useChats() — a
-// route loader here would fetch with a relative URL that fails under SSR.
+// Pathless layout that gates every route nested under it. The session is
+// resolved on the server in the root beforeLoad and threaded through context,
+// so this guard runs correctly during SSR (cookies are available) and renders
+// the protected content directly — no blank-screen wait for client hydration.
 export const Route = createFileRoute("/_auth")({
+  beforeLoad: ({ context, location }) => {
+    if (!context.session) {
+      throw redirect({ to: "/login", search: { next: location.href } });
+    }
+  },
   component: AuthLayout,
 });
 
 function AuthLayout() {
-  const { data: session, isPending } = useSession();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isPending && !session) {
-      // Read the live path at redirect time. The router's selected location can
-      // lag during a navigation transition, capturing the previous route.
-      const next = window.location.pathname + window.location.search;
-      void router.navigate({ to: "/login", search: { next } });
-    }
-  }, [isPending, session, router]);
-
-  if (isPending || !session) return <div className="min-h-dvh bg-background" />;
   return <Outlet />;
 }

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,6 @@ export const Route = createFileRoute("/_unauth/login")({
 });
 
 function Login() {
-  const router = useRouter();
   const { next } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,13 +29,11 @@ function Login() {
     const { error: signInError } = await signIn.email({ email, password });
     setBusy(false);
     if (signInError) return setError(signInError.message ?? "Sign in failed");
-    // Bounce back to a local `next` (the gated route, or the OAuth /authorize
-    // endpoint). Only local paths, to avoid an open redirect.
-    if (next && next.startsWith("/")) {
-      window.location.href = next;
-      return;
-    }
-    void router.navigate({ to: "/assistant" });
+    // Full reload (not a client nav) so the server beforeLoad re-resolves the
+    // now-authenticated session and SSRs the app shell. Bounce to a local
+    // `next` (gated route or OAuth /authorize); only local paths, to avoid an
+    // open redirect.
+    window.location.href = next && next.startsWith("/") ? next : "/assistant";
   }
 
   return (
