@@ -2,7 +2,7 @@
 import { parseArgs } from "node:util";
 import { $ } from "bun";
 
-// Local dev launcher: brings up docker deps (Postgres + markitdown sidecar),
+// Local dev launcher: brings up docker deps (Postgres + docling sidecar),
 // applies the DB schema, then runs the app. `bun run dev` calls this.
 //
 // Flags:
@@ -35,13 +35,13 @@ if (!flags["skip-deps"]) {
     console.error("\x1b[31m[dev]\x1b[0m Docker is not running. Start Docker and retry.");
     process.exit(1);
   }
-  // --wait blocks until Postgres is healthy (it has a healthcheck). markitdown
-  // has no healthcheck; it is "running" immediately but pip-installs
-  // markitdown-mcp on first boot (~20-30s) before it answers.
+  // --wait blocks until Postgres is healthy (it has a healthcheck). docling
+  // has no healthcheck; it is "running" immediately but loads its models on
+  // first boot before it answers.
   await step(
-    "starting deps (postgres + markitdown)",
+    "starting deps (postgres + docling)",
     () =>
-      $`docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --wait postgres markitdown`
+      $`docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --wait postgres docling`
   );
 } else {
   log("skipping deps (--skip-deps)");

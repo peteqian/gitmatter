@@ -14,7 +14,7 @@ product is, see the [README](../README.md).
   provider's native SDK, configured for zero data retention; keys encrypted at rest
 - **MCP** — `@modelcontextprotocol/sdk` (server + client, Streamable HTTP)
 - **Storage** — S3-compatible object storage (Cloudflare R2 or any S3 endpoint); **required**
-- **Deploy** — docker-compose: web + postgres + courtlistener-mcp + markitdown (Python sidecar)
+- **Deploy** — docker-compose: web + postgres + courtlistener-mcp + docling (docling-serve sidecar)
 
 ## Prerequisites
 
@@ -42,7 +42,7 @@ default.
 
 ## Local development
 
-`bun run dev` brings up deps (Postgres + the markitdown sidecar) in docker,
+`bun run dev` brings up deps (Postgres + the docling sidecar) in docker,
 applies the schema, then runs the app:
 
 ```bash
@@ -90,7 +90,7 @@ index.html`) — the root is not an app.
 docker compose up --build
 ```
 
-Runs `web` + `postgres` (pgvector) + `courtlistener-mcp` + `markitdown` (internal-network-only). The
+Runs `web` + `postgres` (pgvector) + `courtlistener-mcp` + `docling` (internal-network-only). The
 web image applies the schema on boot, then serves.
 
 ## Connect an AI agent (MCP)
@@ -138,9 +138,11 @@ server address (the token only works here) and the login step reuses your gitcou
 ### Consumed MCP + chat
 
 The in-app **Chat** (your LLM key) also _consumes_ external MCP servers — gitcounsel acts as an MCP
-client. Two are seeded:
+client. One is seeded:
 
 - **CourtListener** (`services/courtlistener-mcp`, a Bun MCP server we ship) — `search_case_law`,
   `verify_citations`. Set `COURTLISTENER_API_TOKEN`.
-- **MarkItDown** (Microsoft, Python sidecar) — `convert_to_markdown`. No auth, so it runs
-  internal-network-only (never published to the host).
+
+Document extraction (PDF → markdown) uses **Docling** (`docling-serve`), called directly over its
+REST API — not an MCP server. No auth, so it runs internal-network-only (never published to the
+host). Configure with `DOCLING_URL`.

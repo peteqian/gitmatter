@@ -13,7 +13,7 @@ import { matters } from "./matters.js";
 import { tenants } from "./tenants.js";
 
 // Uploaded source documents. `markdown` holds the extracted text (via the
-// markitdown MCP sidecar or a local extractor) used as LLM context. Extraction
+// docling sidecar or a local extractor) used as LLM context. Extraction
 // runs as a background job: an upload lands `pending`, the worker claims it
 // (`processing`), then sets `ready` (markdown populated) or `failed` (error +
 // attempts bumped). Pasted-text documents are born `ready`.

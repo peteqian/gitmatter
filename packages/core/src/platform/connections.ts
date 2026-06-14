@@ -14,7 +14,6 @@ export async function listEnabledConnections(userId: string): Promise<McpConnect
 // Sensible local defaults when the provider's url env var is unset.
 const FALLBACK_URL: Record<string, string> = {
   courtlistener: "http://localhost:8080/mcp",
-  markitdown: "http://localhost:4281/mcp",
 };
 
 /** Seed a global consumed-MCP connection per registry provider (idempotent). */

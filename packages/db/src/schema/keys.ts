@@ -33,7 +33,7 @@ export const mcpAccessTokens = pgTable("mcp_access_tokens", {
   revokedAt: timestamp("revoked_at"),
 });
 
-// External MCP servers gitcounsel consumes (CourtListener, MarkItDown).
+// External MCP servers gitcounsel consumes (e.g. CourtListener).
 export const mcpConnections = pgTable("mcp_connections", {
   id: uuid("id").primaryKey().defaultRandom(),
   // null = system/global connection (shared by all users).

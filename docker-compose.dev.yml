@@ -1,7 +1,7 @@
-# Dev-only overlay. Publishes the no-auth markitdown sidecar to localhost so a
+# Dev-only overlay. Publishes the no-auth docling-serve sidecar to localhost so a
 # locally-run `bun dev` (outside the compose network) can reach it. Applied
 # explicitly via `-f`, so the production compose stays internal-only.
 services:
-  markitdown:
+  docling:
     ports:
-      - "127.0.0.1:4281:4281"
+      - "127.0.0.1:5001:5001"

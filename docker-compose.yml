@@ -3,8 +3,8 @@
 #
 #   docker compose up --build
 #
-# markitdown has no authentication, so it is NOT published to the host — it is
-# only reachable on the internal compose network.
+# docling-serve has no authentication, so it is NOT published to the host — it
+# is only reachable on the internal compose network.
 services:
   postgres:
     image: pgvector/pgvector:pg17
@@ -22,12 +22,11 @@ services:
       timeout: 5s
       retries: 10
 
-  # Microsoft MarkItDown as a Python sidecar. No auth -> internal network only.
-  markitdown:
-    image: python:3.12-slim
-    command: sh -c "pip install --no-cache-dir markitdown-mcp && markitdown-mcp --http --host 0.0.0.0 --port 4281"
+  # Docling document parser as a sidecar. No auth -> internal network only.
+  docling:
+    image: quay.io/docling-project/docling-serve-cpu:latest
     expose:
-      - "4281"
+      - "5001"
 
   web:
     build:
@@ -42,7 +41,7 @@ services:
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4280}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set in .env}
       COURTLISTENER_API_TOKEN: ${COURTLISTENER_API_TOKEN:-}
-      MARKITDOWN_MCP_URL: http://markitdown:4281/mcp
+      DOCLING_URL: http://docling:5001/v1/convert/source
       PORT: "4280"
     ports:
       - "4280:4280"
