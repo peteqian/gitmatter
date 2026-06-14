@@ -9,13 +9,13 @@ describe("registry", () => {
     expect(jurisdictionMatches("*", "anything")).toBe(true);
   });
 
-  test("CourtListener serves US, not EU; MarkItDown serves all", () => {
+  test("CourtListener serves US, not EU; Docling serves all", () => {
     const us = providersFor("US-NY").map((p) => p.id);
     expect(us).toContain("courtlistener");
-    expect(us).toContain("markitdown");
+    expect(us).toContain("docling");
     const eu = providersFor("EU").map((p) => p.id);
     expect(eu).not.toContain("courtlistener");
-    expect(eu).toContain("markitdown");
+    expect(eu).toContain("docling");
   });
 
   test("toolsFor flattens provider tools", () => {

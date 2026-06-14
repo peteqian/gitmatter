@@ -51,14 +51,15 @@ export const PROVIDERS: ToolProvider[] = [
     ],
   },
   {
-    id: "markitdown",
-    name: "MarkItDown",
+    id: "docling",
+    name: "Docling",
     jurisdictions: ["*"], // document extraction is jurisdiction-agnostic
-    transport: "mcp-http",
-    urlEnv: "MARKITDOWN_MCP_URL",
+    // Called directly by the gitcounsel backend over its REST API (docling-serve),
+    // not connected as a consumed MCP server.
+    transport: "internal",
     authType: "none",
     capabilities: ["doc_extract"],
-    tools: [{ name: "convert_to_markdown", summary: "Convert a document URL to markdown." }],
+    tools: [{ name: "convert_to_markdown", summary: "Convert a document to markdown." }],
   },
 ];
 
