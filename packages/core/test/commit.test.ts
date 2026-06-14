@@ -1,26 +1,31 @@
 import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 import { randomUUID } from "node:crypto";
 import { db, sql } from "@workspace/db/client";
-import { clients, tabularReviews, user } from "@workspace/db/schema";
+import { tabularReviews, tenants, user } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { deriveBlame, diffCommits, listCommits, recordCommit } from "../src/core/commit.js";
 import { ensureDefaultMatter } from "../src/platform/matters.js";
 
 const userId = `test-user-${randomUUID()}`;
+let tenantId: string;
 let reviewId: string;
 
 beforeAll(async () => {
+  const [t] = await db.insert(tenants).values({ name: "Test Tenant" }).returning();
+  tenantId = t!.id;
   await db.insert(user).values({
     id: userId,
     name: "Test User",
     email: `${userId}@example.com`,
     emailVerified: true,
+    tenantId,
   });
-  const matterId = await ensureDefaultMatter(userId, "Test User");
+  const matterId = await ensureDefaultMatter(userId, "Test User", tenantId);
   const [r] = await db
     .insert(tabularReviews)
     .values({
       userId,
+      tenantId,
       matterId,
       createdBy: userId,
       title: "Test Review",
@@ -32,8 +37,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // Deleting the client cascades its matters -> reviews -> members.
-  await db.delete(clients).where(eq(clients.createdBy, userId));
+  // Deleting the tenant cascades clients -> matters -> reviews -> members.
+  await db.delete(tenants).where(eq(tenants.id, tenantId));
   await db.delete(user).where(eq(user.id, userId));
   await sql.end();
 });
@@ -73,7 +78,7 @@ describe("recordCommit", () => {
     await Promise.all(
       Array.from({ length: N }, (_, i) =>
         recordCommit({
-          artifactType: "contract",
+          artifactType: "document",
           artifactId,
           actor: { type: "user", userId },
           op: "update",
@@ -82,7 +87,7 @@ describe("recordCommit", () => {
         })
       )
     );
-    const rows = await listCommits("contract", artifactId);
+    const rows = await listCommits("document", artifactId);
     const seqs = rows.map((r) => r.seq).sort((a, b) => a - b);
     expect(seqs).toEqual(Array.from({ length: N }, (_, i) => i + 1));
     expect(new Set(seqs).size).toBe(N); // no duplicates

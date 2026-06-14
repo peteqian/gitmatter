@@ -5,11 +5,10 @@
  */
 import { eq, isNull } from "drizzle-orm";
 import { db, sql } from "@workspace/db/client";
-import { chats, contracts, documents, tabularReviews, user } from "@workspace/db/schema";
+import { chats, documents, tabularReviews, user } from "@workspace/db/schema";
 import { ensureDefaultMatter } from "../src/platform/matters.js";
 
 const TABLES = [
-  { name: "contracts", table: contracts },
   { name: "tabular_reviews", table: tabularReviews },
   { name: "documents", table: documents },
   { name: "chats", table: chats },
@@ -19,8 +18,12 @@ const matterCache = new Map<string, string>();
 async function defaultMatterFor(userId: string): Promise<string> {
   const cached = matterCache.get(userId);
   if (cached) return cached;
-  const [u] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId));
-  const matterId = await ensureDefaultMatter(userId, u?.name ?? "User");
+  const [u] = await db
+    .select({ name: user.name, tenantId: user.tenantId })
+    .from(user)
+    .where(eq(user.id, userId));
+  if (!u?.tenantId) throw new Error(`user ${userId} has no tenant`);
+  const matterId = await ensureDefaultMatter(userId, u.name ?? "User", u.tenantId);
   matterCache.set(userId, matterId);
   return matterId;
 }

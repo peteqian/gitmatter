@@ -3,7 +3,7 @@ import { db } from "@workspace/db/client";
 import {
   type MatterRole,
   clients,
-  contracts,
+  documentFolders,
   documents,
   matterMembers,
   matters,
@@ -19,11 +19,13 @@ import {
 
 export async function createClient(
   creatorId: string,
+  tenantId: string,
   input: { name: string; type?: "organization" | "individual"; clientNumber?: string }
 ) {
   const [row] = await db
     .insert(clients)
     .values({
+      tenantId,
       name: input.name,
       type: input.type ?? "organization",
       clientNumber: input.clientNumber ?? null,
@@ -33,8 +35,12 @@ export async function createClient(
   return row!;
 }
 
-export async function listClients() {
-  return db.select().from(clients).orderBy(desc(clients.createdAt));
+export async function listClients(tenantId: string) {
+  return db
+    .select()
+    .from(clients)
+    .where(eq(clients.tenantId, tenantId))
+    .orderBy(desc(clients.createdAt));
 }
 
 export async function getClient(id: string) {
@@ -43,8 +49,8 @@ export async function getClient(id: string) {
 }
 
 /** Client plus the work under it the user can see: their matters on this client,
- *  and the documents/contracts/reviews filed under those matters. Returns null if
- *  the client doesn't exist. Artifact lists are empty when the user has no matters. */
+ *  and the documents/reviews filed under those matters. Returns null if the client
+ *  doesn't exist. Artifact lists are empty when the user has no matters. */
 export async function getClientOverview(userId: string, clientId: string) {
   const client = await getClient(clientId);
   if (!client) return null;
@@ -58,10 +64,10 @@ export async function getClientOverview(userId: string, clientId: string) {
 
   const matterIds = matterRows.map((r) => r.matter.id);
   if (!matterIds.length) {
-    return { client, matters: matterRows, documents: [], contracts: [], reviews: [] };
+    return { client, matters: matterRows, documents: [], reviews: [] };
   }
 
-  const [documentRows, contractRows, reviewRows] = await Promise.all([
+  const [documentRows, reviewRows] = await Promise.all([
     db
       .select({
         id: documents.id,
@@ -74,16 +80,6 @@ export async function getClientOverview(userId: string, clientId: string) {
       .from(documents)
       .where(inArray(documents.matterId, matterIds))
       .orderBy(desc(documents.createdAt)),
-    db
-      .select({
-        id: contracts.id,
-        title: contracts.title,
-        matterId: contracts.matterId,
-        createdAt: contracts.createdAt,
-      })
-      .from(contracts)
-      .where(inArray(contracts.matterId, matterIds))
-      .orderBy(desc(contracts.createdAt)),
     db
       .select({
         id: tabularReviews.id,
@@ -100,7 +96,6 @@ export async function getClientOverview(userId: string, clientId: string) {
     client,
     matters: matterRows,
     documents: documentRows,
-    contracts: contractRows,
     reviews: reviewRows,
   };
 }
@@ -115,12 +110,19 @@ type MatterInput = {
   adverseParties?: string[];
 };
 
-/** Create a matter and add the creator as its `owner` member, atomically. */
+/** Create a matter and add the creator as its `owner` member, atomically. The
+ *  matter copies its client's tenantId down (the isolation root). */
 export async function createMatter(creatorId: string, input: MatterInput) {
+  const [client] = await db
+    .select({ tenantId: clients.tenantId })
+    .from(clients)
+    .where(eq(clients.id, input.clientId));
+  if (!client) throw new Error("Client not found");
   return db.transaction(async (tx) => {
     const [matter] = await tx
       .insert(matters)
       .values({
+        tenantId: client.tenantId,
         clientId: input.clientId,
         name: input.name,
         matterNumber: input.matterNumber ?? null,
@@ -137,15 +139,40 @@ export async function createMatter(creatorId: string, input: MatterInput) {
   });
 }
 
-/** Matters the user is staffed on, newest first, with the client and the user's role. */
+/** Matters the user is staffed on, newest first, with the client, the user's
+ *  role, the owner's name, and how many people have access (for the list view). */
 export async function listMattersForUser(userId: string) {
-  return db
+  const base = await db
     .select({ matter: matters, client: clients, role: matterMembers.role })
     .from(matterMembers)
     .innerJoin(matters, eq(matterMembers.matterId, matters.id))
     .innerJoin(clients, eq(matters.clientId, clients.id))
     .where(eq(matterMembers.userId, userId))
     .orderBy(desc(matters.updatedAt));
+
+  const matterIds = base.map((b) => b.matter.id);
+  if (!matterIds.length) return [];
+
+  // All members of those matters, to derive owner name + people-with-access count.
+  const memberRows = await db
+    .select({ matterId: matterMembers.matterId, role: matterMembers.role, name: user.name })
+    .from(matterMembers)
+    .innerJoin(user, eq(matterMembers.userId, user.id))
+    .where(inArray(matterMembers.matterId, matterIds));
+
+  const byMatter = new Map<string, { owner: string | null; count: number }>();
+  for (const m of memberRows) {
+    const agg = byMatter.get(m.matterId) ?? { owner: null, count: 0 };
+    agg.count += 1;
+    if (m.role === "owner") agg.owner = m.name;
+    byMatter.set(m.matterId, agg);
+  }
+
+  return base.map((b) => ({
+    ...b,
+    ownerName: byMatter.get(b.matter.id)?.owner ?? null,
+    memberCount: byMatter.get(b.matter.id)?.count ?? 1,
+  }));
 }
 
 export async function getMatter(id: string) {
@@ -184,11 +211,35 @@ export async function listMembers(matterId: string) {
     .where(eq(matterMembers.matterId, matterId));
 }
 
+/** Add (or re-role) a member. Sharing is tenant-bounded: the target user must
+ *  belong to the same tenant as the matter. */
 export async function addMember(matterId: string, userId: string, role: MatterRole = "editor") {
+  const [matter] = await db
+    .select({ tenantId: matters.tenantId })
+    .from(matters)
+    .where(eq(matters.id, matterId));
+  if (!matter) throw new Error("Matter not found");
+  const [target] = await db
+    .select({ tenantId: user.tenantId })
+    .from(user)
+    .where(eq(user.id, userId));
+  if (!target) throw new Error("User not found");
+  if (target.tenantId !== matter.tenantId) {
+    throw new Error("can only share with users in your organization");
+  }
   await db
     .insert(matterMembers)
     .values({ matterId, userId, role })
     .onConflictDoUpdate({ target: [matterMembers.matterId, matterMembers.userId], set: { role } });
+}
+
+/** Find a tenant user by exact email — backs the "Add by email" share path. */
+export async function findUserByEmail(tenantId: string, email: string) {
+  const [row] = await db
+    .select({ id: user.id, name: user.name, email: user.email })
+    .from(user)
+    .where(and(eq(user.email, email.toLowerCase().trim()), eq(user.tenantId, tenantId)));
+  return row ?? null;
 }
 
 /** Remove a member. Refuses to remove the matter's last owner (would orphan it). */
@@ -207,27 +258,79 @@ export async function removeMember(matterId: string, userId: string) {
 
 // ---- Firm user directory ----
 
-/** Substring search over the firm's users by name or email. */
-export async function searchUsers(q: string) {
+/** Substring search over the caller's tenant users by name or email. */
+export async function searchUsers(tenantId: string, q: string) {
   const term = `%${q}%`;
   return db
     .select({ id: user.id, name: user.name, email: user.email })
     .from(user)
-    .where(or(ilike(user.name, term), ilike(user.email, term)))
+    .where(and(eq(user.tenantId, tenantId), or(ilike(user.name, term), ilike(user.email, term))))
     .limit(20);
+}
+
+// ---- Document folders ----
+
+export function listFolders(matterId: string) {
+  return db
+    .select()
+    .from(documentFolders)
+    .where(eq(documentFolders.matterId, matterId))
+    .orderBy(documentFolders.name);
+}
+
+export async function createFolder(
+  creatorId: string,
+  matterId: string,
+  input: { name: string; parentFolderId?: string | null }
+) {
+  const [m] = await db
+    .select({ tenantId: matters.tenantId })
+    .from(matters)
+    .where(eq(matters.id, matterId));
+  if (!m) throw new Error("Matter not found");
+  const [row] = await db
+    .insert(documentFolders)
+    .values({
+      matterId,
+      tenantId: m.tenantId,
+      name: input.name,
+      parentFolderId: input.parentFolderId ?? null,
+      createdBy: creatorId,
+    })
+    .returning();
+  return row!;
+}
+
+export async function renameFolder(matterId: string, folderId: string, name: string) {
+  await db
+    .update(documentFolders)
+    .set({ name })
+    .where(and(eq(documentFolders.id, folderId), eq(documentFolders.matterId, matterId)));
+}
+
+export async function deleteFolder(matterId: string, folderId: string) {
+  await db
+    .delete(documentFolders)
+    .where(and(eq(documentFolders.id, folderId), eq(documentFolders.matterId, matterId)));
 }
 
 // ---- Conflicts ----
 
 /** Lightweight conflict check: does the new client/adverse-party overlap an
  *  existing client or another matter's adverse parties? Returns the matches. */
-export async function checkConflicts(input: { clientName: string; adverseParties?: string[] }) {
+export async function checkConflicts(
+  tenantId: string,
+  input: { clientName: string; adverseParties?: string[] }
+) {
   const names = new Set(
     [input.clientName, ...(input.adverseParties ?? [])].map((n) => n.toLowerCase().trim())
   );
   const [existingClients, existingMatters] = await Promise.all([
-    db.select({ name: clients.name }).from(clients),
-    db.select({ name: matters.name, adverseParties: matters.adverseParties }).from(matters),
+    db.select({ name: clients.name }).from(clients).where(eq(clients.tenantId, tenantId)),
+    db
+      .select({ name: matters.name, adverseParties: matters.adverseParties })
+      .from(matters)
+      .where(eq(matters.tenantId, tenantId)),
   ]);
   const matches: string[] = [];
   for (const c of existingClients)
@@ -243,7 +346,11 @@ export async function checkConflicts(input: { clientName: string; adverseParties
 
 /** Every user has a home matter. Idempotent: returns the user's first matter, or
  *  creates a personal client + "General" matter + owner membership. */
-export async function ensureDefaultMatter(userId: string, displayName: string): Promise<string> {
+export async function ensureDefaultMatter(
+  userId: string,
+  displayName: string,
+  tenantId: string
+): Promise<string> {
   const [existing] = await db
     .select({ id: matters.id })
     .from(matterMembers)
@@ -255,11 +362,17 @@ export async function ensureDefaultMatter(userId: string, displayName: string): 
   return db.transaction(async (tx) => {
     const [client] = await tx
       .insert(clients)
-      .values({ name: `${displayName} (Personal)`, type: "individual", createdBy: userId })
+      .values({
+        tenantId,
+        name: `${displayName} (Personal)`,
+        type: "individual",
+        createdBy: userId,
+      })
       .returning();
     const [matter] = await tx
       .insert(matters)
       .values({
+        tenantId,
         clientId: client!.id,
         name: "General",
         createdBy: userId,

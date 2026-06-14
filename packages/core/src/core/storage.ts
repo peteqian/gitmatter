@@ -37,6 +37,22 @@ function bucket(): string {
   return env("S3_BUCKET");
 }
 
+// Tenant-scoped object key: tenantId/userId/matterId/artifactId[.ext | /v{n}.ext].
+// Every artifact's bytes live under its tenant prefix so storage isolation mirrors
+// the database tenant boundary and keys are no longer globally guessable.
+export function buildStoragePath(p: {
+  tenantId: string;
+  userId: string;
+  matterId: string;
+  artifactId: string;
+  ext: string;
+  version?: number;
+}): string {
+  const tail =
+    p.version != null ? `${p.artifactId}/v${p.version}.${p.ext}` : `${p.artifactId}.${p.ext}`;
+  return `${p.tenantId}/${p.userId}/${p.matterId}/${tail}`;
+}
+
 export async function putObject(key: string, body: Buffer, contentType?: string): Promise<void> {
   await s3().send(
     new PutObjectCommand({

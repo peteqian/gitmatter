@@ -1,7 +1,13 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db/client";
-import { chatMessages, chats } from "@workspace/db/schema";
+import { chatMessages, chats, user } from "@workspace/db/schema";
 import type { Citation } from "../ai/citations.js";
+
+async function userTenant(userId: string): Promise<string> {
+  const [u] = await db.select({ tenantId: user.tenantId }).from(user).where(eq(user.id, userId));
+  if (!u?.tenantId) throw new Error("User has no tenant");
+  return u.tenantId;
+}
 
 type TurnContent = { text: string; toolCalls?: Array<{ tool: string; input: unknown }> };
 
@@ -25,7 +31,7 @@ export async function persistChat(
   if (!id) {
     const [chat] = await db
       .insert(chats)
-      .values({ userId, title: turn.message.slice(0, 60) })
+      .values({ userId, tenantId: await userTenant(userId), title: turn.message.slice(0, 60) })
       .returning();
     id = chat!.id;
   }

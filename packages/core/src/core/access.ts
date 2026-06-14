@@ -3,10 +3,11 @@ import { db } from "@workspace/db/client";
 import {
   type ArtifactType,
   type MatterRole,
-  contracts,
   documents,
   matterMembers,
+  matters,
   tabularReviews,
+  user,
   workflows,
 } from "@workspace/db/schema";
 
@@ -16,12 +17,22 @@ export type { MatterRole } from "@workspace/db/schema";
 // Ordered so a higher role satisfies a lower requirement.
 const ROLE_RANK: Record<MatterRole, number> = { viewer: 0, editor: 1, owner: 2 };
 
+/** The tenant a user belongs to, or null if unassigned. */
+export async function getUserTenant(userId: string): Promise<string | null> {
+  const [row] = await db.select({ tenantId: user.tenantId }).from(user).where(eq(user.id, userId));
+  return row?.tenantId ?? null;
+}
+
+/** True if the user belongs to the given tenant. */
+export async function sameTenant(userId: string, tenantId: string): Promise<boolean> {
+  return (await getUserTenant(userId)) === tenantId;
+}
+
 // Artifact tables that carry a matterId + owner, keyed by artifact type.
 // Chats carry a matterId too but are NOT artifacts (no commit spine, not in
 // ArtifactType); chat routes check `hasMatterAccess` directly instead.
 const MATTER_TABLE = {
   tabular_review: tabularReviews,
-  contract: contracts,
   workflow: workflows,
   document: documents,
 } as const;
@@ -32,11 +43,17 @@ export async function hasMatterAccess(
   matterId: string,
   min: MatterRole = "viewer"
 ): Promise<boolean> {
+  // Join the matter so we can assert same-tenant as defense-in-depth against
+  // cross-tenant id injection (membership normally implies same tenant).
   const [row] = await db
-    .select({ role: matterMembers.role })
+    .select({ role: matterMembers.role, matterTenant: matters.tenantId, userTenant: user.tenantId })
     .from(matterMembers)
+    .innerJoin(matters, eq(matterMembers.matterId, matters.id))
+    .innerJoin(user, eq(matterMembers.userId, user.id))
     .where(and(eq(matterMembers.matterId, matterId), eq(matterMembers.userId, userId)));
-  return !!row && ROLE_RANK[row.role] >= ROLE_RANK[min];
+  if (!row) return false;
+  if (row.matterTenant !== row.userTenant) return false;
+  return ROLE_RANK[row.role] >= ROLE_RANK[min];
 }
 
 /**

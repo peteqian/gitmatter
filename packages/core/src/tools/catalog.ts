@@ -7,17 +7,16 @@ import {
   diffCommits,
   getCommit,
   getCommitChanges,
+  getUserTenant,
   hasMatterAccess,
   listCommits,
 } from "../core/index.js";
 import { createReview, getReview, listReviews, runCell } from "../ai/index.js";
 import {
   buildDocxSpec,
-  createContract,
   createGeneratedDocument,
-  getContract,
   getDocument,
-  listContracts,
+  getDocumentDetail,
   listDocuments,
   proposeEdit,
   resolveEdit,
@@ -64,11 +63,13 @@ export function buildToolCatalog(
     if (matterId) {
       return (await hasMatterAccess(actor.userId, matterId, "editor")) ? matterId : null;
     }
-    return ensureDefaultMatter(actor.userId, opts.defaultMatterLabel);
+    const tenantId = await getUserTenant(actor.userId);
+    if (!tenantId) return null;
+    return ensureDefaultMatter(actor.userId, opts.defaultMatterLabel, tenantId);
   };
 
   // The git audit spine covers every artifact type the same way.
-  const ARTIFACT_TYPES = ["contract", "tabular_review", "workflow", "document"] as const;
+  const ARTIFACT_TYPES = ["tabular_review", "workflow", "document"] as const;
   const artifactType = z.enum(ARTIFACT_TYPES);
   type ArtifactKind = (typeof ARTIFACT_TYPES)[number];
   const canRead = (kind: ArtifactKind, id: string) => canAccessArtifact(actor.userId, kind, id);
@@ -168,7 +169,7 @@ export function buildToolCatalog(
     {
       name: "history",
       description:
-        "List an artifact's commit history (newest first): seq, actor (user or agent + label), op, and message. artifactType: contract | tabular_review | workflow | document.",
+        "List an artifact's commit history (newest first): seq, actor (user or agent + label), op, and message. artifactType: tabular_review | workflow | document.",
       schema: { artifactType, artifactId: z.string() },
       handler: async ({ artifactType: kind, artifactId }) =>
         (await canRead(kind as ArtifactKind, artifactId as string))
@@ -192,7 +193,7 @@ export function buildToolCatalog(
     {
       name: "blame",
       description:
-        "Which commit last set a given field path — who did it, when, and how. Path examples: cell/<documentId>/<columnIndex> (review), field/prompt_md (workflow), body (contract).",
+        "Which commit last set a given field path — who did it, when, and how. Path examples: cell/<documentId>/<columnIndex> (review), field/prompt_md (workflow), markdown (document).",
       schema: { artifactType, artifactId: z.string(), path: z.string() },
       handler: async ({ artifactType: kind, artifactId, path }) =>
         (await canRead(kind as ArtifactKind, artifactId as string))
@@ -217,7 +218,10 @@ export function buildToolCatalog(
       name: "list_clients",
       description: "List the firm's clients.",
       schema: {},
-      handler: async () => listClients(),
+      handler: async () => {
+        const tenantId = await getUserTenant(actor.userId);
+        return tenantId ? listClients(tenantId) : [];
+      },
     },
     {
       name: "list_matters",
@@ -280,27 +284,22 @@ export function buildToolCatalog(
     // ---- search / fetch (ChatGPT company-knowledge schema) ----
     {
       name: "search",
-      description:
-        "Search your reviews, contracts, and documents by keyword. Returns ids to pass to `fetch`.",
+      description: "Search your reviews and documents by keyword. Returns ids to pass to `fetch`.",
       schema: { query: z.string() },
       handler: async ({ query }) => {
         const ql = (query as string).toLowerCase();
         const hit = (title: string) => title.toLowerCase().includes(ql);
-        const [reviews, contracts, docs] = await Promise.all([
+        const [reviews, docs] = await Promise.all([
           listReviews(actor.userId),
-          listContracts(actor.userId),
           listDocuments(actor.userId),
         ]);
         const results = [
           ...reviews
             .filter((r) => hit(r.title))
             .map((r) => ({ id: `review:${r.id}`, title: r.title, url: `/reviews/${r.id}` })),
-          ...contracts
-            .filter((c) => hit(c.title))
-            .map((c) => ({ id: `contract:${c.id}`, title: c.title, url: `/contracts/${c.id}` })),
           ...docs
             .filter((d) => hit(d.title))
-            .map((d) => ({ id: `document:${d.id}`, title: d.title, url: "/documents" })),
+            .map((d) => ({ id: `document:${d.id}`, title: d.title, url: `/documents/${d.id}` })),
         ];
         return { results };
       },
@@ -312,19 +311,6 @@ export function buildToolCatalog(
       handler: async ({ id }) => {
         const [kind, artifactId] = (id as string).split(":");
         if (!artifactId) return { error: "Not found" };
-        if (kind === "contract") {
-          if (!(await canAccessArtifact(actor.userId, "contract", artifactId)))
-            return { error: "Not found" };
-          const r = await getContract(artifactId);
-          if (!r) return { error: "Not found" };
-          return {
-            id,
-            title: r.contract.title,
-            text: r.contract.body,
-            url: `/contracts/${artifactId}`,
-            metadata: { type: "contract" },
-          };
-        }
         if (kind === "review") {
           if (!(await canAccessArtifact(actor.userId, "tabular_review", artifactId)))
             return { error: "Not found" };
@@ -347,7 +333,7 @@ export function buildToolCatalog(
             id,
             title: d.title,
             text: d.markdown ?? "",
-            url: "/documents",
+            url: `/documents/${artifactId}`,
             metadata: { type: "document", status: d.status },
           };
         }
@@ -355,56 +341,34 @@ export function buildToolCatalog(
       },
     },
 
-    // ---- Contracts (text redline) ----
+    // ---- Document redline (tracked changes) ----
     {
-      name: "list_contracts",
-      description: "List the user's contracts.",
-      schema: {},
-      handler: async () =>
-        (await listContracts(actor.userId)).map((c) => ({ id: c.id, title: c.title })),
-    },
-    {
-      name: "get_contract",
-      description: "Get a contract's body and its tracked edits (with status and blame).",
-      schema: { contractId: z.string() },
-      handler: async ({ contractId }) => {
-        const result = await getContract(contractId as string);
-        if (!result || !(await canAccessArtifact(actor.userId, "contract", contractId as string)))
+      name: "get_document",
+      description:
+        "Get a document's text (markdown) and its tracked edits (with status and blame).",
+      schema: { documentId: z.string() },
+      handler: async ({ documentId }) => {
+        const result = await getDocumentDetail(documentId as string);
+        if (!result || !(await canAccessArtifact(actor.userId, "document", documentId as string)))
           return { error: "Not found" };
         return result;
       },
     },
     {
-      name: "create_contract",
-      description: "Create a contract from text/markdown.",
-      schema: { title: z.string(), body: z.string(), matterId: z.string().optional() },
-      handler: async ({ title, body, matterId }) => {
-        const resolved = await resolveMatter(matterId as string | undefined);
-        if (!resolved) return { error: "Forbidden: no access to that matter" };
-        return {
-          contractId: await createContract(actor, {
-            title: title as string,
-            body: body as string,
-            matterId: resolved,
-          }),
-        };
-      },
-    },
-    {
-      name: "propose_contract_edit",
+      name: "propose_document_edit",
       description:
-        "Propose a tracked change (find -> replace). Creates a pending edit; body unchanged until accepted.",
+        "Propose a tracked change (find -> replace) on a document. Creates a pending edit; the document is unchanged until accepted.",
       schema: {
-        contractId: z.string(),
+        documentId: z.string(),
         find: z.string(),
         replace: z.string(),
         reason: z.string().optional(),
       },
-      handler: async ({ contractId, find, replace, reason }) => {
-        if (!(await canAccessArtifact(actor.userId, "contract", contractId as string, "editor")))
+      handler: async ({ documentId, find, replace, reason }) => {
+        if (!(await canAccessArtifact(actor.userId, "document", documentId as string, "editor")))
           return { error: "Not found" };
         try {
-          const changeId = await proposeEdit(actor, contractId as string, {
+          const changeId = await proposeEdit(actor, documentId as string, {
             find: find as string,
             replace: replace as string,
             reason: reason as string | undefined,
@@ -416,20 +380,20 @@ export function buildToolCatalog(
       },
     },
     {
-      name: "resolve_contract_edit",
-      description: "Accept (apply to body) or reject a tracked change.",
+      name: "resolve_document_edit",
+      description: "Accept (apply to the document) or reject a tracked change.",
       schema: {
-        contractId: z.string(),
+        documentId: z.string(),
         changeId: z.string(),
         decision: z.enum(["accept", "reject"]),
       },
-      handler: async ({ contractId, changeId, decision }) => {
-        if (!(await canAccessArtifact(actor.userId, "contract", contractId as string, "editor")))
+      handler: async ({ documentId, changeId, decision }) => {
+        if (!(await canAccessArtifact(actor.userId, "document", documentId as string, "editor")))
           return { error: "Not found" };
         try {
           const r = await resolveEdit(
             actor,
-            contractId as string,
+            documentId as string,
             changeId as string,
             decision as "accept" | "reject"
           );

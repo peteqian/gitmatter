@@ -4,7 +4,6 @@ import { db, type Tx } from "@workspace/db/client";
 import {
   type ArtifactType,
   commits,
-  contracts,
   documents,
   fieldChanges,
   tabularReviews,
@@ -27,7 +26,6 @@ export type FieldDiff = {
 // Artifact head-pointer tables, keyed by artifact type.
 const HEAD_TABLE = {
   tabular_review: tabularReviews,
-  contract: contracts,
   workflow: workflows,
   document: documents,
 } as const;

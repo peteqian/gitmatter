@@ -7,6 +7,7 @@ import {
   type TabularColumn,
   commits,
   documents,
+  matters,
   tabularCells,
   tabularReviews,
 } from "@workspace/db/schema";
@@ -204,6 +205,11 @@ export async function createReview(
   }
 ) {
   const reviewId = randomUUID();
+  const [matter] = await db
+    .select({ tenantId: matters.tenantId })
+    .from(matters)
+    .where(eq(matters.id, input.matterId));
+  if (!matter) throw new Error("Matter not found");
   await recordCommit({
     artifactType: "tabular_review",
     artifactId: reviewId,
@@ -214,6 +220,7 @@ export async function createReview(
       await tx.insert(tabularReviews).values({
         id: reviewId,
         userId: actor.userId,
+        tenantId: matter.tenantId,
         matterId: input.matterId,
         createdBy: actor.userId,
         title: input.title,

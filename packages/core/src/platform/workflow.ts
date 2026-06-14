@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@workspace/db/client";
-import { commits, workflows } from "@workspace/db/schema";
+import { commits, matters, workflows } from "@workspace/db/schema";
 import type { TabularColumn } from "@workspace/db/schema";
 import { type Actor, recordCommit } from "../core/commit.js";
 
@@ -14,6 +14,11 @@ type WorkflowInput = {
 
 export async function createWorkflow(actor: Actor, input: WorkflowInput & { matterId: string }) {
   const workflowId = randomUUID();
+  const [matter] = await db
+    .select({ tenantId: matters.tenantId })
+    .from(matters)
+    .where(eq(matters.id, input.matterId));
+  if (!matter) throw new Error("Matter not found");
   await recordCommit({
     artifactType: "workflow",
     artifactId: workflowId,
@@ -30,6 +35,7 @@ export async function createWorkflow(actor: Actor, input: WorkflowInput & { matt
       await tx.insert(workflows).values({
         id: workflowId,
         userId: actor.userId,
+        tenantId: matter.tenantId,
         matterId: input.matterId,
         createdBy: actor.userId,
         title: input.title,
