@@ -60,19 +60,24 @@ function Documents() {
     setPagination((current) => ({ ...current, pageIndex: 0 }));
   }, [search, sort?.desc, sort?.id, view]);
 
-  // Extraction runs in a background worker; poll while anything is in flight.
   const { data, isPending } = useQuery({
     queryKey: queryKeys.documentsPage(pageParams),
     queryFn: () => api.listDocumentsPage(pageParams),
     placeholderData: keepPreviousData,
-    refetchInterval: (q) =>
-      q.state.data?.rows.some((d) => d.status === "pending" || d.status === "processing")
-        ? 2000
-        : false,
   });
   const docs = data?.rows ?? [];
   const rowCount = data?.rowCount ?? 0;
   const invalidateDocs = () => qc.invalidateQueries({ queryKey: queryKeys.documents });
+
+  // Extraction runs in-process; one SSE stream pushes status changes (pending ->
+  // processing -> ready/failed). Refetch the list on each event instead of polling.
+  useEffect(() => {
+    const es = new EventSource("/api/documents/events");
+    es.addEventListener("status", () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.documents });
+    });
+    return () => es.close();
+  }, [qc]);
 
   const retryMutation = useMutation({
     mutationFn: (id: string) => api.retryDocument(id),
@@ -178,7 +183,7 @@ function Documents() {
         size: 64,
         enableResizing: false,
         cell: (c) =>
-          c.row.original.status === "failed" ? (
+          c.row.original.status === "failed" || c.row.original.status === "processing" ? (
             <Button
               variant="ghost"
               size="icon"

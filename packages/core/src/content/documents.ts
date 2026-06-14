@@ -11,6 +11,7 @@ import {
 } from "@workspace/db/schema";
 import { type Actor, recordCommit } from "../core/commit.js";
 import { extractMarkdown, type SupportedFileType } from "./extract.js";
+import { emitDocStatus } from "./extractionEvents.js";
 import { generateDocx, type DocxSpec } from "./docx/generate.js";
 import {
   applyTrackedEdits,
@@ -18,8 +19,6 @@ import {
   resolveTrackedChange,
 } from "./docx/trackedChanges.js";
 import { buildStoragePath, getObject, putObject } from "../core/storage.js";
-
-const MAX_ATTEMPTS = 3;
 
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -229,9 +228,10 @@ export async function createGeneratedDocument(
 
 /**
  * Upload a PDF/DOCX: persist the raw bytes to object storage and insert a
- * `pending` row, then return immediately. Markdown extraction (DOCX via mammoth,
- * PDF via the docling sidecar) runs in the background worker, which records a
- * system-authored commit when it completes.
+ * `pending` row, then return immediately. The caller kicks extraction via the
+ * per-user queue (`enqueueExtraction`); markdown extraction (DOCX via mammoth,
+ * PDF via the docling sidecar) records a system-authored commit when it
+ * completes.
  */
 export async function uploadDocument(
   userId: string,
@@ -301,55 +301,58 @@ export function deleteDocument(id: string) {
   return db.delete(documents).where(eq(documents.id, id));
 }
 
-/** Re-queue a failed document for another extraction attempt. */
+/**
+ * Re-queue a document for extraction: a `failed` one, or a `processing` one
+ * whose run was lost (claimed > 5 min ago, e.g. a server restart). Returns the
+ * reset row so the caller can re-enqueue it; null if the doc isn't retryable.
+ */
 export async function retryDocument(id: string) {
   const [row] = await db
     .update(documents)
     .set({ status: "pending", extractionError: null, attempts: 0, claimedAt: null })
-    .where(and(eq(documents.id, id), eq(documents.status, "failed")))
+    .where(
+      and(
+        eq(documents.id, id),
+        or(
+          eq(documents.status, "failed"),
+          and(
+            eq(documents.status, "processing"),
+            sql`${documents.claimedAt} < now() - interval '5 minutes'`
+          )
+        )
+      )
+    )
     .returning();
   return row ?? null;
 }
 
 /**
- * Atomically claim the next document needing extraction: a `pending` row, or a
- * `processing` row whose worker died (claimed > 5 min ago) and still has retries
- * left. `FOR UPDATE SKIP LOCKED` lets multiple workers/processes claim disjoint
- * rows without blocking. Bumps `attempts` on claim.
- */
-export async function claimNextDocument(): Promise<Document | null> {
-  const rows = (await db.execute(sql`
-    update ${documents} set
-      status = 'processing',
-      claimed_at = now(),
-      attempts = attempts + 1
-    where id = (
-      select id from ${documents}
-      where (
-        status = 'pending'
-        or (status = 'processing' and claimed_at < now() - interval '5 minutes')
-      ) and attempts < ${MAX_ATTEMPTS}
-      order by created_at
-      for update skip locked
-      limit 1
-    )
-    returning *
-  `)) as unknown as Document[];
-  return rows[0] ?? null;
-}
-
-/**
- * Extract markdown for a claimed document and record the result as a
- * system-authored ("extractor" agent) commit on the document artifact. On
- * failure, re-queues until attempts are exhausted, then marks `failed`.
+ * Extract markdown for a document and record the result as a system-authored
+ * ("extractor" agent) commit on the document artifact. Drives the row through
+ * `processing` -> `ready`/`failed` and emits each transition. On failure the
+ * row is marked `failed` for the manual retry button (no auto-requeue).
  */
 export async function processDocument(doc: Document): Promise<void> {
-  const storagePath = await activeStoragePath(doc);
-  if (!storagePath) {
+  // Flip to `processing` first: drives the UI badge and leaves a recoverable
+  // (stale) row if the server dies mid-extract. Emit every transition so the
+  // SSE stream can push it to the browser.
+  await db
+    .update(documents)
+    .set({ status: "processing", claimedAt: new Date(), attempts: doc.attempts + 1 })
+    .where(eq(documents.id, doc.id));
+  emitDocStatus({ userId: doc.userId, id: doc.id, status: "processing", extractionError: null });
+
+  const fail = async (message: string) => {
     await db
       .update(documents)
-      .set({ status: "failed", extractionError: "no stored file to extract" })
+      .set({ status: "failed", extractionError: message, claimedAt: null })
       .where(eq(documents.id, doc.id));
+    emitDocStatus({ userId: doc.userId, id: doc.id, status: "failed", extractionError: message });
+  };
+
+  const storagePath = await activeStoragePath(doc);
+  if (!storagePath) {
+    await fail("no stored file to extract");
     return;
   }
   try {
@@ -371,18 +374,9 @@ export async function processDocument(doc: Document): Promise<void> {
         return { changes: [{ path: "markdown", before: null, after: markdown }] };
       },
     });
+    emitDocStatus({ userId: doc.userId, id: doc.id, status: "ready", extractionError: null });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "extraction failed";
-    // Re-queue while retries remain; otherwise mark failed for the UI.
-    const exhausted = doc.attempts >= MAX_ATTEMPTS;
-    await db
-      .update(documents)
-      .set({
-        status: exhausted ? "failed" : "pending",
-        extractionError: message,
-        claimedAt: null,
-      })
-      .where(eq(documents.id, doc.id));
+    await fail(err instanceof Error ? err.message : "extraction failed");
   }
 }
 

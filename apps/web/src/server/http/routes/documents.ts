@@ -1,11 +1,15 @@
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import { zValidator } from "@hono/zod-validator";
 import {
   activeStoragePath,
   canAccessArtifact,
   createDocument,
   deleteDocument,
+  docEvents,
+  type DocStatusEvent,
   DOCX_MIME,
+  enqueueExtraction,
   fileTypeFromName,
   getDocument,
   getDocumentDetail,
@@ -128,12 +132,35 @@ documentsRoute.post("/api/documents/upload", async (c) => {
   const folderId = typeof body.folderId === "string" && body.folderId ? body.folderId : null;
   try {
     const doc = await uploadDocument(user.id, { title, fileType, bytes, matterId, folderId });
+    enqueueExtraction(doc); // extract in-process, serialized per user
     return c.json(doc, 202);
   } catch (err) {
     // Storage/extraction-setup failures (e.g. S3 not configured) surface here.
     const message = err instanceof Error ? err.message : "upload failed";
     return c.json({ error: `Could not store file: ${message}` }, 502);
   }
+});
+
+// Live extraction status (SSE). The browser opens one stream and patches its
+// document cache as `pending -> processing -> ready/failed` events arrive,
+// instead of polling. Registered before `/:id` so "events" isn't read as an id.
+documentsRoute.get("/api/documents/events", (c) => {
+  const userId = c.get("user").id;
+  return streamSSE(c, async (stream) => {
+    const onStatus = (e: DocStatusEvent) => {
+      if (e.userId !== userId) return;
+      void stream.writeSSE({ event: "status", data: JSON.stringify(e) });
+    };
+    docEvents.on("status", onStatus);
+    stream.onAbort(() => {
+      docEvents.off("status", onStatus);
+    });
+    // Hold the connection open; ping so proxies don't time the stream out.
+    while (!stream.aborted) {
+      await stream.writeSSE({ event: "ping", data: "" });
+      await stream.sleep(30000);
+    }
+  });
 });
 
 // Download the stored file (e.g. a generated .docx). Viewer access is enough.
@@ -164,13 +191,14 @@ documentsRoute.get("/api/documents/:id/versions", async (c) => {
   return c.json(await listVersions(id));
 });
 
-// Re-queue a failed extraction.
+// Re-queue extraction for a failed (or stale-processing) document.
 documentsRoute.post("/api/documents/:id/retry", async (c) => {
   const id = c.req.param("id");
   if (!(await canAccessArtifact(c.get("user").id, "document", id, "editor")))
     return c.json({ error: "Not found" }, 404);
   const doc = await retryDocument(id);
-  if (!doc) return c.json({ error: "document not found or not failed" }, 404);
+  if (!doc) return c.json({ error: "document not found or not retryable" }, 404);
+  enqueueExtraction(doc);
   return c.json(doc);
 });
 

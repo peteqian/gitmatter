@@ -7,7 +7,6 @@ import {
   probeEnvProviders,
   seedBuiltinWorkflows,
   seedMcpConnections,
-  startExtractionWorker,
 } from "@workspace/core";
 import { resolveJurisdiction } from "@workspace/registry";
 import { chatRoute } from "./routes/chat.js";
@@ -41,9 +40,6 @@ import { type AuthEnv, requireUser } from "./middleware/auth.js";
 // Seed system workflows + consumed-MCP connections once on boot (idempotent).
 void seedBuiltinWorkflows().catch(() => {});
 void seedMcpConnections().catch(() => {});
-
-// Drain uploaded-document extraction in the background (Postgres-backed queue).
-startExtractionWorker();
 
 // All server endpoints live under /api and are dispatched here from the
 // TanStack Start catch-all route (src/routes/api/$.ts).
