@@ -8,7 +8,6 @@ export const queryKeys = {
   models: ["models"] as const,
   matters: ["matters"] as const,
   documents: ["documents"] as const,
-  contracts: ["contracts"] as const,
   clients: ["clients"] as const,
   reviews: ["reviews"] as const,
   chats: ["chats"] as const,

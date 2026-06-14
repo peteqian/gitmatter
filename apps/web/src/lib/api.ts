@@ -87,8 +87,15 @@ export type Matter = {
   updatedAt: string;
 };
 
-// listMattersForUser joins matter + client + the caller's role.
-export type MatterListItem = { matter: Matter; client: Client; role: MatterRole };
+// listMattersForUser joins matter + client + the caller's role, plus the owner's
+// name and how many people have access (for the Projects-style list).
+export type MatterListItem = {
+  matter: Matter;
+  client: Client;
+  role: MatterRole;
+  ownerName: string | null;
+  memberCount: number;
+};
 
 // getClientOverview: the client plus the work the caller can see under it.
 export type ClientOverview = {
@@ -102,7 +109,6 @@ export type ClientOverview = {
     matterId: string;
     createdAt: string;
   }>;
-  contracts: Array<{ id: string; title: string; matterId: string; createdAt: string }>;
   reviews: Array<{ id: string; title: string; matterId: string; createdAt: string }>;
 };
 
@@ -142,6 +148,38 @@ export type Doc = {
   fileType: string;
   status: DocStatus;
   extractionError: string | null;
+  sizeBytes: number | null;
+  folderId: string | null;
+  currentVersionId: string | null;
+  createdAt: string;
+};
+
+export type DocVersion = {
+  id: string;
+  documentId: string;
+  versionNumber: number;
+  source: string;
+  sizeBytes: number | null;
+  fileType: string;
+  deletedAt: string | null;
+  createdAt: string;
+};
+
+export type Folder = {
+  id: string;
+  matterId: string;
+  parentFolderId: string | null;
+  name: string;
+  createdAt: string;
+};
+
+export type TenantInvite = {
+  id: string;
+  email: string;
+  token: string;
+  role: "admin" | "member";
+  acceptedAt: string | null;
+  expiresAt: string;
   createdAt: string;
 };
 
@@ -213,19 +251,61 @@ export const api = {
     }),
   removeMember: (id: string, userId: string) =>
     req<null>(`/api/matters/${id}/members/${userId}`, { method: "DELETE" }),
+  addMemberByEmail: (id: string, email: string, role: MatterRole = "editor") =>
+    req<FirmUser>(`/api/matters/${id}/members/by-email`, {
+      method: "POST",
+      body: JSON.stringify({ email, role }),
+    }),
+  getMatterPeople: (id: string) => req<MatterMember[]>(`/api/matters/${id}/people`),
   searchUsers: (q: string) => req<FirmUser[]>(`/api/users/search?q=${encodeURIComponent(q)}`),
 
+  // Document folders (per matter)
+  listFolders: (matterId: string) => req<Folder[]>(`/api/matters/${matterId}/folders`),
+  createFolder: (matterId: string, name: string, parentFolderId?: string | null) =>
+    req<Folder>(`/api/matters/${matterId}/folders`, {
+      method: "POST",
+      body: JSON.stringify({ name, parentFolderId }),
+    }),
+  renameFolder: (matterId: string, folderId: string, name: string) =>
+    req<null>(`/api/matters/${matterId}/folders/${folderId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  deleteFolder: (matterId: string, folderId: string) =>
+    req<null>(`/api/matters/${matterId}/folders/${folderId}`, { method: "DELETE" }),
+
+  // Tenant invites (admins)
+  getTenant: () => req<{ id: string; name: string }>("/api/tenant"),
+  listInvites: () => req<TenantInvite[]>("/api/tenant/invites"),
+  createInvite: (email: string, role: "admin" | "member" = "member") =>
+    req<TenantInvite>("/api/tenant/invites", {
+      method: "POST",
+      body: JSON.stringify({ email, role }),
+    }),
+  revokeInvite: (id: string) => req<null>(`/api/tenant/invites/${id}`, { method: "DELETE" }),
+
   listDocuments: () => req<Doc[]>("/api/documents"),
-  createDocument: (d: { title: string; markdown: string; matterId?: string }) =>
-    req<Doc>("/api/documents", { method: "POST", body: JSON.stringify(d) }),
-  uploadDocument: (file: File, title?: string, matterId?: string) => {
+  listMatterDocuments: (matterId: string, folderId?: string | null) => {
+    const f = folderId === undefined ? "" : `&folderId=${folderId === null ? "root" : folderId}`;
+    return req<Doc[]>(`/api/documents?matterId=${matterId}${f}`);
+  },
+  listDocVersions: (id: string) => req<DocVersion[]>(`/api/documents/${id}/versions`),
+  createDocument: (d: {
+    title: string;
+    markdown: string;
+    matterId?: string;
+    folderId?: string | null;
+  }) => req<Doc>("/api/documents", { method: "POST", body: JSON.stringify(d) }),
+  uploadDocument: (file: File, title?: string, matterId?: string, folderId?: string | null) => {
     const f = new FormData();
     f.append("file", file);
     if (title) f.append("title", title);
     if (matterId) f.append("matterId", matterId);
+    if (folderId) f.append("folderId", folderId);
     return upload<Doc>("/api/documents/upload", f);
   },
   retryDocument: (id: string) => req<Doc>(`/api/documents/${id}/retry`, { method: "POST" }),
+  deleteDocument: (id: string) => req<null>(`/api/documents/${id}`, { method: "DELETE" }),
   listReviews: () =>
     req<Array<{ id: string; title: string; documentIds: string[]; createdAt: string }>>(
       "/api/tabular/reviews"
@@ -267,33 +347,16 @@ export const api = {
       body: JSON.stringify({ jurisdiction }),
     }),
 
-  // Contracts
-  listContracts: () =>
-    req<Array<{ id: string; title: string; createdAt: string }>>("/api/contracts"),
-  createContract: (d: {
-    title: string;
-    body: string;
-    jurisdiction?: string | null;
-    matterId?: string;
-  }) => req<{ id: string }>("/api/contracts", { method: "POST", body: JSON.stringify(d) }),
-  uploadContract: (file: File, title?: string, jurisdiction?: string | null, matterId?: string) => {
-    const f = new FormData();
-    f.append("file", file);
-    if (title) f.append("title", title);
-    if (jurisdiction) f.append("jurisdiction", jurisdiction);
-    if (matterId) f.append("matterId", matterId);
-    return upload<{ id: string }>("/api/contracts/upload", f);
-  },
-  contractDocxUrl: (id: string) => `/api/contracts/${id}/docx`,
-  getContract: (id: string) => req<ContractDetail>(`/api/contracts/${id}`),
+  // Document redline (tracked changes)
+  getDocumentDetail: (id: string) => req<DocumentDetail>(`/api/documents/${id}`),
   proposeEdit: (id: string, d: { find: string; replace: string; reason?: string }) =>
-    req<ContractDetail>(`/api/contracts/${id}/edits`, { method: "POST", body: JSON.stringify(d) }),
+    req<DocumentDetail>(`/api/documents/${id}/edits`, { method: "POST", body: JSON.stringify(d) }),
   resolveEdit: (id: string, changeId: string, decision: "accept" | "reject") =>
-    req<ContractDetail>(`/api/contracts/${id}/edits/${changeId}/resolve`, {
+    req<DocumentDetail>(`/api/documents/${id}/edits/${changeId}/resolve`, {
       method: "POST",
       body: JSON.stringify({ decision }),
     }),
-  contractHistory: (id: string) => req<Blame[]>(`/api/contracts/${id}/history`),
+  documentHistory: (id: string) => req<Blame[]>(`/api/documents/${id}/history`),
 
   // Workflows
   listWorkflows: () =>
@@ -330,8 +393,12 @@ export const api = {
     }),
   // Streaming variant: token deltas arrive via handlers, the final payload via
   // onDone. Same request body as sendChat.
-  streamChat: (message: string, opts: ChatSendOpts, handlers: ChatStreamHandlers) =>
-    streamChat(message, opts, handlers),
+  streamChat: (
+    message: string,
+    opts: ChatSendOpts,
+    handlers: ChatStreamHandlers,
+    signal?: AbortSignal
+  ) => streamChat(message, opts, handlers, signal),
   // Conversation history.
   listChats: () => req<ChatSummary[]>("/api/chats"),
   getChat: (id: string) => req<ChatDetail>(`/api/chats/${id}`),
@@ -378,12 +445,17 @@ export type ChatStreamHandlers = {
 async function streamChat(
   message: string,
   opts: ChatSendOpts,
-  handlers: ChatStreamHandlers
+  handlers: ChatStreamHandlers,
+  signal?: AbortSignal
 ): Promise<void> {
   const r = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, ...opts }),
+    // Abort closes the connection and unblocks reader.read() so the loop, the
+    // response body, and every captured handler closure can be GC'd when the
+    // caller (e.g. a chat view) unmounts mid-stream.
+    signal,
   });
   if (!r.ok || !r.body) {
     handlers.onError?.(await r.text().catch(() => "stream failed"));
@@ -403,26 +475,34 @@ async function streamChat(
     else if (event === "error") handlers.onError?.(value as string);
   };
 
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    // SSE frames are separated by a blank line.
-    const frames = buffer.split("\n\n");
-    buffer = frames.pop() ?? "";
-    for (const frame of frames) {
-      let event = "message";
-      let data = "";
-      for (const line of frame.split("\n")) {
-        if (line.startsWith("event:")) event = line.slice(6).trim();
-        else if (line.startsWith("data:")) data += line.slice(5).trim();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // SSE frames are separated by a blank line.
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) {
+        let event = "message";
+        let data = "";
+        for (const line of frame.split("\n")) {
+          if (line.startsWith("event:")) event = line.slice(6).trim();
+          else if (line.startsWith("data:")) data += line.slice(5).trim();
+        }
+        if (data) dispatch(event, data);
       }
-      if (data) dispatch(event, data);
     }
+  } catch (err) {
+    // A caller-triggered abort is expected cleanup, not an error to surface.
+    if ((err as Error)?.name !== "AbortError") throw err;
+  } finally {
+    // Release the lock so the body stream can be collected even if we broke early.
+    reader.cancel().catch(() => {});
   }
 }
 
-export type ContractEdit = {
+export type DocEdit = {
   id: string;
   changeId: string;
   deletedText: string | null;
@@ -432,15 +512,17 @@ export type ContractEdit = {
   blame: Blame | null;
 };
 
-export type ContractDetail = {
-  contract: {
+export type DocumentDetail = {
+  document: {
     id: string;
     title: string;
-    body: string;
+    fileType: string;
+    markdown: string | null;
+    status: DocStatus;
     headCommitId: string | null;
     currentVersionId: string | null;
   };
-  edits: ContractEdit[];
+  edits: DocEdit[];
 };
 
 export type WorkflowDetail = {
