@@ -8,10 +8,24 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Plus, Search } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
+import { ToolbarTabs } from "@/components/ToolbarTabs";
 import { api, type WorkflowDetail } from "../../lib/api";
 import { useWorkingMatterId } from "../../lib/matters-context";
 
 export const Route = createFileRoute("/_auth/workflows")({ component: Workflows });
+
+type WfTab = "all" | "builtin" | "custom";
 
 function Workflows() {
   const { data: items = [] } = useQuery({
@@ -20,6 +34,8 @@ function Workflows() {
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [tab, setTab] = useState<WfTab>("all");
+  const [query, setQuery] = useState("");
 
   // Selected workflow detail, cached per id — reopening a row is instant.
   const { data: selected } = useQuery({
@@ -28,50 +44,109 @@ function Workflows() {
     enabled: !!selectedId,
   });
 
+  const shown = items
+    .filter((w) => (tab === "all" ? true : tab === "builtin" ? w.isSystem : !w.isSystem))
+    .filter((w) => w.title.toLowerCase().includes(query.trim().toLowerCase()));
+
+  const dialogOpen = creating || !!selectedId;
+  const closeDialog = () => {
+    setCreating(false);
+    setSelectedId(null);
+  };
+
   return (
-    <div className="grid gap-stack lg:grid-cols-[1fr_1.4fr]">
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h1 className="text-2xl tracking-tight">Workflows</h1>
+    <div className="flex flex-col gap-stack">
+      <PageHeader
+        title="Workflows"
+        action={
           <Button
-            size="sm"
+            variant="outline"
+            size="icon-sm"
+            className="rounded-full"
+            title="New workflow"
+            aria-label="New workflow"
             onClick={() => {
-              setCreating(true);
               setSelectedId(null);
+              setCreating(true);
             }}
           >
-            New
+            <Plus className="size-4" />
           </Button>
-        </div>
-        {/* Hairline-divided rows — no box per item (DESIGN.md). */}
-        <ul className="flex flex-col divide-y divide-border">
-          {items.map((w) => (
-            <li key={w.id}>
-              <button
-                className="-mx-2 w-[calc(100%+1rem)] rounded-md px-2 py-2.5 text-left text-sm transition-colors hover:bg-muted/50"
+        }
+      />
+      <ToolbarTabs
+        tabs={[
+          { id: "all" as const, label: "All" },
+          { id: "builtin" as const, label: "Built-in" },
+          { id: "custom" as const, label: "Custom" },
+        ]}
+        active={tab}
+        onChange={setTab}
+        actions={
+          <div className="flex items-center gap-2 rounded-md border border-input bg-background px-2.5">
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search…"
+              className="h-7 w-48 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+        }
+      />
+
+      <div className="overflow-hidden rounded-lg border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10" />
+              <TableHead>Name</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Source</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {shown.map((w) => (
+              <TableRow
+                key={w.id}
+                className="cursor-pointer"
                 onClick={() => {
                   setCreating(false);
                   setSelectedId(w.id);
                 }}
               >
-                <span className="flex items-center gap-2">
-                  {w.title}
-                  <Badge variant="outline">{w.type}</Badge>
-                  {w.isSystem && <Badge variant="secondary">system</Badge>}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+                <TableCell />
+                <TableCell className="font-medium">{w.title}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="capitalize">
+                    {w.type}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {w.isSystem ? "Built-in" : "Custom"}
+                </TableCell>
+              </TableRow>
+            ))}
+            {!shown.length && (
+              <TableRow>
+                <TableCell colSpan={4} className="py-12 text-center text-muted-foreground">
+                  No workflows here yet.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
 
-      <div>
-        {creating && <CreateWorkflow onCreated={() => setCreating(false)} />}
-        {!creating && selected && <EditWorkflow detail={selected} />}
-        {!creating && !selected && (
-          <p className="pt-2 text-muted-foreground">Select a workflow or create one.</p>
-        )}
-      </div>
+      <Dialog open={dialogOpen} onOpenChange={(o) => !o && closeDialog()}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+          {creating ? (
+            <CreateWorkflow onCreated={closeDialog} />
+          ) : selected ? (
+            <EditWorkflow detail={selected} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

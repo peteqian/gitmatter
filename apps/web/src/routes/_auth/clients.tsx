@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createColumnHelper,
-  flexRender,
   getCoreRowModel,
   getSortedRowModel,
   useReactTable,
@@ -11,26 +10,19 @@ import {
 } from "@tanstack/react-table";
 import { useForm } from "@tanstack/react-form";
 import Fuse from "fuse.js";
-import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
 import { StateCue } from "@/components/StateCue";
 import { api, type Client } from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
-import { useTableVirtualizer } from "../../lib/useTableVirtualizer";
+import { useColumnSizing } from "../../lib/useColumnSizing";
 import { ClientDialog } from "../../components/ClientDialog";
 
 export const Route = createFileRoute("/_auth/clients")({
@@ -43,20 +35,44 @@ export const Route = createFileRoute("/_auth/clients")({
 
 const columnHelper = createColumnHelper<Client>();
 const columns = [
+  columnHelper.display({
+    id: "select",
+    size: 44,
+    enableResizing: false,
+    header: ({ table }) => (
+      <Checkbox
+        checked={table.getIsAllRowsSelected()}
+        onChange={table.getToggleAllRowsSelectedHandler()}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onChange={row.getToggleSelectedHandler()}
+        onClick={(e) => e.stopPropagation()}
+        aria-label="Select row"
+      />
+    ),
+  }),
   columnHelper.accessor("name", {
     header: "Name",
-    cell: (c) => <span className="font-medium">{c.getValue()}</span>,
+    size: 280,
+    cell: (c) => <span className="block truncate font-medium">{c.getValue()}</span>,
   }),
   columnHelper.accessor("type", {
     header: "Type",
+    size: 120,
     cell: (c) => <span className="text-muted-foreground capitalize">{c.getValue()}</span>,
   }),
   columnHelper.accessor("clientNumber", {
     header: "Client no.",
+    size: 140,
     cell: (c) => <span className="text-muted-foreground">{c.getValue() ?? "—"}</span>,
   }),
   columnHelper.accessor("status", {
     header: "Status",
+    size: 120,
     cell: (c) =>
       c.getValue() === "inactive" ? (
         <StateCue tone="muted">Inactive</StateCue>
@@ -76,6 +92,7 @@ function Clients() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Client | null>(null);
   const [sorting, setSorting] = useState<SortingState>([{ id: "name", desc: false }]);
+  const [rowSelection, setRowSelection] = useState({});
 
   const fuse = useMemo(
     () => new Fuse(clients, { keys: ["name", "type", "clientNumber"], threshold: 0.4 }),
@@ -85,27 +102,36 @@ function Clients() {
     (c) => view === "all" || c.status === view
   );
 
+  const { columnSizing, onColumnSizingChange } = useColumnSizing("clients");
+
   const table = useReactTable({
     data: rows,
     columns,
-    state: { sorting },
+    state: { sorting, rowSelection, columnSizing },
     onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    onColumnSizingChange,
+    enableRowSelection: true,
+    enableColumnResizing: true,
+    columnResizeMode: "onChange",
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const tableRows = table.getRowModel().rows;
-  const { scrollRef, virtualizer, items, paddingTop, paddingBottom } =
-    useTableVirtualizer(tableRows);
-
   return (
-    <div className="flex flex-col gap-section">
+    <div className="-mb-12 flex min-h-0 flex-1 flex-col gap-stack">
       <PageHeader
         title="Clients"
-        description="The firm's client directory. Open a matter under a client to start work."
         action={
-          <Button onClick={() => setCreating((v) => !v)}>
-            {creating ? "Cancel" : "New client"}
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="rounded-full"
+            title="New client"
+            aria-label="New client"
+            onClick={() => setCreating((v) => !v)}
+          >
+            <Plus className="size-4" />
           </Button>
         }
       />
@@ -113,85 +139,24 @@ function Clients() {
       {creating && <CreateClient onCreated={() => setCreating(false)} />}
 
       {clients.length > 0 && (
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search clients…"
-        />
-      )}
-
-      {clients.length > 0 && (
-        <div ref={scrollRef} className="max-h-[70vh] overflow-auto rounded-md border">
-          <Table>
-            <TableHeader className="sticky top-0 z-10 bg-background">
-              {table.getHeaderGroups().map((hg) => (
-                <TableRow key={hg.id}>
-                  {hg.headers.map((header) => {
-                    const dir = header.column.getIsSorted();
-                    const Icon = !dir ? ChevronsUpDown : dir === "asc" ? ChevronUp : ChevronDown;
-                    return (
-                      <TableHead key={header.id}>
-                        <button
-                          type="button"
-                          onClick={header.column.getToggleSortingHandler()}
-                          className="-mx-1 flex items-center gap-1 rounded px-1 hover:text-foreground"
-                        >
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                          <Icon
-                            className={cn(
-                              "size-3.5",
-                              dir ? "text-foreground" : "text-muted-foreground/50"
-                            )}
-                          />
-                        </button>
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {paddingTop > 0 && (
-                <tr>
-                  <td colSpan={columns.length} style={{ height: paddingTop }} />
-                </tr>
-              )}
-              {items.map((item) => {
-                const row = tableRows[item.index]!;
-                return (
-                  <TableRow
-                    key={row.id}
-                    data-index={item.index}
-                    ref={virtualizer.measureElement}
-                    onClick={() => setSelected(row.original)}
-                    className="cursor-pointer"
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                );
-              })}
-              {paddingBottom > 0 && (
-                <tr>
-                  <td colSpan={columns.length} style={{ height: paddingBottom }} />
-                </tr>
-              )}
-              {!tableRows.length && (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="py-section text-center text-muted-foreground"
-                  >
-                    No clients match "{query}".
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <>
+          <div className="flex h-10 items-center justify-end border-b border-border">
+            <div className="flex items-center gap-2 rounded-md border border-input bg-background px-2.5">
+              <Search className="size-4 shrink-0 text-muted-foreground" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search clients…"
+                className="h-7 w-48 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+          </div>
+          <DataTable
+            table={table}
+            onRowClick={(client) => setSelected(client)}
+            empty={`No clients match "${query}".`}
+          />
+        </>
       )}
       {!clients.length && (
         <p className="py-section text-center text-sm text-muted-foreground">

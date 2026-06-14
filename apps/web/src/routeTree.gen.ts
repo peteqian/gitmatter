@@ -21,14 +21,13 @@ import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as AuthReviewsRouteImport } from './routes/_auth/reviews'
 import { Route as AuthMattersRouteImport } from './routes/_auth/matters'
 import { Route as AuthDocumentsRouteImport } from './routes/_auth/documents'
-import { Route as AuthContractsRouteImport } from './routes/_auth/contracts'
 import { Route as AuthClientsRouteImport } from './routes/_auth/clients'
 import { Route as AuthAssistantRouteImport } from './routes/_auth/assistant'
 import { Route as DotwellKnownSplatRouteImport } from './routes/[.]well-known/$'
 import { Route as marketingAboutRouteImport } from './routes/(marketing)/about'
 import { Route as AuthReviewsIdRouteImport } from './routes/_auth/reviews.$id'
 import { Route as AuthMattersIdRouteImport } from './routes/_auth/matters_.$id'
-import { Route as AuthContractsIdRouteImport } from './routes/_auth/contracts_.$id'
+import { Route as AuthDocumentsIdRouteImport } from './routes/_auth/documents_.$id'
 import { Route as AuthAssistantIdRouteImport } from './routes/_auth/assistant_.$id'
 
 const UnauthRouteRoute = UnauthRouteRouteImport.update({
@@ -88,11 +87,6 @@ const AuthDocumentsRoute = AuthDocumentsRouteImport.update({
   path: '/documents',
   getParentRoute: () => AuthRouteRoute,
 } as any)
-const AuthContractsRoute = AuthContractsRouteImport.update({
-  id: '/contracts',
-  path: '/contracts',
-  getParentRoute: () => AuthRouteRoute,
-} as any)
 const AuthClientsRoute = AuthClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
@@ -123,9 +117,9 @@ const AuthMattersIdRoute = AuthMattersIdRouteImport.update({
   path: '/matters/$id',
   getParentRoute: () => AuthRouteRoute,
 } as any)
-const AuthContractsIdRoute = AuthContractsIdRouteImport.update({
-  id: '/contracts_/$id',
-  path: '/contracts/$id',
+const AuthDocumentsIdRoute = AuthDocumentsIdRouteImport.update({
+  id: '/documents_/$id',
+  path: '/documents/$id',
   getParentRoute: () => AuthRouteRoute,
 } as any)
 const AuthAssistantIdRoute = AuthAssistantIdRouteImport.update({
@@ -140,7 +134,6 @@ export interface FileRoutesByFullPath {
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/assistant': typeof AuthAssistantRoute
   '/clients': typeof AuthClientsRoute
-  '/contracts': typeof AuthContractsRoute
   '/documents': typeof AuthDocumentsRoute
   '/matters': typeof AuthMattersRoute
   '/reviews': typeof AuthReviewsRouteWithChildren
@@ -150,7 +143,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof UnauthSignupRoute
   '/api/$': typeof ApiSplatRoute
   '/assistant/$id': typeof AuthAssistantIdRoute
-  '/contracts/$id': typeof AuthContractsIdRoute
+  '/documents/$id': typeof AuthDocumentsIdRoute
   '/matters/$id': typeof AuthMattersIdRoute
   '/reviews/$id': typeof AuthReviewsIdRoute
 }
@@ -160,7 +153,6 @@ export interface FileRoutesByTo {
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/assistant': typeof AuthAssistantRoute
   '/clients': typeof AuthClientsRoute
-  '/contracts': typeof AuthContractsRoute
   '/documents': typeof AuthDocumentsRoute
   '/matters': typeof AuthMattersRoute
   '/reviews': typeof AuthReviewsRouteWithChildren
@@ -170,7 +162,7 @@ export interface FileRoutesByTo {
   '/signup': typeof UnauthSignupRoute
   '/api/$': typeof ApiSplatRoute
   '/assistant/$id': typeof AuthAssistantIdRoute
-  '/contracts/$id': typeof AuthContractsIdRoute
+  '/documents/$id': typeof AuthDocumentsIdRoute
   '/matters/$id': typeof AuthMattersIdRoute
   '/reviews/$id': typeof AuthReviewsIdRoute
 }
@@ -183,7 +175,6 @@ export interface FileRoutesById {
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/_auth/assistant': typeof AuthAssistantRoute
   '/_auth/clients': typeof AuthClientsRoute
-  '/_auth/contracts': typeof AuthContractsRoute
   '/_auth/documents': typeof AuthDocumentsRoute
   '/_auth/matters': typeof AuthMattersRoute
   '/_auth/reviews': typeof AuthReviewsRouteWithChildren
@@ -194,7 +185,7 @@ export interface FileRoutesById {
   '/api/$': typeof ApiSplatRoute
   '/(marketing)/': typeof marketingIndexRoute
   '/_auth/assistant_/$id': typeof AuthAssistantIdRoute
-  '/_auth/contracts_/$id': typeof AuthContractsIdRoute
+  '/_auth/documents_/$id': typeof AuthDocumentsIdRoute
   '/_auth/matters_/$id': typeof AuthMattersIdRoute
   '/_auth/reviews/$id': typeof AuthReviewsIdRoute
 }
@@ -206,7 +197,6 @@ export interface FileRouteTypes {
     | '/.well-known/$'
     | '/assistant'
     | '/clients'
-    | '/contracts'
     | '/documents'
     | '/matters'
     | '/reviews'
@@ -216,7 +206,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/api/$'
     | '/assistant/$id'
-    | '/contracts/$id'
+    | '/documents/$id'
     | '/matters/$id'
     | '/reviews/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -226,7 +216,6 @@ export interface FileRouteTypes {
     | '/.well-known/$'
     | '/assistant'
     | '/clients'
-    | '/contracts'
     | '/documents'
     | '/matters'
     | '/reviews'
@@ -236,7 +225,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/api/$'
     | '/assistant/$id'
-    | '/contracts/$id'
+    | '/documents/$id'
     | '/matters/$id'
     | '/reviews/$id'
   id:
@@ -248,7 +237,6 @@ export interface FileRouteTypes {
     | '/.well-known/$'
     | '/_auth/assistant'
     | '/_auth/clients'
-    | '/_auth/contracts'
     | '/_auth/documents'
     | '/_auth/matters'
     | '/_auth/reviews'
@@ -259,7 +247,7 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/(marketing)/'
     | '/_auth/assistant_/$id'
-    | '/_auth/contracts_/$id'
+    | '/_auth/documents_/$id'
     | '/_auth/matters_/$id'
     | '/_auth/reviews/$id'
   fileRoutesById: FileRoutesById
@@ -358,13 +346,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthDocumentsRouteImport
       parentRoute: typeof AuthRouteRoute
     }
-    '/_auth/contracts': {
-      id: '/_auth/contracts'
-      path: '/contracts'
-      fullPath: '/contracts'
-      preLoaderRoute: typeof AuthContractsRouteImport
-      parentRoute: typeof AuthRouteRoute
-    }
     '/_auth/clients': {
       id: '/_auth/clients'
       path: '/clients'
@@ -407,11 +388,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthMattersIdRouteImport
       parentRoute: typeof AuthRouteRoute
     }
-    '/_auth/contracts_/$id': {
-      id: '/_auth/contracts_/$id'
-      path: '/contracts/$id'
-      fullPath: '/contracts/$id'
-      preLoaderRoute: typeof AuthContractsIdRouteImport
+    '/_auth/documents_/$id': {
+      id: '/_auth/documents_/$id'
+      path: '/documents/$id'
+      fullPath: '/documents/$id'
+      preLoaderRoute: typeof AuthDocumentsIdRouteImport
       parentRoute: typeof AuthRouteRoute
     }
     '/_auth/assistant_/$id': {
@@ -453,28 +434,26 @@ const AuthReviewsRouteWithChildren = AuthReviewsRoute._addFileChildren(
 interface AuthRouteRouteChildren {
   AuthAssistantRoute: typeof AuthAssistantRoute
   AuthClientsRoute: typeof AuthClientsRoute
-  AuthContractsRoute: typeof AuthContractsRoute
   AuthDocumentsRoute: typeof AuthDocumentsRoute
   AuthMattersRoute: typeof AuthMattersRoute
   AuthReviewsRoute: typeof AuthReviewsRouteWithChildren
   AuthSettingsRoute: typeof AuthSettingsRoute
   AuthWorkflowsRoute: typeof AuthWorkflowsRoute
   AuthAssistantIdRoute: typeof AuthAssistantIdRoute
-  AuthContractsIdRoute: typeof AuthContractsIdRoute
+  AuthDocumentsIdRoute: typeof AuthDocumentsIdRoute
   AuthMattersIdRoute: typeof AuthMattersIdRoute
 }
 
 const AuthRouteRouteChildren: AuthRouteRouteChildren = {
   AuthAssistantRoute: AuthAssistantRoute,
   AuthClientsRoute: AuthClientsRoute,
-  AuthContractsRoute: AuthContractsRoute,
   AuthDocumentsRoute: AuthDocumentsRoute,
   AuthMattersRoute: AuthMattersRoute,
   AuthReviewsRoute: AuthReviewsRouteWithChildren,
   AuthSettingsRoute: AuthSettingsRoute,
   AuthWorkflowsRoute: AuthWorkflowsRoute,
   AuthAssistantIdRoute: AuthAssistantIdRoute,
-  AuthContractsIdRoute: AuthContractsIdRoute,
+  AuthDocumentsIdRoute: AuthDocumentsIdRoute,
   AuthMattersIdRoute: AuthMattersIdRoute,
 }
 

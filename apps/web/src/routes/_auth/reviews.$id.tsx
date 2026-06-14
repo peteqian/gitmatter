@@ -1,25 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ActorBadge } from "@/components/ActorBadge";
 import { CommitHistory } from "@/components/CommitHistory";
+import { DataTable } from "@/components/DataTable";
 import { ModelPicker } from "@/components/ModelPicker";
+import { PageHeader } from "@/components/PageHeader";
 import { api, type Blame, type Cell } from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
-import { useTableVirtualizer } from "../../lib/useTableVirtualizer";
+import { useColumnSizing } from "../../lib/useColumnSizing";
 import { useSelectedModel } from "../../lib/useSelectedModel";
 
 export const Route = createFileRoute("/_auth/reviews/$id")({ component: ReviewView });
@@ -100,6 +94,7 @@ function ReviewView() {
       {
         id: "document",
         header: "Document",
+        size: 200,
         cell: ({ row }) => <span className="font-medium">{row.original.title}</span>,
       },
     ];
@@ -107,6 +102,7 @@ function ReviewView() {
       cols.push({
         id: `col-${col.index}`,
         header: col.name,
+        size: 240,
         cell: ({ row, table }) => {
           const meta = table.options.meta as ReviewMeta;
           const key = `${row.original.docId}:${col.index}`;
@@ -123,19 +119,19 @@ function ReviewView() {
     return cols;
   }, [review]);
 
+  const { columnSizing, onColumnSizingChange } = useColumnSizing("reviews");
+
   const table = useReactTable({
     data: tableData,
     columns,
+    state: { columnSizing },
+    onColumnSizingChange,
+    enableSorting: false,
+    enableColumnResizing: true,
+    columnResizeMode: "onChange",
     getCoreRowModel: getCoreRowModel(),
     meta: { run, running, cellOf } satisfies ReviewMeta,
   });
-
-  const tableRows = table.getRowModel().rows;
-  // Cells can be tall (multi-line summaries); estimate generously, measured per row.
-  const { scrollRef, virtualizer, items, paddingTop, paddingBottom } = useTableVirtualizer(
-    tableRows,
-    72
-  );
 
   if (!data || !review)
     return (
@@ -151,68 +147,38 @@ function ReviewView() {
   return (
     <div className="grid gap-6 pt-6 lg:grid-cols-[1fr_280px]">
       <div className="min-w-0">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h1 className="text-2xl tracking-tight">{review.title}</h1>
-          <div className="flex items-center gap-2">
-            <ModelPicker value={model} onChange={setModel} />
-            <a href={api.reviewExportUrl(id, "csv")}>
-              <Button size="sm" variant="outline">
-                CSV
-              </Button>
-            </a>
-            <a href={api.reviewExportUrl(id, "xlsx")}>
-              <Button size="sm" variant="outline">
-                XLSX
-              </Button>
-            </a>
-            <Button size="sm" onClick={runAll}>
-              Run all cells
-            </Button>
-          </div>
+        <div className="mb-3">
+          <PageHeader
+            breadcrumbs={[{ label: "Reviews", to: "/reviews" }, { label: review.title }]}
+            title={review.title}
+            action={
+              <div className="flex items-center gap-2">
+                <ModelPicker value={model} onChange={setModel} />
+                <a href={api.reviewExportUrl(id, "csv")}>
+                  <Button size="sm" variant="outline">
+                    CSV
+                  </Button>
+                </a>
+                <a href={api.reviewExportUrl(id, "xlsx")}>
+                  <Button size="sm" variant="outline">
+                    XLSX
+                  </Button>
+                </a>
+                <Button size="sm" onClick={runAll}>
+                  Run all cells
+                </Button>
+              </div>
+            }
+          />
         </div>
 
-        <div ref={scrollRef} className="max-h-[70vh] overflow-auto rounded-md border">
-          <Table>
-            <TableHeader className="sticky top-0 z-10 bg-background">
-              {table.getHeaderGroups().map((hg) => (
-                <TableRow key={hg.id}>
-                  {hg.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      className={header.id === "document" ? "w-40" : undefined}
-                    >
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {paddingTop > 0 && (
-                <tr>
-                  <td colSpan={columns.length} style={{ height: paddingTop }} />
-                </tr>
-              )}
-              {items.map((item) => {
-                const row = tableRows[item.index]!;
-                return (
-                  <TableRow key={row.id} data-index={item.index} ref={virtualizer.measureElement}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="align-top">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                );
-              })}
-              {paddingBottom > 0 && (
-                <tr>
-                  <td colSpan={columns.length} style={{ height: paddingBottom }} />
-                </tr>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          table={table}
+          estimateSize={72}
+          measureRows
+          cellClassName="align-top"
+          className="max-h-[70vh] flex-none rounded-md"
+        />
       </div>
 
       <aside>
@@ -231,7 +197,9 @@ type ReviewMeta = {
   cellOf: (docId: string, columnIndex: number) => Cell | undefined;
 };
 
-// One matrix cell: extraction result with a flag dot + blame, or a Run button.
+// One matrix cell: extraction result with a flag dot, citation chips + blame,
+// or a Run button. Citation chips and the reasoning open in popovers (mike's
+// cell overlay, condensed).
 function ReviewCell({ cell, busy, onRun }: { cell?: Cell; busy: boolean; onRun: () => void }) {
   if (!cell?.content)
     return (
@@ -239,15 +207,49 @@ function ReviewCell({ cell, busy, onRun }: { cell?: Cell; busy: boolean; onRun: 
         {busy ? "Running…" : "Run"}
       </Button>
     );
+  const citations = cell.citations ?? [];
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       <div className="flex items-start gap-2">
         <span
           className={`mt-1.5 size-2 shrink-0 rounded-full ${FLAG_COLOR[cell.content.flag] ?? "bg-muted-foreground/50"}`}
         />
-        <span className="text-sm">{cell.content.summary}</span>
+        <span className="text-sm">
+          {cell.content.summary}
+          {citations.map((c, i) => (
+            <Popover key={i}>
+              <PopoverTrigger
+                render={
+                  <button className="mx-0.5 inline-flex size-3.5 items-center justify-center rounded-full bg-muted align-super text-[9px] font-medium text-muted-foreground hover:bg-bronze-tint hover:text-bronze">
+                    {i + 1}
+                  </button>
+                }
+              />
+              <PopoverContent className="w-72 text-xs">
+                {c.page != null && (
+                  <p className="mb-1 font-medium text-muted-foreground">Page {c.page}</p>
+                )}
+                <p className="border-l-2 border-bronze pl-2 italic">"{c.quote}"</p>
+              </PopoverContent>
+            </Popover>
+          ))}
+        </span>
       </div>
       <div className="flex items-center gap-2">
+        {cell.content.reasoning && (
+          <Popover>
+            <PopoverTrigger
+              render={
+                <button className="text-xs text-muted-foreground underline-offset-2 hover:underline">
+                  reasoning
+                </button>
+              }
+            />
+            <PopoverContent className="w-72 text-xs text-muted-foreground">
+              {cell.content.reasoning}
+            </PopoverContent>
+          </Popover>
+        )}
         {cell.blame && <BlamePopover blame={cell.blame} />}
         <Button size="xs" variant="ghost" disabled={busy} onClick={onRun}>
           {busy ? "…" : "Re-run"}

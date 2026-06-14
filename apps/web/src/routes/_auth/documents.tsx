@@ -1,32 +1,23 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createColumnHelper,
-  flexRender,
   getCoreRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
 } from "@tanstack/react-table";
 import Fuse from "fuse.js";
-import { ChevronDown, ChevronsUpDown, ChevronUp, Upload } from "lucide-react";
+import { Loader2, RotateCcw, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
 import { api, type Doc } from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
-import { useTableVirtualizer } from "../../lib/useTableVirtualizer";
+import { useColumnSizing } from "../../lib/useColumnSizing";
 import { useWorkingMatterId } from "../../lib/matters-context";
 
 export const Route = createFileRoute("/_auth/documents")({
@@ -49,17 +40,19 @@ const columnHelper = createColumnHelper<Doc>();
 
 function Documents() {
   const qc = useQueryClient();
+  const router = useRouter();
   const matterId = useWorkingMatterId();
   const { view = "all" } = Route.useSearch();
   const [query, setQuery] = useState("");
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
+  const [rowSelection, setRowSelection] = useState({});
   const fileRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
 
   // Extraction runs in a background worker; poll while anything is in flight.
-  const { data: docs = [] } = useQuery({
+  const { data: docs = [], isPending } = useQuery({
     queryKey: queryKeys.documents,
     queryFn: () => api.listDocuments(),
     refetchInterval: (q) =>
@@ -118,22 +111,46 @@ function Documents() {
 
   const columns = useMemo(
     () => [
+      columnHelper.display({
+        id: "select",
+        size: 44,
+        enableResizing: false,
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllRowsSelected()}
+            onChange={table.getToggleAllRowsSelectedHandler()}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onChange={row.getToggleSelectedHandler()}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Select row"
+          />
+        ),
+      }),
       columnHelper.accessor("title", {
         header: "Title",
-        cell: (c) => <span className="font-medium">{c.getValue()}</span>,
+        size: 360,
+        cell: (c) => <span className="block truncate font-medium">{c.getValue()}</span>,
       }),
       columnHelper.accessor("fileType", {
         header: "Type",
+        size: 90,
         cell: (c) => (
           <span className="text-muted-foreground uppercase">{fileTypeLabel(c.getValue())}</span>
         ),
       }),
       columnHelper.accessor("status", {
         header: "Status",
+        size: 110,
         cell: (c) => <StatusBadge status={c.getValue()} />,
       }),
       columnHelper.accessor("createdAt", {
         header: "Added",
+        size: 130,
         cell: (c) => (
           <span className="text-muted-foreground">
             {new Date(c.getValue()).toLocaleDateString()}
@@ -143,16 +160,26 @@ function Documents() {
       columnHelper.display({
         id: "actions",
         header: "",
+        size: 64,
+        enableResizing: false,
         cell: (c) =>
           c.row.original.status === "failed" ? (
             <Button
               variant="ghost"
-              size="sm"
-              className="h-6 px-2"
-              title={c.row.original.extractionError ?? undefined}
-              onClick={() => retryMutation.mutate(c.row.original.id)}
+              size="icon"
+              className="size-7"
+              title={
+                c.row.original.extractionError
+                  ? `Retry — ${c.row.original.extractionError}`
+                  : "Retry"
+              }
+              aria-label="Retry extraction"
+              onClick={(e) => {
+                e.stopPropagation();
+                retryMutation.mutate(c.row.original.id);
+              }}
             >
-              Retry
+              <RotateCcw className="size-4" />
             </Button>
           ) : null,
       }),
@@ -168,22 +195,25 @@ function Documents() {
     matchesView(d.status, view)
   );
 
+  const { columnSizing, onColumnSizingChange } = useColumnSizing("documents");
+
   const table = useReactTable({
     data: rows,
     columns,
-    state: { sorting },
+    state: { sorting, rowSelection, columnSizing },
     onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    onColumnSizingChange,
+    enableRowSelection: true,
+    enableColumnResizing: true,
+    columnResizeMode: "onChange",
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const tableRows = table.getRowModel().rows;
-  const { scrollRef, virtualizer, items, paddingTop, paddingBottom } =
-    useTableVirtualizer(tableRows);
-
   return (
     <div
-      className="relative flex flex-col gap-section"
+      className="relative flex min-h-0 flex-1 flex-col gap-stack"
       onDragEnter={(e) => {
         if (!e.dataTransfer.types.includes("Files")) return;
         dragDepth.current += 1;
@@ -213,7 +243,6 @@ function Documents() {
       />
       <PageHeader
         title="Documents"
-        description="Upload or paste source documents. Text is extracted to markdown for review and chat."
         action={
           <Button disabled={uploading} onClick={() => fileRef.current?.click()}>
             <Upload className="size-4" />
@@ -223,94 +252,41 @@ function Documents() {
       />
 
       {docs.length > 0 && (
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search documents…"
-        />
+        <div className="flex h-10 items-center justify-end border-b border-border">
+          <div className="flex items-center gap-2 rounded-md border border-input bg-background px-2.5">
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search documents…"
+              className="h-7 w-48 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+        </div>
       )}
 
       {docs.length > 0 && (
-        <div ref={scrollRef} className="max-h-[70vh] overflow-auto rounded-md border">
-          <Table>
-            <TableHeader className="sticky top-0 z-10 bg-background">
-              {table.getHeaderGroups().map((hg) => (
-                <TableRow key={hg.id}>
-                  {hg.headers.map((header) => {
-                    const dir = header.column.getIsSorted();
-                    const canSort = header.column.getCanSort();
-                    const Icon = !dir ? ChevronsUpDown : dir === "asc" ? ChevronUp : ChevronDown;
-                    return (
-                      <TableHead key={header.id}>
-                        {canSort ? (
-                          <button
-                            type="button"
-                            onClick={header.column.getToggleSortingHandler()}
-                            className="-mx-1 flex items-center gap-1 rounded px-1 hover:text-foreground"
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            <Icon
-                              className={cn(
-                                "size-3.5",
-                                dir ? "text-foreground" : "text-muted-foreground/50"
-                              )}
-                            />
-                          </button>
-                        ) : (
-                          flexRender(header.column.columnDef.header, header.getContext())
-                        )}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {paddingTop > 0 && (
-                <tr>
-                  <td colSpan={columns.length} style={{ height: paddingTop }} />
-                </tr>
-              )}
-              {items.map((item) => {
-                const row = tableRows[item.index]!;
-                return (
-                  <TableRow key={row.id} data-index={item.index} ref={virtualizer.measureElement}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                );
-              })}
-              {paddingBottom > 0 && (
-                <tr>
-                  <td colSpan={columns.length} style={{ height: paddingBottom }} />
-                </tr>
-              )}
-              {!tableRows.length && (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="py-section text-center text-muted-foreground"
-                  >
-                    No documents match "{query}".
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          table={table}
+          onRowClick={(doc) => router.navigate({ to: "/documents/$id", params: { id: doc.id } })}
+          empty={`No documents match "${query}".`}
+        />
       )}
-      {!docs.length && (
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border py-section text-center text-sm text-muted-foreground hover:border-primary/50 hover:text-foreground"
-        >
-          <Upload className="size-5" />
-          Drop files here or click to upload. PDF or DOCX.
-        </button>
+      {isPending ? (
+        <div className="flex flex-1 items-center justify-center text-muted-foreground">
+          <Loader2 className="size-6 animate-spin" />
+        </div>
+      ) : (
+        !docs.length && (
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border py-section text-center text-sm text-muted-foreground hover:border-primary/50 hover:text-foreground"
+          >
+            <Upload className="size-5" />
+            Drop files here or click to upload. PDF or DOCX.
+          </button>
+        )
       )}
     </div>
   );

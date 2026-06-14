@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,10 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [busy, setBusy] = useState(false);
   const [chatId, setChatId] = useState<string | undefined>(loaded?.id);
+  // Aborts an in-flight stream so navigating away (or unmounting) doesn't leave
+  // the reader loop and its captured setState closures running in the background.
+  const streamAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => streamAbort.current?.abort(), []);
 
   const firstName =
     session?.user.name?.split(" ")[0] || session?.user.email?.split("@")[0] || "there";
@@ -117,6 +121,8 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
       }
     };
 
+    const controller = new AbortController();
+    streamAbort.current = controller;
     try {
       await api.streamChat(
         message,
@@ -169,11 +175,15 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
             }
           },
           onError: (msg) => toast.error(msg),
-        }
+        },
+        controller.signal
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
+      if ((e as Error)?.name !== "AbortError") {
+        toast.error(e instanceof Error ? e.message : "Failed");
+      }
     } finally {
+      if (streamAbort.current === controller) streamAbort.current = null;
       setBusy(false);
     }
   }
@@ -202,7 +212,7 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
 
   if (empty) {
     return (
-      <div className="mx-auto flex min-h-[calc(100dvh-10rem)] max-w-2xl flex-col items-center justify-center gap-section">
+      <div className="mx-auto flex min-h-[calc(100dvh-10rem)] max-w-3xl flex-col items-center justify-center gap-section">
         <h1 className="flex items-center gap-3 font-heading text-4xl font-light tracking-tight">
           <span className="grid size-9 place-items-center rounded-lg bg-primary font-serif text-lg text-primary-foreground">
             g
@@ -360,6 +370,7 @@ function Composer({
           onClick={onSend}
           disabled={busy || !input.trim()}
           title="Send"
+          aria-label="Send"
           className="shrink-0 rounded-full"
         >
           <ArrowRight className="size-4" />

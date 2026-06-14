@@ -1,33 +1,70 @@
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useDebouncedValue } from "@tanstack/react-pacer";
+import {
+  FileText,
+  FolderPlus,
+  MessageSquarePlus,
+  MoreHorizontal,
+  Search,
+  TableProperties,
+  Upload,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/PageHeader";
 import { StateCue } from "@/components/StateCue";
-import { api, type FirmUser, type Matter, type MatterMember, type MatterRole } from "../../lib/api";
+import { ToolbarTabs } from "@/components/ToolbarTabs";
+import { VersionChip } from "@/components/VersionChip";
+import { PeopleModal } from "@/components/PeopleModal";
+import { api, type Doc, type Folder } from "../../lib/api";
+import { useChats } from "../../lib/queries";
 import { useSession } from "../../lib/auth-client";
 import { useMatters } from "../../lib/matters-context";
 
-export const Route = createFileRoute("/_auth/matters_/$id")({ component: MatterDetail });
+export const Route = createFileRoute("/_auth/matters_/$id")({ component: MatterWorkspace });
 
-function MatterDetail() {
+type Tab = "documents" | "chats" | "reviews";
+
+function MatterWorkspace() {
   const { id } = useParams({ from: "/_auth/matters_/$id" });
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: session } = useSession();
-  const { refresh: refreshMatters } = useMatters();
+  const { refresh: refreshMatters, setCurrent } = useMatters();
+  const [tab, setTab] = useState<Tab>("documents");
+  const [peopleOpen, setPeopleOpen] = useState(false);
+
+  // New Chat / New Review file under this matter — set it working, then route out.
+  const openInMatter = (to: "/assistant" | "/reviews") => {
+    setCurrent(id);
+    void navigate({ to });
+  };
+
   const { data: matter, isError: notFound } = useQuery({
     queryKey: ["matter", id],
     queryFn: () => api.getMatter(id),
   });
   const { data: members = [] } = useQuery({
-    queryKey: ["matter-members", id],
-    queryFn: () => api.listMembers(id),
+    queryKey: ["matter-people", id],
+    queryFn: () => api.getMatterPeople(id),
   });
 
   const closeMutation = useMutation({
@@ -55,21 +92,72 @@ function MatterDetail() {
   const isOwner = myRole === "owner";
 
   return (
-    <div className="flex flex-col gap-section">
+    <div className="flex flex-col gap-stack">
+      {/* mike Image #1: inline "Matters › Name" trail + two action groups —
+          a frosted icon pill (search / people / …) and New Chat / New Review. */}
       <PageHeader
-        title={matter.name}
-        description={matter.practiceArea ?? undefined}
-        action={
-          isOwner && matter.status === "active" ? (
+        breadcrumbs={[{ label: "Matters", to: "/matters" }, { label: matter.name }]}
+        actions={[
+          <div key="icons" className="flex items-center gap-0.5 rounded-full glass-panel p-1">
             <Button
-              variant="outline"
-              disabled={closeMutation.isPending}
-              onClick={() => closeMutation.mutate()}
+              variant="ghost"
+              size="icon-sm"
+              title="Search"
+              aria-label="Search"
+              onClick={() => setTab("documents")}
             >
-              Close matter
+              <Search className="size-4" />
             </Button>
-          ) : undefined
-        }
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="People"
+              aria-label="People"
+              onClick={() => setPeopleOpen(true)}
+            >
+              <Users className="size-4" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="ghost" size="icon-sm" title="More" aria-label="More">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled={!matter.conflictCleared}>
+                  {matter.conflictCleared ? "Conflicts cleared" : "Conflicts pending"}
+                </DropdownMenuItem>
+                {isOwner && matter.status === "active" && (
+                  <DropdownMenuItem onClick={() => closeMutation.mutate()}>
+                    Close matter
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>,
+          <div key="create" className="flex items-center gap-0.5 rounded-full glass-panel p-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="New chat"
+              aria-label="New chat"
+              onClick={() => openInMatter("/assistant")}
+            >
+              <MessageSquarePlus className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="New review"
+              aria-label="New review"
+              onClick={() => openInMatter("/reviews")}
+            >
+              <TableProperties className="size-4" />
+            </Button>
+          </div>,
+        ]}
       />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -84,197 +172,310 @@ function MatterDetail() {
         )}
       </div>
 
-      <ConflictsCard matter={matter} canEdit={isOwner} />
-      <TeamCard matterId={id} members={members} canEdit={isOwner} selfId={session?.user.id} />
+      <ToolbarTabs
+        tabs={[
+          { id: "documents" as const, label: "Documents" },
+          { id: "chats" as const, label: "Assistant Chats" },
+          { id: "reviews" as const, label: "Tabular Reviews" },
+        ]}
+        active={tab}
+        onChange={setTab}
+      />
+
+      {tab === "documents" && <DocumentsTab matterId={id} canEdit={myRole !== "viewer"} />}
+      {tab === "chats" && <ChatsTab matterId={id} />}
+      {tab === "reviews" && <ReviewsTab matterId={id} />}
+
+      <PeopleModal
+        matterId={id}
+        matterName={matter.name}
+        canManage={isOwner}
+        open={peopleOpen}
+        onOpenChange={setPeopleOpen}
+      />
     </div>
   );
 }
 
-function ConflictsCard({ matter, canEdit }: { matter: Matter; canEdit: boolean }) {
-  const qc = useQueryClient();
-  const [notes, setNotes] = useState(matter.conflictNotes ?? "");
+function fmtBytes(b: number | null): string {
+  if (b == null) return "—";
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+}
+function fmtDate(s: string): string {
+  return new Date(s).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
-  const clearMutation = useMutation({
-    mutationFn: () => api.clearConflicts(matter.id, notes.trim() || undefined),
+function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const [folderId, setFolderId] = useState<string | null>(null); // null = root
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const { data: folders = [] } = useQuery({
+    queryKey: ["folders", matterId],
+    queryFn: () => api.listFolders(matterId),
+  });
+  const { data: docs = [] } = useQuery({
+    queryKey: ["matter-docs", matterId, folderId],
+    queryFn: () => api.listMatterDocuments(matterId, folderId),
+  });
+
+  const invalidateDocs = () =>
+    qc.invalidateQueries({ queryKey: ["matter-docs", matterId, folderId] });
+
+  const upload = useMutation({
+    mutationFn: (file: File) => api.uploadDocument(file, undefined, matterId, folderId),
     onSuccess: () => {
-      toast.success("Conflicts cleared");
-      void qc.invalidateQueries({ queryKey: ["matter", matter.id] });
+      toast.success("Uploaded");
+      void invalidateDocs();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Upload failed"),
+  });
+
+  const addFolder = useMutation({
+    mutationFn: (name: string) => api.createFolder(matterId, name, folderId),
+    onSuccess: () => {
+      toast.success("Folder added");
+      void qc.invalidateQueries({ queryKey: ["folders", matterId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Conflicts</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-stack text-sm">
-        {matter.adverseParties?.length ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-muted-foreground">Adverse parties:</span>
-            {matter.adverseParties.map((p) => (
-              <Badge key={p} variant="outline" className="font-normal">
-                {p}
-              </Badge>
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted-foreground">No adverse parties recorded.</p>
-        )}
+  const rootFolders = folders.filter((f: Folder) => f.parentFolderId === (folderId ?? null));
+  const filtered = docs.filter((d: Doc) => d.title.toLowerCase().includes(search.toLowerCase()));
+  const current = folders.find((f) => f.id === folderId) ?? null;
 
-        {matter.conflictCleared ? (
-          <p className="text-muted-foreground">
-            Cleared{matter.conflictNotes ? ` — ${matter.conflictNotes}` : ""}.
-          </p>
-        ) : canEdit ? (
-          <div className="flex flex-col gap-field">
-            <Label>Clearance notes (optional)</Label>
-            <Input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Reviewed against firm matters; no conflict."
+  return (
+    <div className="flex flex-col gap-stack">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <button onClick={() => setFolderId(null)} className="hover:text-foreground">
+            All documents
+          </button>
+          {current && (
+            <>
+              <span className="text-border">›</span>
+              <span className="text-foreground">{current.name}</span>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-2.5">
+            <Search className="size-4 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search"
+              className="h-8 w-40 bg-transparent text-sm outline-none"
             />
-            <Button
-              className="mt-1 self-start"
-              disabled={clearMutation.isPending}
-              onClick={() => clearMutation.mutate()}
-            >
-              Mark cleared
-            </Button>
           </div>
-        ) : (
-          <StateCue tone="bronze">Conflicts not yet cleared by an owner.</StateCue>
-        )}
-      </CardContent>
-    </Card>
+          {canEdit && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const name = window.prompt("Folder name");
+                  if (name?.trim()) addFolder.mutate(name.trim());
+                }}
+              >
+                <FolderPlus className="size-4" /> Add Subfolder
+              </Button>
+              <Button size="sm" onClick={() => fileRef.current?.click()}>
+                <Upload className="size-4" /> Add Documents
+              </Button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".pdf,.docx,.doc"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) upload.mutate(f);
+                  e.target.value = "";
+                }}
+              />
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={filtered.length > 0 && filtered.every((d) => selected.has(d.id))}
+                  onChange={() =>
+                    setSelected((s) =>
+                      filtered.every((d) => s.has(d.id))
+                        ? new Set()
+                        : new Set(filtered.map((d) => d.id))
+                    )
+                  }
+                  aria-label="Select all"
+                />
+              </TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Size</TableHead>
+              <TableHead>Version</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rootFolders.map((f) => (
+              <TableRow key={f.id} className="cursor-pointer" onClick={() => setFolderId(f.id)}>
+                <TableCell />
+                <TableCell className="font-medium">
+                  <span className="flex items-center gap-2">
+                    <FolderPlus className="size-4 text-bronze" /> {f.name}
+                  </span>
+                </TableCell>
+                <TableCell className="text-muted-foreground">Folder</TableCell>
+                <TableCell className="text-muted-foreground">—</TableCell>
+                <TableCell className="text-muted-foreground">—</TableCell>
+                <TableCell className="text-muted-foreground">{fmtDate(f.createdAt)}</TableCell>
+                <TableCell />
+              </TableRow>
+            ))}
+            {filtered.map((d: Doc) => (
+              <TableRow key={d.id} data-state={selected.has(d.id) ? "selected" : undefined}>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={selected.has(d.id)}
+                    onChange={() =>
+                      setSelected((s) => {
+                        const n = new Set(s);
+                        if (n.has(d.id)) n.delete(d.id);
+                        else n.add(d.id);
+                        return n;
+                      })
+                    }
+                    aria-label={`Select ${d.title}`}
+                  />
+                </TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-2">
+                    <FileText className="size-4 text-destructive" /> {d.title}
+                  </span>
+                </TableCell>
+                <TableCell className="text-muted-foreground uppercase">{d.fileType}</TableCell>
+                <TableCell className="text-muted-foreground">{fmtBytes(d.sizeBytes)}</TableCell>
+                <TableCell>
+                  <VersionChip n={1} />
+                </TableCell>
+                <TableCell className="text-muted-foreground">{fmtDate(d.createdAt)}</TableCell>
+                <TableCell>
+                  <DocStatusCue status={d.status} />
+                </TableCell>
+              </TableRow>
+            ))}
+            {!rootFolders.length && !filtered.length && (
+              <TableRow>
+                <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                  No documents yet. {canEdit && "Add documents to get started."}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
   );
 }
 
-const ROLES: MatterRole[] = ["owner", "editor", "viewer"];
+function DocStatusCue({ status }: { status: Doc["status"] }) {
+  if (status === "ready") return <span className="text-muted-foreground">Ready</span>;
+  if (status === "failed")
+    return <span className="text-xs font-medium text-destructive">Failed</span>;
+  return <StateCue tone="bronze">{status === "processing" ? "Extracting" : "Queued"}</StateCue>;
+}
 
-function TeamCard({
-  matterId,
-  members,
-  canEdit,
-  selfId,
-}: {
-  matterId: string;
-  members: MatterMember[];
-  canEdit: boolean;
-  selfId?: string;
-}) {
-  const qc = useQueryClient();
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<FirmUser[]>([]);
-  const [role, setRole] = useState<MatterRole>("editor");
+function ChatsTab({ matterId }: { matterId: string }) {
+  const navigate = useNavigate();
+  const { setCurrent } = useMatters();
+  const { data: chats = [] } = useChats();
 
-  // Debounced 250ms so we hit the search endpoint once the user pauses typing.
-  const [debouncedQuery] = useDebouncedValue(query.trim(), { wait: 250 });
-  useEffect(() => {
-    if (!debouncedQuery) return setResults([]);
-    api
-      .searchUsers(debouncedQuery)
-      .then(setResults)
-      .catch(() => {});
-  }, [debouncedQuery]);
-
-  const invalidateMembers = () => qc.invalidateQueries({ queryKey: ["matter-members", matterId] });
-
-  const memberIds = new Set(members.map((m) => m.userId));
-
-  const addMutation = useMutation({
-    mutationFn: (userId: string) => api.addMember(matterId, userId, role),
-    onSuccess: () => {
-      setQuery("");
-      setResults([]);
-      void invalidateMembers();
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: (userId: string) => api.removeMember(matterId, userId),
-    onSuccess: () => invalidateMembers(),
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
-  });
+  const startChat = () => {
+    setCurrent(matterId);
+    void navigate({ to: "/assistant" });
+  };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Team</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-stack">
-        <ul className="flex flex-col divide-y divide-border text-sm">
-          {members.map((m) => (
-            <li key={m.userId} className="flex items-center justify-between py-2">
-              <div className="flex min-w-0 flex-col">
-                <span className="truncate font-medium">{m.name || m.email}</span>
-                <span className="truncate text-xs text-muted-foreground">{m.email}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="capitalize">
-                  {m.role}
-                </Badge>
-                {canEdit && m.userId !== selfId && (
-                  <Button size="xs" variant="ghost" onClick={() => removeMutation.mutate(m.userId)}>
-                    Remove
-                  </Button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        {canEdit && (
-          <div className="flex flex-col gap-field border-t border-border pt-stack">
-            <Label>Add a colleague</Label>
-            <div className="flex gap-2">
-              <Input
-                className="flex-1"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by name or email"
-              />
-              <select
-                className="h-9 rounded-md border border-input bg-background px-2.5 text-sm"
-                value={role}
-                onChange={(e) => setRole(e.target.value as MatterRole)}
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r} className="capitalize">
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {results.length > 0 && (
-              <ul className="flex flex-col rounded-md border border-border">
-                {results.map((u) => {
-                  const already = memberIds.has(u.id);
-                  return (
-                    <li
-                      key={u.id}
-                      className="flex items-center justify-between px-3 py-2 text-sm not-last:border-b"
-                    >
-                      <span className="truncate">
-                        {u.name || u.email}{" "}
-                        <span className="text-xs text-muted-foreground">{u.email}</span>
-                      </span>
-                      <Button
-                        size="xs"
-                        disabled={already || addMutation.isPending}
-                        onClick={() => addMutation.mutate(u.id)}
-                      >
-                        {already ? "Added" : "Add"}
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
+    <div className="flex flex-col gap-stack">
+      <div className="flex justify-end">
+        <Button size="sm" onClick={startChat}>
+          <MessageSquarePlus className="size-4" /> New Chat
+        </Button>
+      </div>
+      <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
+        {chats.map((ch) => (
+          <li key={ch.id}>
+            <Link
+              to="/assistant/$id"
+              params={{ id: ch.id }}
+              className="flex items-center justify-between px-4 py-2.5 text-sm hover:bg-muted/40"
+            >
+              <span className="truncate">{ch.title || "Untitled chat"}</span>
+              <span className="text-xs text-muted-foreground">{fmtDate(ch.updatedAt)}</span>
+            </Link>
+          </li>
+        ))}
+        {!chats.length && (
+          <li className="px-4 py-12 text-center text-muted-foreground">No chats yet.</li>
         )}
-      </CardContent>
-    </Card>
+      </ul>
+    </div>
+  );
+}
+
+function ReviewsTab({ matterId }: { matterId: string }) {
+  const navigate = useNavigate();
+  const { setCurrent } = useMatters();
+  const { data: reviews = [] } = useQuery({
+    queryKey: ["reviews"],
+    queryFn: () => api.listReviews(),
+  });
+
+  const newReview = () => {
+    setCurrent(matterId);
+    void navigate({ to: "/reviews" });
+  };
+
+  return (
+    <div className="flex flex-col gap-stack">
+      <div className="flex justify-end">
+        <Button size="sm" onClick={newReview}>
+          <TableProperties className="size-4" /> New Review
+        </Button>
+      </div>
+      <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
+        {reviews.map((r) => (
+          <li key={r.id}>
+            <Link
+              to="/reviews/$id"
+              params={{ id: r.id }}
+              className="flex items-center justify-between px-4 py-2.5 text-sm hover:bg-muted/40"
+            >
+              <span className="truncate">{r.title || "Untitled review"}</span>
+              <span className="text-xs text-muted-foreground">{fmtDate(r.createdAt)}</span>
+            </Link>
+          </li>
+        ))}
+        {!reviews.length && (
+          <li className="px-4 py-12 text-center text-muted-foreground">No reviews yet.</li>
+        )}
+      </ul>
+    </div>
   );
 }

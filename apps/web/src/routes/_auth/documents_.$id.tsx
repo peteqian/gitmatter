@@ -10,9 +10,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CommitHistory } from "@/components/CommitHistory";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocxView } from "@/components/DocxView";
-import { api, type ContractDetail, type ContractEdit } from "../../lib/api";
+import { PageHeader } from "@/components/PageHeader";
+import { api, type DocumentDetail, type DocEdit } from "../../lib/api";
 
-export const Route = createFileRoute("/_auth/contracts_/$id")({ component: ContractView });
+export const Route = createFileRoute("/_auth/documents_/$id")({ component: DocumentView });
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   pending: "outline",
@@ -20,24 +21,24 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "dest
   rejected: "destructive",
 };
 
-function ContractView() {
+function DocumentView() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
-  const contractKey = ["contract", id];
-  const { data } = useQuery({ queryKey: contractKey, queryFn: () => api.getContract(id) });
+  const docKey = ["document", id];
+  const { data } = useQuery({ queryKey: docKey, queryFn: () => api.getDocumentDetail(id) });
   const { data: history = [] } = useQuery({
-    queryKey: ["contract-history", id],
-    queryFn: () => api.contractHistory(id),
+    queryKey: ["document-history", id],
+    queryFn: () => api.documentHistory(id),
   });
   const [find, setFind] = useState("");
   const [replace, setReplace] = useState("");
   const [reason, setReason] = useState("");
 
-  // Both mutations return the updated contract; seed it into the cache and
+  // Both mutations return the updated document; seed it into the cache and
   // refresh the blame history.
-  const onEdited = (updated: ContractDetail) => {
-    qc.setQueryData(contractKey, updated);
-    void qc.invalidateQueries({ queryKey: ["contract-history", id] });
+  const onEdited = (updated: DocumentDetail) => {
+    qc.setQueryData(docKey, updated);
+    void qc.invalidateQueries({ queryKey: ["document-history", id] });
   };
 
   const proposeMutation = useMutation({
@@ -52,7 +53,7 @@ function ContractView() {
   });
 
   const resolveMutation = useMutation({
-    mutationFn: (v: { edit: ContractEdit; decision: "accept" | "reject" }) =>
+    mutationFn: (v: { edit: DocEdit; decision: "accept" | "reject" }) =>
       api.resolveEdit(id, v.edit.changeId, v.decision),
     onSuccess: onEdited,
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
@@ -69,14 +70,17 @@ function ContractView() {
       </div>
     );
 
-  const { contract, edits } = data;
+  const { document, edits } = data;
   const pending = edits.filter((e) => e.status === "pending");
-  const isDocx = !!contract.currentVersionId;
+  const isDocx = document.fileType === "docx" && !!document.currentVersionId;
 
   return (
     <div className="grid gap-6 pt-6 lg:grid-cols-[1fr_300px]">
       <div className="flex min-w-0 flex-col gap-4">
-        <h1 className="text-2xl tracking-tight">{contract.title}</h1>
+        <PageHeader
+          breadcrumbs={[{ label: "Documents", to: "/documents" }, { label: document.title }]}
+          title={document.title}
+        />
 
         <Card>
           <CardHeader>
@@ -86,12 +90,21 @@ function ContractView() {
           </CardHeader>
           <CardContent>
             {isDocx ? (
-              <DocxView url={api.contractDocxUrl(id)} versionToken={contract.currentVersionId} />
-            ) : (
+              <DocxView
+                url={api.documentDownloadUrl(id)}
+                versionToken={document.currentVersionId}
+              />
+            ) : document.markdown ? (
               // Legal text gets the serif and a readable measure — it is the hero (DESIGN.md).
               <pre className="max-w-[70ch] font-serif text-base leading-relaxed whitespace-pre-wrap">
-                {contract.body}
+                {document.markdown}
               </pre>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {document.status === "ready"
+                  ? "No text extracted."
+                  : "Text is still being extracted…"}
+              </p>
             )}
           </CardContent>
         </Card>
@@ -102,7 +115,7 @@ function ContractView() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label>Find (exact text in the contract)</Label>
+              <Label>Find (exact text in the document)</Label>
               <Input value={find} onChange={(e) => setFind(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">

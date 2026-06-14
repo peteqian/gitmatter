@@ -1,11 +1,21 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { PageHeader } from "@/components/PageHeader";
 import { api, type Column, type Doc } from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
@@ -35,15 +45,35 @@ function Reviews() {
     queryFn: () => api.listDocuments(),
   });
   const [creating, setCreating] = useState(false);
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const shown = reviews.filter((r) =>
+    (r.title ?? "").toLowerCase().includes(query.trim().toLowerCase())
+  );
+  const allChecked = shown.length > 0 && shown.every((r) => selected.has(r.id));
+  const toggle = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
 
   return (
-    <div className="flex flex-col gap-section">
+    <div className="flex flex-col gap-stack">
       <PageHeader
         title="Tabular reviews"
-        description="Extract a grid of answers across documents. Every cell is a commit."
         action={
-          <Button onClick={() => setCreating((v) => !v)}>
-            {creating ? "Cancel" : "New review"}
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="rounded-full"
+            title="New review"
+            aria-label="New review"
+            onClick={() => setCreating((v) => !v)}
+          >
+            <Plus className="size-4" />
           </Button>
         }
       />
@@ -55,24 +85,71 @@ function Reviews() {
         />
       )}
 
-      <div className="grid gap-stack sm:grid-cols-2 lg:grid-cols-3">
-        {reviews.map((r) => (
-          <Link key={r.id} to="/reviews/$id" params={{ id: r.id }}>
-            <Card className="transition-colors hover:bg-muted/50">
-              <CardHeader>
-                <CardTitle className="text-base">{r.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                {new Date(r.createdAt).toLocaleString()}
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-        {!reviews.length && (
-          <p className="col-span-full py-section text-center text-sm text-muted-foreground">
-            No reviews yet. Start one from a contract or ask the assistant.
-          </p>
-        )}
+      <div className="flex h-10 items-center justify-end border-b border-border">
+        <div className="flex items-center gap-2 rounded-md border border-input bg-background px-2.5">
+          <Search className="size-4 shrink-0 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search reviews…"
+            className="h-7 w-48 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={allChecked}
+                  onChange={() =>
+                    setSelected(allChecked ? new Set() : new Set(shown.map((r) => r.id)))
+                  }
+                  aria-label="Select all"
+                />
+              </TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Documents</TableHead>
+              <TableHead>Created</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {shown.map((r) => (
+              <TableRow
+                key={r.id}
+                data-state={selected.has(r.id) ? "selected" : undefined}
+                className="cursor-pointer"
+                onClick={() => router.navigate({ to: "/reviews/$id", params: { id: r.id } })}
+              >
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={selected.has(r.id)}
+                    onChange={() => toggle(r.id)}
+                    aria-label={`Select ${r.title}`}
+                  />
+                </TableCell>
+                <TableCell className="font-medium">{r.title}</TableCell>
+                <TableCell className="text-muted-foreground">{r.documentIds.length}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {new Date(r.createdAt).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </TableCell>
+              </TableRow>
+            ))}
+            {!shown.length && (
+              <TableRow>
+                <TableCell colSpan={4} className="py-12 text-center text-muted-foreground">
+                  No reviews yet. Start one from a contract or ask the assistant.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

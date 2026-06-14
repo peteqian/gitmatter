@@ -1,13 +1,24 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { PageHeader } from "@/components/PageHeader";
 import { StateCue } from "@/components/StateCue";
+import { ToolbarTabs } from "@/components/ToolbarTabs";
 import { api } from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
 import { useMatters } from "../../lib/matters-context";
@@ -20,22 +31,83 @@ export const Route = createFileRoute("/_auth/matters")({
   }),
 });
 
-function Matters() {
-  const { matters, refresh, setCurrent } = useMatters();
-  const { view = "all" } = Route.useSearch();
-  const [creating, setCreating] = useState(false);
+type Scope = "all" | "mine" | "shared";
 
-  const shown = view === "all" ? matters : matters.filter((m) => m.matter.status === view);
+function fmtDate(s: string): string {
+  return new Date(s).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function Matters() {
+  const navigate = useNavigate();
+  const { matters, refresh, setCurrent } = useMatters();
+  const [creating, setCreating] = useState(false);
+  const [scope, setScope] = useState<Scope>("all");
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const shown = matters
+    .filter((m) =>
+      scope === "all" ? true : scope === "mine" ? m.role === "owner" : m.role !== "owner"
+    )
+    .filter((m) => {
+      const q = query.trim().toLowerCase();
+      return (
+        !q || m.matter.name.toLowerCase().includes(q) || m.client.name.toLowerCase().includes(q)
+      );
+    });
+  const allChecked = shown.length > 0 && shown.every((m) => selected.has(m.matter.id));
+
+  const toggle = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const toggleAll = () =>
+    setSelected(allChecked ? new Set() : new Set(shown.map((m) => m.matter.id)));
 
   return (
-    <div className="flex flex-col gap-section">
+    <div className="-mb-12 flex min-h-0 flex-1 flex-col gap-stack">
+      {/* mike Projects header: serif title + a round add button. */}
       <PageHeader
         title="Matters"
-        description="Engagements you're staffed on. New work files under the matter you pick here."
         action={
-          <Button onClick={() => setCreating((v) => !v)}>
-            {creating ? "Cancel" : "New matter"}
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="rounded-full"
+            title="New matter"
+            aria-label="New matter"
+            onClick={() => setCreating((v) => !v)}
+          >
+            <Plus className="size-4" />
           </Button>
+        }
+      />
+
+      <ToolbarTabs
+        tabs={[
+          { id: "all" as const, label: "All" },
+          { id: "mine" as const, label: "Mine" },
+          { id: "shared" as const, label: "Shared with me" },
+        ]}
+        active={scope}
+        onChange={setScope}
+        actions={
+          <div className="flex items-center gap-2 rounded-md border border-input bg-background px-2.5">
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search matters…"
+              className="h-7 w-48 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
         }
       />
 
@@ -49,36 +121,66 @@ function Matters() {
         />
       )}
 
-      {/* Quiet rows over hairlines — lawyers scan by name; no card grid (DESIGN.md). */}
-      <div className="flex flex-col divide-y divide-border">
-        {shown.map(({ matter, client, role }) => (
-          <Link
-            key={matter.id}
-            to="/matters/$id"
-            params={{ id: matter.id }}
-            className="-mx-3 flex items-center justify-between gap-4 rounded-md px-3 py-4 transition-colors hover:bg-muted/50"
-          >
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="truncate font-semibold">{matter.name}</span>
-              <span className="truncate text-sm text-muted-foreground">
-                {client.name}
-                {matter.practiceArea && ` · ${matter.practiceArea}`}
-              </span>
-            </div>
-            <div className="flex shrink-0 items-center gap-4">
-              {matter.status === "closed" && <StateCue tone="muted">Closed</StateCue>}
-              {!matter.conflictCleared && <StateCue tone="bronze">Conflicts pending</StateCue>}
-              <span className="text-xs font-medium text-muted-foreground capitalize">{role}</span>
-            </div>
-          </Link>
-        ))}
-        {!shown.length && (
-          <p className="py-section text-center text-sm text-muted-foreground">
-            {matters.length
-              ? "No matters match this filter."
-              : "No matters yet. Create one to start filing work."}
-          </p>
-        )}
+      <div className="min-h-0 flex-1 overflow-auto rounded-lg p-2">
+        <Table containerClassName="overflow-x-visible">
+          <TableHeader className="sticky top-0 z-10 bg-background">
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox checked={allChecked} onChange={toggleAll} aria-label="Select all" />
+              </TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Client</TableHead>
+              <TableHead>Owner</TableHead>
+              <TableHead>Shared with</TableHead>
+              <TableHead>Recent activity</TableHead>
+              <TableHead>Created</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {shown.map(({ matter, client, role, ownerName, memberCount }) => (
+              <TableRow
+                key={matter.id}
+                data-state={selected.has(matter.id) ? "selected" : undefined}
+                className="cursor-pointer"
+                onClick={() => navigate({ to: "/matters/$id", params: { id: matter.id } })}
+              >
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={selected.has(matter.id)}
+                    onChange={() => toggle(matter.id)}
+                    aria-label={`Select ${matter.name}`}
+                  />
+                </TableCell>
+                <TableCell className="font-medium">
+                  {matter.name}
+                  {matter.status === "closed" && (
+                    <StateCue tone="muted">
+                      <span className="ml-2">Closed</span>
+                    </StateCue>
+                  )}
+                </TableCell>
+                <TableCell className="text-muted-foreground">{client.name}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {role === "owner" ? "Me" : (ownerName ?? "—")}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {memberCount > 1 ? `${memberCount} people` : "Private"}
+                </TableCell>
+                <TableCell className="text-muted-foreground">{fmtDate(matter.updatedAt)}</TableCell>
+                <TableCell className="text-muted-foreground">{fmtDate(matter.createdAt)}</TableCell>
+              </TableRow>
+            ))}
+            {!shown.length && (
+              <TableRow>
+                <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                  {matters.length
+                    ? "No matters match this filter."
+                    : "No matters yet. Create one to start filing work."}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
