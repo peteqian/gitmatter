@@ -51,7 +51,6 @@
     "docx-preview": "^0.3.7",
     "drizzle-orm": "^0.44.6",
     "embla-carousel-react": "^8.6.0",
-    "fuse.js": "^7.4.2",
     "hono": "^4.12.25",
     "lucide-react": "^1.18.0",
     "media-chrome": "^4.19.2",
