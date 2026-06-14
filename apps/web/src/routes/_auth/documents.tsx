@@ -1,23 +1,24 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createColumnHelper,
   getCoreRowModel,
-  getSortedRowModel,
   useReactTable,
+  type PaginationState,
   type SortingState,
 } from "@tanstack/react-table";
-import Fuse from "fuse.js";
 import { Loader2, RotateCcw, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
+import { TablePager } from "@/components/TablePager";
 import { api, type Doc } from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
 import { useColumnSizing } from "../../lib/useColumnSizing";
+import { useDebouncedValue } from "../../lib/useDebouncedValue";
 import { useWorkingMatterId } from "../../lib/matters-context";
 
 export const Route = createFileRoute("/_auth/documents")({
@@ -28,13 +29,6 @@ export const Route = createFileRoute("/_auth/documents")({
     view: typeof s.view === "string" ? s.view : undefined,
   }),
 });
-
-// Map a sidebar view to the doc statuses it shows.
-function matchesView(status: Doc["status"], view: string): boolean {
-  if (view === "all") return true;
-  if (view === "processing") return status === "pending" || status === "processing";
-  return status === view;
-}
 
 const columnHelper = createColumnHelper<Doc>();
 
@@ -47,17 +41,37 @@ function Documents() {
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
   const [rowSelection, setRowSelection] = useState({});
   const fileRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
+  const search = useDebouncedValue(query, 300);
+  const sort = sorting[0];
+  const pageParams = {
+    q: search,
+    status: view,
+    page: pagination.pageIndex,
+    pageSize: pagination.pageSize,
+    sort: sort?.id,
+    dir: sort?.desc ? "desc" : "asc",
+  } as const;
+
+  useEffect(() => {
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
+  }, [search, sort?.desc, sort?.id, view]);
 
   // Extraction runs in a background worker; poll while anything is in flight.
-  const { data: docs = [], isPending } = useQuery({
-    queryKey: queryKeys.documents,
-    queryFn: () => api.listDocuments(),
+  const { data, isPending } = useQuery({
+    queryKey: queryKeys.documentsPage(pageParams),
+    queryFn: () => api.listDocumentsPage(pageParams),
+    placeholderData: keepPreviousData,
     refetchInterval: (q) =>
-      q.state.data?.some((d) => d.status === "pending" || d.status === "processing") ? 2000 : false,
+      q.state.data?.rows.some((d) => d.status === "pending" || d.status === "processing")
+        ? 2000
+        : false,
   });
+  const docs = data?.rows ?? [];
+  const rowCount = data?.rowCount ?? 0;
   const invalidateDocs = () => qc.invalidateQueries({ queryKey: queryKeys.documents });
 
   const retryMutation = useMutation({
@@ -87,6 +101,7 @@ function Documents() {
       for (const f of ok) {
         await uploadMutation.mutateAsync(f);
       }
+      setPagination((current) => ({ ...current, pageIndex: 0 }));
       toast.success(`Uploaded ${ok.length} file${ok.length > 1 ? "s" : ""} — extracting…`);
     } catch (err) {
       void invalidateDocs();
@@ -187,29 +202,27 @@ function Documents() {
     []
   );
 
-  const fuse = useMemo(
-    () => new Fuse(docs, { keys: ["title", "fileType"], threshold: 0.4 }),
-    [docs]
-  );
-  const rows = (query.trim() ? fuse.search(query).map((r) => r.item) : docs).filter((d) =>
-    matchesView(d.status, view)
-  );
-
   const { columnSizing, onColumnSizingChange } = useColumnSizing("documents");
 
   const table = useReactTable({
-    data: rows,
+    data: docs,
     columns,
-    state: { sorting, rowSelection, columnSizing },
+    rowCount,
+    getRowId: (row) => row.id,
+    state: { sorting, pagination, rowSelection, columnSizing },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     onRowSelectionChange: setRowSelection,
     onColumnSizingChange,
+    manualFiltering: true,
+    manualPagination: true,
+    manualSorting: true,
     enableRowSelection: true,
     enableColumnResizing: true,
     columnResizeMode: "onChange",
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
+  const showTable = docs.length > 0 || rowCount > 0 || query.trim().length > 0 || view !== "all";
 
   return (
     <div
@@ -251,7 +264,7 @@ function Documents() {
         }
       />
 
-      {docs.length > 0 && (
+      {showTable && (
         <div className="flex h-10 items-center justify-end border-b border-border">
           <div className="flex items-center gap-2 rounded-md border border-input bg-background px-2.5">
             <Search className="size-4 shrink-0 text-muted-foreground" />
@@ -265,19 +278,22 @@ function Documents() {
         </div>
       )}
 
-      {docs.length > 0 && (
-        <DataTable
-          table={table}
-          onRowClick={(doc) => router.navigate({ to: "/documents/$id", params: { id: doc.id } })}
-          empty={`No documents match "${query}".`}
-        />
+      {showTable && (
+        <>
+          <DataTable
+            table={table}
+            onRowClick={(doc) => router.navigate({ to: "/documents/$id", params: { id: doc.id } })}
+            empty={query.trim() ? `No documents match "${query}".` : "No documents in this view."}
+          />
+          <TablePager table={table} />
+        </>
       )}
       {isPending ? (
         <div className="flex flex-1 items-center justify-center text-muted-foreground">
           <Loader2 className="size-6 animate-spin" />
         </div>
       ) : (
-        !docs.length && (
+        !showTable && (
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
@@ -305,7 +321,7 @@ function StatusBadge({ status }: { status: Doc["status"] }) {
     pending: { label: "Queued", cls: "bg-muted text-muted-foreground" },
     processing: { label: "Extracting…", cls: "bg-blue-100 text-blue-700" },
     ready: { label: "Ready", cls: "bg-green-100 text-green-700" },
-    failed: { label: "Failed", cls: "bg-red-100 text-red-700" },
+    failed: { label: "Failed", cls: "bg-destructive-surface text-destructive" },
   };
   const { label, cls } = map[status];
   return <span className={`rounded px-1.5 py-0.5 text-xs ${cls}`}>{label}</span>;

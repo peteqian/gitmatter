@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Brain, Check } from "lucide-react";
-import { type ReasoningEffort } from "../lib/api";
-import { useModelCatalog } from "../lib/queries";
+import { type ReasoningEffort } from "@/lib/api";
+import { useModelCatalog } from "@/lib/queries";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 

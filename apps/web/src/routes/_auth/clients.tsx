@@ -1,16 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createColumnHelper,
   getCoreRowModel,
-  getSortedRowModel,
   useReactTable,
+  type PaginationState,
   type SortingState,
 } from "@tanstack/react-table";
 import { useForm } from "@tanstack/react-form";
-import Fuse from "fuse.js";
-import { Plus, Search } from "lucide-react";
+import { Loader2, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,16 +19,20 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
 import { StateCue } from "@/components/StateCue";
+import { TablePager } from "@/components/TablePager";
 import { api, type Client } from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
 import { useColumnSizing } from "../../lib/useColumnSizing";
-import { ClientDialog } from "../../components/ClientDialog";
+import { useDebouncedValue } from "../../lib/useDebouncedValue";
+import { ClientDialog } from "./clients/-components/ClientDialog";
 
 export const Route = createFileRoute("/_auth/clients")({
   component: Clients,
-  // ?view filters by status (set from the sidebar): all | active | inactive.
-  validateSearch: (s: Record<string, unknown>): { view?: string } => ({
+  // ?view filters by status; ?client opens that client's dialog (from the
+  // sidebar's recent list).
+  validateSearch: (s: Record<string, unknown>): { view?: string; client?: string } => ({
     view: typeof s.view === "string" ? s.view : undefined,
+    client: typeof s.client === "string" ? s.client : undefined,
   }),
 });
 
@@ -83,40 +86,76 @@ const columns = [
 ];
 
 function Clients() {
-  const { view = "all" } = Route.useSearch();
-  const { data: clients = [] } = useQuery({
-    queryKey: queryKeys.clients,
-    queryFn: () => api.listClients(),
-  });
+  const { view = "all", client } = Route.useSearch();
+  const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Client | null>(null);
   const [sorting, setSorting] = useState<SortingState>([{ id: "name", desc: false }]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
   const [rowSelection, setRowSelection] = useState({});
+  const search = useDebouncedValue(query, 300);
+  const sort = sorting[0];
+  const pageParams = {
+    q: search,
+    status: view,
+    page: pagination.pageIndex,
+    pageSize: pagination.pageSize,
+    sort: sort?.id,
+    dir: sort?.desc ? "desc" : "asc",
+  } as const;
 
-  const fuse = useMemo(
-    () => new Fuse(clients, { keys: ["name", "type", "clientNumber"], threshold: 0.4 }),
-    [clients]
-  );
-  const rows = (query.trim() ? fuse.search(query).map((r) => r.item) : clients).filter(
-    (c) => view === "all" || c.status === view
-  );
+  useEffect(() => {
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
+  }, [search, sort?.desc, sort?.id, view]);
+
+  const { data, isPending } = useQuery({
+    queryKey: queryKeys.clientsPage(pageParams),
+    queryFn: () => api.listClientsPage(pageParams),
+    placeholderData: keepPreviousData,
+  });
+  const clients = data?.rows ?? [];
+  const rowCount = data?.rowCount ?? 0;
+
+  const { data: selectedOverview } = useQuery({
+    queryKey: client ? queryKeys.client(client) : ["client", "none"],
+    queryFn: () => api.getClient(client!),
+    enabled: !!client && !selected,
+  });
+
+  // Open the dialog when the sidebar links here with ?client=<id>.
+  useEffect(() => {
+    if (!client) return;
+    const found = clients.find((c) => c.id === client);
+    if (found) setSelected(found);
+  }, [client, clients]);
+
+  useEffect(() => {
+    if (!selectedOverview?.client) return;
+    setSelected(selectedOverview.client);
+  }, [selectedOverview]);
 
   const { columnSizing, onColumnSizingChange } = useColumnSizing("clients");
 
   const table = useReactTable({
-    data: rows,
+    data: clients,
     columns,
-    state: { sorting, rowSelection, columnSizing },
+    rowCount,
+    getRowId: (row) => row.id,
+    state: { sorting, pagination, rowSelection, columnSizing },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     onRowSelectionChange: setRowSelection,
     onColumnSizingChange,
+    manualFiltering: true,
+    manualPagination: true,
+    manualSorting: true,
     enableRowSelection: true,
     enableColumnResizing: true,
     columnResizeMode: "onChange",
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
+  const showTable = clients.length > 0 || rowCount > 0 || query.trim().length > 0 || view !== "all";
 
   return (
     <div className="-mb-12 flex min-h-0 flex-1 flex-col gap-stack">
@@ -138,7 +177,7 @@ function Clients() {
 
       {creating && <CreateClient onCreated={() => setCreating(false)} />}
 
-      {clients.length > 0 && (
+      {showTable && (
         <>
           <div className="flex h-10 items-center justify-end border-b border-border">
             <div className="flex items-center gap-2 rounded-md border border-input bg-background px-2.5">
@@ -156,15 +195,28 @@ function Clients() {
             onRowClick={(client) => setSelected(client)}
             empty={`No clients match "${query}".`}
           />
+          <TablePager table={table} />
         </>
       )}
-      {!clients.length && (
+      {isPending && !showTable && (
+        <div className="flex flex-1 items-center justify-center text-muted-foreground">
+          <Loader2 className="size-6 animate-spin" />
+        </div>
+      )}
+      {!isPending && !showTable && (
         <p className="py-section text-center text-sm text-muted-foreground">
           No clients yet. Add one to open your first matter.
         </p>
       )}
 
-      <ClientDialog client={selected} onClose={() => setSelected(null)} />
+      <ClientDialog
+        client={selected}
+        onClose={() => {
+          setSelected(null);
+          if (client)
+            void navigate({ to: "/clients", search: (s) => ({ ...s, client: undefined }) });
+        }}
+      />
     </div>
   );
 }

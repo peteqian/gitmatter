@@ -2,6 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTheme } from "next-themes";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangleIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -272,15 +273,23 @@ function DangerZoneCard() {
   });
 
   return (
-    <Card className="border-destructive/40">
-      <CardHeader>
-        <CardTitle className="text-destructive">Delete account</CardTitle>
+    <Card className="border-destructive/35 bg-[oklch(0.975_0.018_27)] shadow-[0_1px_2px_oklch(0.577_0.245_27.325_/_0.10)]">
+      <CardHeader className="pb-3">
+        <div className="flex items-start gap-3">
+          <div className="rounded-full bg-destructive/10 p-2 text-destructive ring-1 ring-destructive/20">
+            <AlertTriangleIcon className="size-4" aria-hidden="true" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <CardTitle className="text-destructive">Danger zone</CardTitle>
+            <p className="text-sm font-medium text-destructive/85">Delete account permanently</p>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-field">
-        <p className="text-sm text-muted-foreground">
-          Permanently delete your account. This cannot be undone.
+        <p className="max-w-prose text-sm text-destructive/80">
+          This removes your profile, settings, and access immediately. This action cannot be undone.
         </p>
-        <Button variant="outline" className="self-start" onClick={() => setOpen(true)}>
+        <Button variant="destructive" className="self-start" onClick={() => setOpen(true)}>
           Delete account
         </Button>
       </CardContent>

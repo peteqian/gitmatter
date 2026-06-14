@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import {
+  Link,
+  useRouterState,
+  type RegisteredRouter,
+  type RouterState,
+} from "@tanstack/react-router";
+import { useTheme } from "next-themes";
 import {
   Briefcase,
   Building2,
@@ -7,15 +13,29 @@ import {
   ChevronsUpDown,
   FolderOpen,
   Library,
+  LogOut,
   MessageSquare,
+  Monitor,
+  Moon,
   PanelLeft,
   Plus,
   Settings as SettingsIcon,
+  Sun,
   Table2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ModeToggle } from "./ModeToggle";
 import { signOut } from "../lib/auth-client";
 import { useMatters } from "../lib/matters-context";
 import { useChats, useClients, useDocuments } from "../lib/queries";
@@ -37,6 +57,8 @@ const NAV_ITEMS = [
 const RECENT_SECTIONS = new Set(["/matters", "/documents", "/clients"]);
 
 const RECENT_LIMIT = 12;
+const NARROW_QUERY = "(max-width: 767px)";
+type AppRouterState = RouterState<RegisteredRouter["routeTree"]>;
 
 function activeSection(pathname: string): string | null {
   const hit = NAV_ITEMS.find((i) => pathname === i.href || pathname.startsWith(`${i.href}/`));
@@ -44,10 +66,10 @@ function activeSection(pathname: string): string | null {
 }
 
 export function AppSidebar({ session }: { session: NonNullable<ServerSession> }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   // User's saved preference. Below md the sidebar force-collapses regardless.
   const [userOpen, setUserOpen] = useState(true);
   const [narrow, setNarrow] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("sidebarOpen") : null;
@@ -55,14 +77,18 @@ export function AppSidebar({ session }: { session: NonNullable<ServerSession> })
   }, []);
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
+    const mq = window.matchMedia(NARROW_QUERY);
     const sync = () => setNarrow(mq.matches);
     sync();
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // Narrow viewport wins — collapsed and not togglable open.
+  useEffect(() => {
+    if (!narrow) setMobileOpen(false);
+  }, [narrow]);
+
+  // Narrow viewport wins: keep the rail small and open the full sidebar as an overlay.
   const open = userOpen && !narrow;
 
   function toggle() {
@@ -73,7 +99,58 @@ export function AppSidebar({ session }: { session: NonNullable<ServerSession> })
     });
   }
 
-  const initial = (session.user.name || session.user.email).charAt(0).toUpperCase();
+  if (narrow) {
+    // Persistent collapsed rail stays in flow so content never sits behind it.
+    // The full sidebar opens on top as a drawer: dimmed backdrop + slide-in.
+    return (
+      <>
+        <SidebarPanel
+          session={session}
+          open={false}
+          mode="inline"
+          onToggle={() => setMobileOpen(true)}
+        />
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          tabIndex={mobileOpen ? 0 : -1}
+          onClick={() => setMobileOpen(false)}
+          className={cn(
+            "fixed inset-0 z-40 bg-foreground/40 backdrop-blur-sm transition-opacity duration-300",
+            mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
+          )}
+        />
+        <div
+          className={cn(
+            "fixed top-0 bottom-0 left-0 z-50 m-2 transition-transform duration-300",
+            mobileOpen ? "translate-x-0" : "-translate-x-[120%]"
+          )}
+        >
+          <SidebarPanel
+            session={session}
+            open
+            mode="drawer"
+            onNavigate={() => setMobileOpen(false)}
+            onToggle={() => setMobileOpen(false)}
+          />
+        </div>
+      </>
+    );
+  }
+
+  return <SidebarPanel session={session} open={open} mode="inline" onToggle={toggle} />;
+}
+
+type SidebarPanelProps = {
+  session: NonNullable<ServerSession>;
+  open: boolean;
+  mode: "inline" | "drawer";
+  onNavigate?: () => void;
+  onToggle?: () => void;
+};
+
+function SidebarPanel({ session, open, mode, onNavigate, onToggle }: SidebarPanelProps) {
+  const pathname = useRouterState({ select: (s: AppRouterState) => s.location.pathname });
   const subSection = activeSection(pathname);
   // The assistant shows real conversations; document/client/matter sections show a
   // filter sub-nav. When a sub-panel exists, nav (top) and sub-panel (bottom) each
@@ -82,13 +159,15 @@ export function AppSidebar({ session }: { session: NonNullable<ServerSession> })
   const showChats = open && subSection === "/assistant";
   const showSub = open && !!subSection && RECENT_SECTIONS.has(subSection);
   const hasSubPanel = showChats || showSub;
+  const size = open ? "w-64" : "w-14";
 
   return (
     <div
       className={cn(
-        open ? "w-64" : "w-14",
-        "my-2 mr-0 ml-2 flex flex-col rounded-2xl glass-panel text-sidebar-foreground md:my-3 md:ml-3",
-        "h-[calc(100dvh-1.5rem)] transition-all duration-300"
+        "flex flex-col rounded-2xl glass-panel text-sidebar-foreground",
+        mode === "inline" &&
+          `${size} my-2 mr-0 ml-2 h-[calc(100dvh-1.5rem)] transition-all duration-300 md:my-3 md:ml-3`,
+        mode === "drawer" && "h-[calc(100dvh-1rem)] w-[min(16rem,calc(100vw-1rem))]"
       )}
     >
       {/* Logo + toggle */}
@@ -98,6 +177,7 @@ export function AppSidebar({ session }: { session: NonNullable<ServerSession> })
         {open && (
           <Link
             to="/assistant"
+            onClick={onNavigate}
             className="flex items-center gap-1.5 px-2 transition-opacity hover:opacity-80"
           >
             <span className="grid size-6 place-items-center rounded-md bg-primary font-serif text-sm font-medium text-primary-foreground">
@@ -106,18 +186,12 @@ export function AppSidebar({ session }: { session: NonNullable<ServerSession> })
             <span className="font-serif text-2xl font-light tracking-tight">gitcounsel</span>
           </Link>
         )}
-        <button
-          onClick={toggle}
-          title={open ? "Collapse" : "Expand"}
-          className="flex size-9 items-center justify-center rounded-xl transition-colors hover:bg-sidebar-accent"
-        >
-          <PanelLeft className="size-4" />
-        </button>
+        <SidebarToggle open={open} onToggle={onToggle} />
       </div>
 
       {/* Working-matter switcher */}
       <div className="px-2.5 pb-2">
-        <MatterSwitcher open={open} />
+        <MatterSwitcher open={open} onNavigate={onNavigate} />
       </div>
 
       {/* Nav */}
@@ -132,6 +206,7 @@ export function AppSidebar({ session }: { session: NonNullable<ServerSession> })
             <div key={href} className="px-2.5 py-0.5">
               <Link
                 to={href}
+                onClick={onNavigate}
                 title={!open ? label : undefined}
                 className={cn(
                   "flex h-9 items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors",
@@ -152,47 +227,102 @@ export function AppSidebar({ session }: { session: NonNullable<ServerSession> })
       </nav>
 
       {/* Dynamic sub-context — bottom half when present. Keyed so it remounts fresh. */}
-      {showChats && <ChatHistoryPanel />}
-      {showSub && <RecentPanel key={subSection} section={subSection} />}
+      {showChats && <ChatHistoryPanel onNavigate={onNavigate} />}
+      {showSub && <RecentPanel key={subSection} section={subSection} onNavigate={onNavigate} />}
 
       {/* No sub-panel: a spacer pushes the footer to the bottom. */}
       {!hasSubPanel && <div className="flex-1" />}
 
       {/* User footer */}
       <div className="border-t border-sidebar-border p-2">
-        <div className={cn("px-2.5 pb-1", !open && "flex justify-center px-0")}>
-          <ModeToggle open={open} />
-        </div>
-        <div
-          className={cn("flex items-center gap-2 rounded-md px-2 py-2", !open && "justify-center")}
-        >
-          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-            {initial}
-          </span>
-          {open && (
-            <div className="flex min-w-0 flex-1 flex-col">
-              {session.user.name && (
-                <span className="truncate text-xs font-medium">{session.user.name}</span>
-              )}
-              <span className="truncate text-xs text-muted-foreground">{session.user.email}</span>
-              <button
-                onClick={() => signOut().then(() => (window.location.href = "/login"))}
-                className="self-start text-xs text-muted-foreground hover:text-foreground"
-              >
-                Sign out
-              </button>
-            </div>
-          )}
-        </div>
+        <UserMenu session={session} open={open} />
       </div>
     </div>
   );
 }
 
-function RecentPanel({ section }: { section: string }) {
-  if (section === "/matters") return <RecentMatters />;
-  if (section === "/documents") return <RecentDocuments />;
-  if (section === "/clients") return <RecentClients />;
+const THEME_OPTIONS = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Monitor },
+] as const;
+
+function UserMenu({ session, open }: { session: NonNullable<ServerSession>; open: boolean }) {
+  const { theme = "system", setTheme } = useTheme();
+  const name = session.user.name?.trim() || "User";
+  const initial = name.charAt(0).toUpperCase();
+
+  function logOut() {
+    void signOut().then(() => {
+      window.location.href = "/login";
+    });
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        title={!open ? name : undefined}
+        aria-label="Open user menu"
+        className={cn(
+          "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-sidebar-accent/60",
+          !open && "justify-center px-0"
+        )}
+      >
+        <Avatar size="sm" className="bg-primary text-primary-foreground">
+          <AvatarImage src={session.user.image ?? undefined} alt="" />
+          <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
+            {initial}
+          </AvatarFallback>
+        </Avatar>
+        {open && (
+          <>
+            <span className="min-w-0 flex-1 truncate text-xs font-medium">{name}</span>
+            <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+          </>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top" className="w-44">
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Sun className="size-4" />
+            Theme
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-36">
+            {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+              <DropdownMenuItem key={value} onClick={() => setTheme(value)}>
+                <Icon className="size-4" />
+                <span className="flex-1">{label}</span>
+                <Check className={cn("size-4", theme === value ? "opacity-100" : "opacity-0")} />
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={logOut}>
+          <LogOut className="size-4" />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function SidebarToggle({ open, onToggle }: { open: boolean; onToggle?: () => void }) {
+  const label = open ? "Collapse" : "Expand";
+  const className =
+    "flex size-9 items-center justify-center rounded-xl transition-colors hover:bg-sidebar-accent";
+
+  return (
+    <button onClick={onToggle} title={label} className={className}>
+      <PanelLeft className="size-4" />
+    </button>
+  );
+}
+
+function RecentPanel({ section, onNavigate }: { section: string; onNavigate?: () => void }) {
+  if (section === "/matters") return <RecentMatters onNavigate={onNavigate} />;
+  if (section === "/documents") return <RecentDocuments onNavigate={onNavigate} />;
+  if (section === "/clients") return <RecentClients onNavigate={onNavigate} />;
   return null;
 }
 
@@ -228,10 +358,10 @@ function RecentShell({
   );
 }
 
-function RecentMatters() {
+function RecentMatters({ onNavigate }: { onNavigate?: () => void }) {
   const { matters } = useMatters();
   const activeId = useRouterState({
-    select: (s) => /^\/matters\/(.+)$/.exec(s.location.pathname)?.[1],
+    select: (s: AppRouterState) => /^\/matters\/(.+)$/.exec(s.location.pathname)?.[1],
   });
   const items = [...matters]
     .sort((a, b) => b.matter.updatedAt.localeCompare(a.matter.updatedAt))
@@ -244,6 +374,7 @@ function RecentMatters() {
           <Link
             to="/matters/$id"
             params={{ id: matter.id }}
+            onClick={onNavigate}
             title={matter.name}
             className={recentRowCls(matter.id === activeId)}
           >
@@ -258,10 +389,10 @@ function RecentMatters() {
   );
 }
 
-function RecentDocuments() {
+function RecentDocuments({ onNavigate }: { onNavigate?: () => void }) {
   const { data: docs = [] } = useDocuments();
   const activeId = useRouterState({
-    select: (s) => /^\/documents\/(.+)$/.exec(s.location.pathname)?.[1],
+    select: (s: AppRouterState) => /^\/documents\/(.+)$/.exec(s.location.pathname)?.[1],
   });
   const items = [...docs]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -274,6 +405,7 @@ function RecentDocuments() {
           <Link
             to="/documents/$id"
             params={{ id: doc.id }}
+            onClick={onNavigate}
             title={doc.title}
             className={recentRowCls(doc.id === activeId)}
           >
@@ -286,12 +418,12 @@ function RecentDocuments() {
   );
 }
 
-function RecentClients() {
+function RecentClients({ onNavigate }: { onNavigate?: () => void }) {
   const { data: clients = [] } = useClients();
   // Clients have no detail route — they open in a dialog on the list page driven
   // by the ?client param.
   const activeId = useRouterState({
-    select: (s) =>
+    select: (s: AppRouterState) =>
       s.location.pathname === "/clients"
         ? (s.location.search as { client?: string }).client
         : undefined,
@@ -307,6 +439,7 @@ function RecentClients() {
           <Link
             to="/clients"
             search={{ client: client.id }}
+            onClick={onNavigate}
             title={client.name}
             className={recentRowCls(client.id === activeId)}
           >
@@ -323,10 +456,10 @@ function RecentClients() {
 
 // Real conversation list for the assistant section. "New chat" starts a fresh
 // thread; each row resumes a conversation.
-function ChatHistoryPanel() {
+function ChatHistoryPanel({ onNavigate }: { onNavigate?: () => void }) {
   const { data: chats = [] } = useChats();
   const activeChat = useRouterState({
-    select: (s) => /^\/assistant\/(.+)$/.exec(s.location.pathname)?.[1],
+    select: (s: AppRouterState) => /^\/assistant\/(.+)$/.exec(s.location.pathname)?.[1],
   });
 
   return (
@@ -337,6 +470,7 @@ function ChatHistoryPanel() {
       <div className="px-2.5 py-0.5">
         <Link
           to="/assistant"
+          onClick={onNavigate}
           className="flex h-9 items-center gap-3 rounded-md px-2.5 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/60"
         >
           <Plus className="size-4 shrink-0" />
@@ -354,6 +488,7 @@ function ChatHistoryPanel() {
               <Link
                 to="/assistant/$id"
                 params={{ id: chat.id }}
+                onClick={onNavigate}
                 title={chat.title ?? "Untitled"}
                 className={cn(
                   "flex h-8 items-center gap-3 rounded-md px-2.5 text-left text-sm transition-colors",
@@ -375,7 +510,7 @@ function ChatHistoryPanel() {
 
 const ROLE_LABEL: Record<string, string> = { owner: "Owner", editor: "Editor", viewer: "Viewer" };
 
-function MatterSwitcher({ open }: { open: boolean }) {
+function MatterSwitcher({ open, onNavigate }: { open: boolean; onNavigate?: () => void }) {
   const { matters, current, setCurrent } = useMatters();
   const [pop, setPop] = useState(false);
 
@@ -437,7 +572,10 @@ function MatterSwitcher({ open }: { open: boolean }) {
         </ul>
         <Link
           to="/matters"
-          onClick={() => setPop(false)}
+          onClick={() => {
+            setPop(false);
+            onNavigate?.();
+          }}
           className="block border-t px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
         >
           Manage matters →

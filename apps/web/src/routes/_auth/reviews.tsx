@@ -1,91 +1,156 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  createColumnHelper,
+  getCoreRowModel,
+  useReactTable,
+  type PaginationState,
+  type SortingState,
+} from "@tanstack/react-table";
+import { Plus, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
-import { api, type Column, type Doc } from "../../lib/api";
+import { PageShell } from "@/components/PageShell";
+import { TablePager } from "@/components/TablePager";
+import { CreateReviewDialog } from "./reviews/-components/CreateReviewDialog";
+import { api } from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
-import { useWorkingMatterId } from "../../lib/matters-context";
+import { useColumnSizing } from "../../lib/useColumnSizing";
+import { useDebouncedValue } from "../../lib/useDebouncedValue";
 
 export const Route = createFileRoute("/_auth/reviews")({ component: Reviews });
 
-const COLUMN_FORMATS = [
-  { value: "", label: "Free text" },
-  { value: "yes_no", label: "Yes / No" },
-  { value: "currency", label: "Currency" },
-  { value: "number", label: "Number" },
-  { value: "date", label: "Date" },
-  { value: "percentage", label: "Percentage" },
-  { value: "tag", label: "Tag" },
-  { value: "bulleted_list", label: "Bulleted list" },
-] as const;
+type ReviewRow = { id: string; title: string; documentIds: string[]; createdAt: string };
+
+const columnHelper = createColumnHelper<ReviewRow>();
+const columns = [
+  columnHelper.display({
+    id: "select",
+    size: 44,
+    enableResizing: false,
+    header: ({ table }) => (
+      <Checkbox
+        checked={table.getIsAllRowsSelected()}
+        onChange={table.getToggleAllRowsSelectedHandler()}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onChange={row.getToggleSelectedHandler()}
+        onClick={(e) => e.stopPropagation()}
+        aria-label="Select row"
+      />
+    ),
+  }),
+  columnHelper.accessor("title", {
+    header: "Name",
+    size: 360,
+    cell: (c) => <span className="block truncate font-medium">{c.getValue()}</span>,
+  }),
+  columnHelper.accessor((r) => r.documentIds.length, {
+    id: "documents",
+    header: "Documents",
+    size: 120,
+    enableSorting: false,
+    cell: (c) => <span className="text-muted-foreground">{c.getValue()}</span>,
+  }),
+  columnHelper.accessor("createdAt", {
+    header: "Created",
+    size: 140,
+    cell: (c) => (
+      <span className="text-muted-foreground">
+        {new Date(c.getValue()).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })}
+      </span>
+    ),
+  }),
+];
 
 function Reviews() {
   const router = useRouter();
-  const { data: reviews = [] } = useQuery({
-    queryKey: queryKeys.reviews,
-    queryFn: () => api.listReviews(),
-  });
-  const { data: docs = [] } = useQuery({
-    queryKey: queryKeys.documents,
-    queryFn: () => api.listDocuments(),
-  });
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
+  const [rowSelection, setRowSelection] = useState({});
+  const search = useDebouncedValue(query, 300);
+  const sort = sorting[0];
+  const pageParams = {
+    q: search,
+    page: pagination.pageIndex,
+    pageSize: pagination.pageSize,
+    sort: sort?.id,
+    dir: sort?.desc ? "desc" : "asc",
+  } as const;
 
-  const shown = reviews.filter((r) =>
-    (r.title ?? "").toLowerCase().includes(query.trim().toLowerCase())
-  );
-  const allChecked = shown.length > 0 && shown.every((r) => selected.has(r.id));
-  const toggle = (id: string) =>
-    setSelected((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
+  useEffect(() => {
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
+  }, [search, sort?.desc, sort?.id]);
+
+  const { data } = useQuery({
+    queryKey: queryKeys.reviewsPage(pageParams),
+    queryFn: () => api.listReviewsPage(pageParams),
+    placeholderData: keepPreviousData,
+  });
+  const reviews = data?.rows ?? [];
+  const rowCount = data?.rowCount ?? 0;
+
+  const { columnSizing, onColumnSizingChange } = useColumnSizing("reviews");
+  const table = useReactTable({
+    data: reviews,
+    columns,
+    rowCount,
+    getRowId: (row) => row.id,
+    state: { sorting, pagination, rowSelection, columnSizing },
+    onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
+    onColumnSizingChange,
+    manualFiltering: true,
+    manualPagination: true,
+    manualSorting: true,
+    enableRowSelection: true,
+    enableColumnResizing: true,
+    columnResizeMode: "onChange",
+    getCoreRowModel: getCoreRowModel(),
+  });
 
   return (
-    <div className="flex flex-col gap-stack">
-      <PageHeader
-        title="Tabular reviews"
-        action={
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="rounded-full"
-            title="New review"
-            aria-label="New review"
-            onClick={() => setCreating((v) => !v)}
-          >
-            <Plus className="size-4" />
-          </Button>
-        }
+    <PageShell
+      mode="fill"
+      bodyClassName="gap-stack"
+      header={
+        <PageHeader
+          title="Tabular reviews"
+          action={
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="rounded-full"
+              tooltip="New review"
+              onClick={() => setCreating(true)}
+            >
+              <Plus className="size-4" />
+            </Button>
+          }
+        />
+      }
+    >
+      <CreateReviewDialog
+        open={creating}
+        onOpenChange={setCreating}
+        onCreated={(id) => router.navigate({ to: "/reviews/$id", params: { id } })}
       />
 
-      {creating && (
-        <CreateReview
-          docs={docs}
-          onCreated={(id) => router.navigate({ to: "/reviews/$id", params: { id } })}
-        />
-      )}
-
-      <div className="flex h-10 items-center justify-end border-b border-border">
+      <div className="flex h-10 shrink-0 items-center justify-end border-b border-border">
         <div className="flex items-center gap-2 rounded-md border border-input bg-background px-2.5">
           <Search className="size-4 shrink-0 text-muted-foreground" />
           <input
@@ -97,187 +162,12 @@ function Reviews() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10">
-                <Checkbox
-                  checked={allChecked}
-                  onChange={() =>
-                    setSelected(allChecked ? new Set() : new Set(shown.map((r) => r.id)))
-                  }
-                  aria-label="Select all"
-                />
-              </TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Documents</TableHead>
-              <TableHead>Created</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {shown.map((r) => (
-              <TableRow
-                key={r.id}
-                data-state={selected.has(r.id) ? "selected" : undefined}
-                className="cursor-pointer"
-                onClick={() => router.navigate({ to: "/reviews/$id", params: { id: r.id } })}
-              >
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Checkbox
-                    checked={selected.has(r.id)}
-                    onChange={() => toggle(r.id)}
-                    aria-label={`Select ${r.title}`}
-                  />
-                </TableCell>
-                <TableCell className="font-medium">{r.title}</TableCell>
-                <TableCell className="text-muted-foreground">{r.documentIds.length}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {new Date(r.createdAt).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </TableCell>
-              </TableRow>
-            ))}
-            {!shown.length && (
-              <TableRow>
-                <TableCell colSpan={4} className="py-12 text-center text-muted-foreground">
-                  No reviews yet. Start one from a contract or ask the assistant.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-}
-
-function CreateReview({ docs, onCreated }: { docs: Doc[]; onCreated: (id: string) => void }) {
-  const qc = useQueryClient();
-  const matterId = useWorkingMatterId();
-  const [title, setTitle] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
-  const [columns, setColumns] = useState<Column[]>([{ index: 0, name: "", prompt: "" }]);
-
-  function setCol(i: number, patch: Partial<Column>) {
-    setColumns((cols) => cols.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
-  }
-
-  const createMutation = useMutation({
-    mutationFn: (d: Parameters<typeof api.createReview>[0]) => api.createReview(d),
-    onSuccess: ({ id }) => {
-      void qc.invalidateQueries({ queryKey: queryKeys.reviews });
-      onCreated(id);
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
-  });
-
-  function create() {
-    const cols = columns
-      .filter((c) => c.name.trim() && c.prompt.trim())
-      .map((c, i) => ({ ...c, index: i }));
-    if (!title.trim() || !selected.length || !cols.length) {
-      return toast.error("Need a title, at least one document, and one column");
-    }
-    createMutation.mutate({
-      title: title.trim(),
-      columnsConfig: cols,
-      documentIds: selected,
-      matterId,
-    });
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">New review</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-stack">
-        <div className="flex flex-col gap-field">
-          <Label>Title</Label>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Q3 NDAs" />
-        </div>
-
-        <div className="flex flex-col gap-field">
-          <Label>Documents</Label>
-          {!docs.length && (
-            <p className="text-sm text-muted-foreground">
-              No documents.{" "}
-              <Link to="/documents" className="underline">
-                Add one first
-              </Link>
-              .
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {docs.map((d) => {
-              const on = selected.includes(d.id);
-              return (
-                <Button
-                  key={d.id}
-                  type="button"
-                  size="sm"
-                  variant={on ? "default" : "outline"}
-                  onClick={() =>
-                    setSelected((s) => (on ? s.filter((x) => x !== d.id) : [...s, d.id]))
-                  }
-                >
-                  {d.title}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label>Columns</Label>
-          {columns.map((c, i) => (
-            <div key={i} className="flex gap-2">
-              <Input
-                className="w-40"
-                placeholder="Name"
-                value={c.name}
-                onChange={(e) => setCol(i, { name: e.target.value })}
-              />
-              <Input
-                className="flex-1"
-                placeholder="Extraction prompt"
-                value={c.prompt}
-                onChange={(e) => setCol(i, { prompt: e.target.value })}
-              />
-              <select
-                className="h-9 w-32 rounded-md border border-input bg-background px-2 text-sm"
-                value={c.format ?? ""}
-                onChange={(e) => setCol(i, { format: e.target.value || undefined })}
-              >
-                {COLUMN_FORMATS.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="self-start"
-            onClick={() =>
-              setColumns((cols) => [...cols, { index: cols.length, name: "", prompt: "" }])
-            }
-          >
-            + Add column
-          </Button>
-        </div>
-
-        <Button onClick={create} disabled={createMutation.isPending} className="self-start">
-          {createMutation.isPending ? "Creating…" : "Create review"}
-        </Button>
-      </CardContent>
-    </Card>
+      <DataTable
+        table={table}
+        empty="No reviews yet. Start one from a contract or ask the assistant."
+        onRowClick={(r) => router.navigate({ to: "/reviews/$id", params: { id: r.id } })}
+      />
+      <TablePager table={table} />
+    </PageShell>
   );
 }

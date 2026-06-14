@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CommitHistory } from "@/components/CommitHistory";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DocxView } from "@/components/DocxView";
+import { DocxView } from "./documents/-components/DocxView";
 import { PageHeader } from "@/components/PageHeader";
 import { api, type DocumentDetail, type DocEdit } from "../../lib/api";
 
@@ -61,7 +61,7 @@ function DocumentView() {
 
   if (!data)
     return (
-      <div className="grid gap-6 pt-6 lg:grid-cols-[1fr_300px]">
+      <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto pt-6 lg:grid-cols-[1fr_300px]">
         <div className="flex flex-col gap-4">
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-96 w-full" />
@@ -75,7 +75,7 @@ function DocumentView() {
   const isDocx = document.fileType === "docx" && !!document.currentVersionId;
 
   return (
-    <div className="grid gap-6 pt-6 lg:grid-cols-[1fr_300px]">
+    <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto pt-6 lg:grid-cols-[1fr_300px]">
       <div className="flex min-w-0 flex-col gap-4">
         <PageHeader
           breadcrumbs={[{ label: "Documents", to: "/documents" }, { label: document.title }]}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Brain, Check, ChevronDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,11 +18,19 @@ export function ThinkingPanel({
   streaming?: boolean;
 }) {
   const [open, setOpen] = useState(Boolean(streaming));
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Follow the thinking lifecycle: open while streaming, collapse when it ends.
   useEffect(() => {
     setOpen(Boolean(streaming));
   }, [streaming]);
+
+  // Stick to the newest reasoning while it streams in.
+  useEffect(() => {
+    if (open && streaming && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [text, open, streaming]);
 
   if (!text) return null;
   const label = streaming
@@ -45,7 +53,10 @@ export function ThinkingPanel({
         />
       </button>
       {open && (
-        <div className="border-t border-border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
+        <div
+          ref={scrollRef}
+          className="max-h-64 overflow-y-auto border-t border-border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground"
+        >
           {text}
         </div>
       )}

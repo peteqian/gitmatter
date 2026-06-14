@@ -1,6 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  createColumnHelper,
+  getCoreRowModel,
+  useReactTable,
+  type PaginationState,
+  type SortingState,
+} from "@tanstack/react-table";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,33 +16,78 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Plus, Search } from "lucide-react";
+import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
+import { PageShell } from "@/components/PageShell";
+import { TablePager } from "@/components/TablePager";
 import { ToolbarTabs } from "@/components/ToolbarTabs";
 import { api, type WorkflowDetail } from "../../lib/api";
+import { queryKeys } from "../../lib/queries";
+import { useColumnSizing } from "../../lib/useColumnSizing";
+import { useDebouncedValue } from "../../lib/useDebouncedValue";
 import { useWorkingMatterId } from "../../lib/matters-context";
 
 export const Route = createFileRoute("/_auth/workflows")({ component: Workflows });
 
 type WfTab = "all" | "builtin" | "custom";
 
+type WorkflowRow = { id: string; title: string; type: string; isSystem: boolean };
+
+const columnHelper = createColumnHelper<WorkflowRow>();
+const columns = [
+  columnHelper.accessor("title", {
+    header: "Name",
+    size: 360,
+    cell: (c) => <span className="block truncate font-medium">{c.getValue()}</span>,
+  }),
+  columnHelper.accessor("type", {
+    header: "Type",
+    size: 140,
+    cell: (c) => (
+      <Badge variant="outline" className="capitalize">
+        {c.getValue()}
+      </Badge>
+    ),
+  }),
+  columnHelper.accessor("isSystem", {
+    header: "Source",
+    size: 140,
+    cell: (c) => (
+      <span className="text-muted-foreground">{c.getValue() ? "Built-in" : "Custom"}</span>
+    ),
+  }),
+];
+
 function Workflows() {
-  const { data: items = [] } = useQuery({
-    queryKey: ["workflows"],
-    queryFn: () => api.listWorkflows(),
-  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [tab, setTab] = useState<WfTab>("all");
   const [query, setQuery] = useState("");
+  const [sorting, setSorting] = useState<SortingState>([{ id: "title", desc: false }]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
+  const search = useDebouncedValue(query, 300);
+  const sort = sorting[0];
+  const pageParams = {
+    q: search,
+    source: tab,
+    page: pagination.pageIndex,
+    pageSize: pagination.pageSize,
+    sort: sort?.id,
+    dir: sort?.desc ? "desc" : "asc",
+  } as const;
+
+  useEffect(() => {
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
+  }, [search, sort?.desc, sort?.id, tab]);
+
+  const { data } = useQuery({
+    queryKey: queryKeys.workflowsPage(pageParams),
+    queryFn: () => api.listWorkflowsPage(pageParams),
+    placeholderData: keepPreviousData,
+  });
+  const workflows = data?.rows ?? [];
+  const rowCount = data?.rowCount ?? 0;
 
   // Selected workflow detail, cached per id — reopening a row is instant.
   const { data: selected } = useQuery({
@@ -44,9 +96,23 @@ function Workflows() {
     enabled: !!selectedId,
   });
 
-  const shown = items
-    .filter((w) => (tab === "all" ? true : tab === "builtin" ? w.isSystem : !w.isSystem))
-    .filter((w) => w.title.toLowerCase().includes(query.trim().toLowerCase()));
+  const { columnSizing, onColumnSizingChange } = useColumnSizing("workflows");
+  const table = useReactTable({
+    data: workflows,
+    columns,
+    rowCount,
+    getRowId: (row) => row.id,
+    state: { sorting, pagination, columnSizing },
+    onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    onColumnSizingChange,
+    manualFiltering: true,
+    manualPagination: true,
+    manualSorting: true,
+    enableColumnResizing: true,
+    columnResizeMode: "onChange",
+    getCoreRowModel: getCoreRowModel(),
+  });
 
   const dialogOpen = creating || !!selectedId;
   const closeDialog = () => {
@@ -55,25 +121,30 @@ function Workflows() {
   };
 
   return (
-    <div className="flex flex-col gap-stack">
-      <PageHeader
-        title="Workflows"
-        action={
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="rounded-full"
-            title="New workflow"
-            aria-label="New workflow"
-            onClick={() => {
-              setSelectedId(null);
-              setCreating(true);
-            }}
-          >
-            <Plus className="size-4" />
-          </Button>
-        }
-      />
+    <PageShell
+      mode="fill"
+      bodyClassName="gap-stack"
+      header={
+        <PageHeader
+          title="Workflows"
+          action={
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="rounded-full"
+              title="New workflow"
+              aria-label="New workflow"
+              onClick={() => {
+                setSelectedId(null);
+                setCreating(true);
+              }}
+            >
+              <Plus className="size-4" />
+            </Button>
+          }
+        />
+      }
+    >
       <ToolbarTabs
         tabs={[
           { id: "all" as const, label: "All" },
@@ -95,48 +166,15 @@ function Workflows() {
         }
       />
 
-      <div className="overflow-hidden rounded-lg border border-border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10" />
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Source</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {shown.map((w) => (
-              <TableRow
-                key={w.id}
-                className="cursor-pointer"
-                onClick={() => {
-                  setCreating(false);
-                  setSelectedId(w.id);
-                }}
-              >
-                <TableCell />
-                <TableCell className="font-medium">{w.title}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="capitalize">
-                    {w.type}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {w.isSystem ? "Built-in" : "Custom"}
-                </TableCell>
-              </TableRow>
-            ))}
-            {!shown.length && (
-              <TableRow>
-                <TableCell colSpan={4} className="py-12 text-center text-muted-foreground">
-                  No workflows here yet.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable
+        table={table}
+        empty="No workflows here yet."
+        onRowClick={(w) => {
+          setCreating(false);
+          setSelectedId(w.id);
+        }}
+      />
+      <TablePager table={table} />
 
       <Dialog open={dialogOpen} onOpenChange={(o) => !o && closeDialog()}>
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
@@ -147,7 +185,7 @@ function Workflows() {
           ) : null}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 
@@ -161,7 +199,7 @@ function CreateWorkflow({ onCreated }: { onCreated: () => void }) {
   const createMutation = useMutation({
     mutationFn: () => api.createWorkflow({ title: title.trim(), type, promptMd, matterId }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["workflows"] });
+      void qc.invalidateQueries({ queryKey: queryKeys.workflows });
       toast.success("Workflow created");
       onCreated();
     },
@@ -224,7 +262,7 @@ function EditWorkflow({ detail }: { detail: WorkflowDetail }) {
     mutationFn: () => api.updateWorkflow(workflow.id, { title, promptMd }),
     onSuccess: (updated) => {
       qc.setQueryData(["workflow", workflow.id], updated);
-      void qc.invalidateQueries({ queryKey: ["workflows"] });
+      void qc.invalidateQueries({ queryKey: queryKeys.workflows });
       toast.success("Saved — new commit recorded");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),

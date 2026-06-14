@@ -41,13 +41,27 @@ export function DataTable<T>({
   empty,
   className,
 }: DataTableProps<T>) {
-  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [scrollEl, setScrollEl] = React.useState<HTMLDivElement | null>(null);
+  const setScrollRef = React.useCallback((node: HTMLDivElement | null) => {
+    setScrollEl(node);
+  }, []);
   const rows = table.getRowModel().rows;
   const virtualizer = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => scrollRef.current,
+    enabled: !!scrollEl,
+    getScrollElement: () => scrollEl,
     estimateSize: () => estimateSize,
-    overscan: 10,
+    // Key the size cache by row id, not index — these tables sort/filter, so a
+    // row's index is unstable. Index-keyed caching would misattribute measured
+    // heights (and break scroll position) after a reorder, especially with
+    // measureRows on.
+    getItemKey: (index) => rows[index]?.id ?? index,
+    overscan: 5,
+    // React 19: the virtualizer's default flushSync runs during a commit, which
+    // trips React's "Should not already be working" invariant — corrupting the
+    // scheduler into a render loop (and an OOM in the dev component-perf track).
+    // Disabling it lets React batch the scroll update naturally.
+    useFlushSync: false,
   });
   const items = virtualizer.getVirtualItems();
   const paddingTop = items.length ? items[0]!.start : 0;
@@ -64,18 +78,19 @@ export function DataTable<T>({
   // resize still adjusts the ratio between them.
   const [containerWidth, setContainerWidth] = React.useState(0);
   React.useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
+    if (!scrollEl) return;
     const ro = new ResizeObserver(([entry]) => {
       // Floor so the computed table width never exceeds the real container
       // width — an off-by-a-subpixel overflow would toggle the horizontal
       // scrollbar, which resizes the container, which re-fires this observer:
       // a feedback loop that tanks performance during a column drag.
-      if (entry) setContainerWidth(Math.floor(entry.contentRect.width));
+      if (!entry) return;
+      const nextWidth = Math.floor(entry.contentRect.width);
+      setContainerWidth((currentWidth) => (currentWidth === nextWidth ? currentWidth : nextWidth));
     });
-    ro.observe(el);
+    ro.observe(scrollEl);
     return () => ro.disconnect();
-  }, []);
+  }, [scrollEl]);
 
   const sizingInfo = table.getState().columnSizingInfo;
   const sizing = table.getState().columnSizing;
@@ -97,7 +112,11 @@ export function DataTable<T>({
       vars[`--header-${header.id}-size`] = w;
       vars[`--col-${header.column.id}-size`] = w;
     }
-    return { columnSizeVars: vars, tableWidth: Math.floor(fixedTotal + resizableTotal * scale) };
+    const baseWidth = fixedTotal + resizableTotal * scale;
+    return {
+      columnSizeVars: vars,
+      tableWidth: Math.floor(containerWidth > 0 ? Math.max(baseWidth, containerWidth) : baseWidth),
+    };
     // Recompute on resize (in progress/commit) or container width change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sizingInfo, sizing, containerWidth]);
@@ -120,7 +139,7 @@ export function DataTable<T>({
 
   return (
     <div
-      ref={scrollRef}
+      ref={setScrollRef}
       className={cn("min-h-0 flex-1 overflow-auto rounded-lg border border-border", className)}
     >
       <Table
@@ -128,7 +147,7 @@ export function DataTable<T>({
         containerClassName="overflow-x-visible"
         style={{ ...columnSizeVars, width: tableWidth }}
       >
-        <TableHeader className="sticky top-0 z-10 bg-background">
+        <TableHeader className="sticky top-0 z-10 bg-card">
           {table.getHeaderGroups().map((hg) => (
             <TableRow key={hg.id}>
               {hg.headers.map((header) => {
@@ -217,23 +236,15 @@ function DataTableBody<T>({
       {items.map((item) => {
         const row = rows[item.index]!;
         return (
-          <TableRow
+          <DataRow
             key={row.id}
-            data-index={item.index}
-            ref={measureRows ? measureElement : undefined}
-            className={onRowClick ? "cursor-pointer" : undefined}
-            onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-          >
-            {row.getVisibleCells().map((cell) => (
-              <TableCell
-                key={cell.id}
-                className={cellClassName}
-                style={{ width: `calc(var(--col-${cell.column.id}-size) * 1px)` }}
-              >
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </TableCell>
-            ))}
-          </TableRow>
+            row={row}
+            index={item.index}
+            isSelected={row.getIsSelected()}
+            measureRef={measureRows ? measureElement : undefined}
+            onRowClick={onRowClick}
+            cellClassName={cellClassName}
+          />
         );
       })}
       {paddingBottom > 0 && (
@@ -251,6 +262,52 @@ function DataTableBody<T>({
     </TableBody>
   );
 }
+
+type DataRowProps<T> = {
+  row: Row<T>;
+  index: number;
+  isSelected: boolean;
+  measureRef?: (el: Element | null) => void;
+  onRowClick?: (row: T) => void;
+  cellClassName?: string;
+};
+
+function DataRowInner<T>({ row, index, measureRef, onRowClick, cellClassName }: DataRowProps<T>) {
+  return (
+    <TableRow
+      data-index={index}
+      ref={measureRef}
+      className={onRowClick ? "cursor-pointer" : undefined}
+      onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+    >
+      {row.getVisibleCells().map((cell) => (
+        <TableCell
+          key={cell.id}
+          className={cellClassName}
+          style={{ width: `calc(var(--col-${cell.column.id}-size) * 1px)` }}
+        >
+          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+        </TableCell>
+      ))}
+    </TableRow>
+  );
+}
+
+// Cell widths come from CSS vars on the <table>, so a row's output depends only
+// on its data + selection — never on scroll position or column width. Memoizing
+// on those means a scroll that shifts the window re-renders only the row(s) that
+// entered it (not the whole visible set), and a column resize re-renders no rows
+// at all (the CSS vars cascade). onRowClick/cellClassName are stable across a
+// scroll (the route doesn't re-render), so comparing by reference is safe.
+const DataRow = React.memo(
+  DataRowInner,
+  (prev, next) =>
+    prev.row.original === next.row.original &&
+    prev.isSelected === next.isSelected &&
+    prev.index === next.index &&
+    prev.onRowClick === next.onRowClick &&
+    prev.cellClassName === next.cellClassName
+) as typeof DataRowInner;
 
 // Only re-render the row tree when the data changes. Mounted exclusively during
 // an active resize, when no scroll (and thus no virtual-window change) happens,

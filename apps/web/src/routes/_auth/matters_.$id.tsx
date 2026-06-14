@@ -30,10 +30,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/PageHeader";
+import { PageShell } from "@/components/PageShell";
 import { StateCue } from "@/components/StateCue";
 import { ToolbarTabs } from "@/components/ToolbarTabs";
-import { VersionChip } from "@/components/VersionChip";
-import { PeopleModal } from "@/components/PeopleModal";
+import { VersionChip } from "./matters/-components/VersionChip";
+import { PeopleModal } from "./matters/-components/PeopleModal";
 import { api, type Doc, type Folder } from "../../lib/api";
 import { useChats } from "../../lib/queries";
 import { useSession } from "../../lib/auth-client";
@@ -92,74 +93,76 @@ function MatterWorkspace() {
   const isOwner = myRole === "owner";
 
   return (
-    <div className="flex flex-col gap-stack">
-      {/* mike Image #1: inline "Matters › Name" trail + two action groups —
-          a frosted icon pill (search / people / …) and New Chat / New Review. */}
-      <PageHeader
-        breadcrumbs={[{ label: "Matters", to: "/matters" }, { label: matter.name }]}
-        actions={[
-          <div key="icons" className="flex items-center gap-0.5 rounded-full glass-panel p-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title="Search"
-              aria-label="Search"
-              onClick={() => setTab("documents")}
-            >
-              <Search className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title="People"
-              aria-label="People"
-              onClick={() => setPeopleOpen(true)}
-            >
-              <Users className="size-4" />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button variant="ghost" size="icon-sm" title="More" aria-label="More">
-                    <MoreHorizontal className="size-4" />
-                  </Button>
-                }
-              />
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem disabled={!matter.conflictCleared}>
-                  {matter.conflictCleared ? "Conflicts cleared" : "Conflicts pending"}
-                </DropdownMenuItem>
-                {isOwner && matter.status === "active" && (
-                  <DropdownMenuItem onClick={() => closeMutation.mutate()}>
-                    Close matter
+    <PageShell
+      header={
+        /* mike Image #1: inline "Matters › Name" trail + two action groups —
+           a frosted icon pill (search / people / …) and New Chat / New Review. */
+        <PageHeader
+          breadcrumbs={[{ label: "Matters", to: "/matters" }, { label: matter.name }]}
+          actions={[
+            <div key="icons" className="flex items-center gap-0.5 rounded-full glass-panel p-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Search"
+                aria-label="Search"
+                onClick={() => setTab("documents")}
+              >
+                <Search className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="People"
+                aria-label="People"
+                onClick={() => setPeopleOpen(true)}
+              >
+                <Users className="size-4" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button variant="ghost" size="icon-sm" title="More" aria-label="More">
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem disabled={!matter.conflictCleared}>
+                    {matter.conflictCleared ? "Conflicts cleared" : "Conflicts pending"}
                   </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>,
-          <div key="create" className="flex items-center gap-0.5 rounded-full glass-panel p-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title="New chat"
-              aria-label="New chat"
-              onClick={() => openInMatter("/assistant")}
-            >
-              <MessageSquarePlus className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title="New review"
-              aria-label="New review"
-              onClick={() => openInMatter("/reviews")}
-            >
-              <TableProperties className="size-4" />
-            </Button>
-          </div>,
-        ]}
-      />
-
+                  {isOwner && matter.status === "active" && (
+                    <DropdownMenuItem onClick={() => closeMutation.mutate()}>
+                      Close matter
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>,
+            <div key="create" className="flex items-center gap-0.5 rounded-full glass-panel p-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="New chat"
+                aria-label="New chat"
+                onClick={() => openInMatter("/assistant")}
+              >
+                <MessageSquarePlus className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="New review"
+                aria-label="New review"
+                onClick={() => openInMatter("/reviews")}
+              >
+                <TableProperties className="size-4" />
+              </Button>
+            </div>,
+          ]}
+        />
+      }
+    >
       <div className="flex flex-wrap items-center gap-2">
         {matter.matterNumber && <Badge variant="secondary">No. {matter.matterNumber}</Badge>}
         <Badge variant="outline" className="capitalize">
@@ -193,7 +196,7 @@ function MatterWorkspace() {
         open={peopleOpen}
         onOpenChange={setPeopleOpen}
       />
-    </div>
+    </PageShell>
   );
 }
 

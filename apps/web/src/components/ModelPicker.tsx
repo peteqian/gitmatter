@@ -179,7 +179,7 @@ export function ModelPicker({
               />
             ))}
             {orFams.length > 0 && (
-              <div className="px-2 pt-2 pb-1 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+              <div className="px-2 pt-2 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                 OpenRouter
               </div>
             )}

@@ -124,6 +124,7 @@ function ReviewView() {
   const table = useReactTable({
     data: tableData,
     columns,
+    getRowId: (row) => row.docId,
     state: { columnSizing },
     onColumnSizingChange,
     enableSorting: false,
@@ -135,7 +136,7 @@ function ReviewView() {
 
   if (!data || !review)
     return (
-      <div className="grid gap-6 pt-6 lg:grid-cols-[1fr_280px]">
+      <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto pt-6 lg:grid-cols-[1fr_280px]">
         <div className="flex flex-col gap-4">
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-72 w-full" />
@@ -145,7 +146,7 @@ function ReviewView() {
     );
 
   return (
-    <div className="grid gap-6 pt-6 lg:grid-cols-[1fr_280px]">
+    <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto pt-6 lg:grid-cols-[1fr_280px]">
       <div className="min-w-0">
         <div className="mb-3">
           <PageHeader

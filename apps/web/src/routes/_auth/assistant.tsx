@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ModelPicker } from "@/components/ModelPicker";
-import { ReasoningPicker } from "@/components/ReasoningPicker";
-import { AttachChips, AttachControls } from "@/components/ChatAttachments";
-import { type ToolRun } from "@/components/ThinkingTrace";
+import { ReasoningPicker } from "./assistant/-components/ReasoningPicker";
+import { AttachChips, AttachControls } from "./assistant/-components/ChatAttachments";
+import { type ToolRun } from "./assistant/-components/ThinkingTrace";
 import {
   Conversation,
   ConversationContent,
@@ -212,7 +212,7 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
 
   if (empty) {
     return (
-      <div className="mx-auto flex min-h-[calc(100dvh-10rem)] max-w-3xl flex-col items-center justify-center gap-section">
+      <div className="mx-auto flex h-full w-full max-w-xl flex-col items-center justify-center gap-section md:max-w-2xl lg:max-w-3xl xl:max-w-4xl">
         <h1 className="flex items-center gap-3 font-heading text-4xl font-light tracking-tight">
           <span className="grid size-9 place-items-center rounded-lg bg-primary font-serif text-lg text-primary-foreground">
             g
@@ -228,8 +228,8 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-6rem)] max-w-2xl flex-col">
-      <Conversation className="flex-1">
+    <div className="mx-auto flex h-full min-h-0 max-w-2xl flex-col">
+      <Conversation className="min-h-0 flex-1">
         <ConversationContent className="gap-6 px-0">
           {(jurisdiction || tools.length > 0) && (
             <div className="flex items-center gap-2">
@@ -307,7 +307,7 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
-      <div className="flex flex-col gap-2 pt-2">
+      <div className="flex shrink-0 flex-col gap-2 pt-2">
         {composer}
         <p className="text-center text-xs text-muted-foreground">
           AI can make mistakes. Answers are not legal advice.

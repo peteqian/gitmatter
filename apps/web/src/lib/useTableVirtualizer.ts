@@ -13,7 +13,9 @@ export function useTableVirtualizer<T>(rows: Row<T>[], estimateSize = 49) {
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => estimateSize,
+    getItemKey: (index) => rows[index]?.id ?? index,
     overscan: 10,
+    useFlushSync: false,
   });
   const items = virtualizer.getVirtualItems();
   const paddingTop = items.length ? items[0]!.start : 0;

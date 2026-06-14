@@ -154,6 +154,20 @@ export type Doc = {
   createdAt: string;
 };
 
+export type PageResult<T> = {
+  rows: T[];
+  rowCount: number;
+};
+
+export type ListPageParams = {
+  q?: string;
+  status?: string;
+  page: number;
+  pageSize: number;
+  sort?: string;
+  dir?: "asc" | "desc";
+};
+
 export type DocVersion = {
   id: string;
   documentId: string;
@@ -193,6 +207,17 @@ async function req<T>(path: string, opts?: RequestInit): Promise<T> {
   return (await r.json()) as T;
 }
 
+function listQuery(params: ListPageParams): string {
+  const search = new URLSearchParams();
+  search.set("page", String(params.page));
+  search.set("pageSize", String(params.pageSize));
+  if (params.q?.trim()) search.set("q", params.q.trim());
+  if (params.status && params.status !== "all") search.set("status", params.status);
+  if (params.sort) search.set("sort", params.sort);
+  if (params.dir) search.set("dir", params.dir);
+  return search.toString();
+}
+
 // statusText is empty over HTTP/2, so always fall back to the status code.
 async function httpError(r: Response): Promise<Error> {
   const body = (await r.json().catch(() => ({}))) as { error?: string };
@@ -217,6 +242,8 @@ export const api = {
     req<OpenRouterModel[]>(`/api/models/openrouter?q=${encodeURIComponent(q)}`),
   // Clients & matters (firm organization)
   listClients: () => req<Client[]>("/api/clients"),
+  listClientsPage: (params: ListPageParams) =>
+    req<PageResult<Client>>(`/api/clients?${listQuery(params)}`),
   getClient: (id: string) => req<ClientOverview>(`/api/clients/${id}`),
   createClient: (d: {
     name: string;
@@ -285,6 +312,8 @@ export const api = {
   revokeInvite: (id: string) => req<null>(`/api/tenant/invites/${id}`, { method: "DELETE" }),
 
   listDocuments: () => req<Doc[]>("/api/documents"),
+  listDocumentsPage: (params: ListPageParams) =>
+    req<PageResult<Doc>>(`/api/documents?${listQuery(params)}`),
   listMatterDocuments: (matterId: string, folderId?: string | null) => {
     const f = folderId === undefined ? "" : `&folderId=${folderId === null ? "root" : folderId}`;
     return req<Doc[]>(`/api/documents?matterId=${matterId}${f}`);
@@ -309,6 +338,10 @@ export const api = {
   listReviews: () =>
     req<Array<{ id: string; title: string; documentIds: string[]; createdAt: string }>>(
       "/api/tabular/reviews"
+    ),
+  listReviewsPage: (params: ListPageParams) =>
+    req<PageResult<{ id: string; title: string; documentIds: string[]; createdAt: string }>>(
+      `/api/tabular/reviews?${listQuery(params)}`
     ),
   createReview: (d: {
     title: string;
@@ -361,6 +394,13 @@ export const api = {
   // Workflows
   listWorkflows: () =>
     req<Array<{ id: string; title: string; type: string; isSystem: boolean }>>("/api/workflows"),
+  listWorkflowsPage: (params: ListPageParams & { source?: string }) => {
+    const search = listQuery(params);
+    const source = params.source && params.source !== "all" ? `&source=${params.source}` : "";
+    return req<PageResult<{ id: string; title: string; type: string; isSystem: boolean }>>(
+      `/api/workflows?${search}${source}`
+    );
+  },
   createWorkflow: (d: {
     title: string;
     type: "assistant" | "tabular";

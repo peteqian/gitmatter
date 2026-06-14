@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { signUp } from "../../lib/auth-client";
-import { AuthShell } from "../../components/AuthShell";
+import { AuthShell } from "./-components/AuthShell";
 import { FormError } from "../../components/form/FormError";
 
 export const Route = createFileRoute("/_unauth/signup")({ component: Signup });

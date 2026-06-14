@@ -85,10 +85,7 @@ export const TestResultsSummary = ({ className, children, ...props }: TestResult
             {summary.passed} passed
           </Badge>
           {summary.failed > 0 && (
-            <Badge
-              className="gap-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-              variant="secondary"
-            >
+            <Badge className="gap-1 bg-destructive-surface text-destructive" variant="secondary">
               <XCircleIcon className="size-3" />
               {summary.failed} failed
             </Badge>
@@ -185,7 +182,7 @@ const TestSuiteContext = createContext<TestSuiteContextType>({
 });
 
 const statusStyles: Record<TestStatus, string> = {
-  failed: "text-red-600 dark:text-red-400",
+  failed: "text-destructive",
   passed: "text-green-600 dark:text-green-400",
   running: "text-blue-600 dark:text-blue-400",
   skipped: "text-yellow-600 dark:text-yellow-400",
@@ -257,7 +254,7 @@ export const TestSuiteStats = ({
     {children ?? (
       <>
         {passed > 0 && <span className="text-green-600 dark:text-green-400">{passed} passed</span>}
-        {failed > 0 && <span className="text-red-600 dark:text-red-400">{failed} failed</span>}
+        {failed > 0 && <span className="text-destructive">{failed} failed</span>}
         {skipped > 0 && (
           <span className="text-yellow-600 dark:text-yellow-400">{skipped} skipped</span>
         )}
@@ -352,7 +349,7 @@ export const Test = ({ name, status, duration, className, children, ...props }: 
 export type TestErrorProps = HTMLAttributes<HTMLDivElement>;
 
 export const TestError = ({ className, children, ...props }: TestErrorProps) => (
-  <div className={cn("mt-2 rounded-md bg-red-50 p-3 dark:bg-red-900/20", className)} {...props}>
+  <div className={cn("mt-2 rounded-md bg-destructive-surface p-3", className)} {...props}>
     {children}
   </div>
 );
@@ -360,7 +357,7 @@ export const TestError = ({ className, children, ...props }: TestErrorProps) => 
 export type TestErrorMessageProps = HTMLAttributes<HTMLParagraphElement>;
 
 export const TestErrorMessage = ({ className, children, ...props }: TestErrorMessageProps) => (
-  <p className={cn("text-sm font-medium text-red-700 dark:text-red-400", className)} {...props}>
+  <p className={cn("text-sm font-medium text-destructive", className)} {...props}>
     {children}
   </p>
 );
@@ -369,7 +366,7 @@ export type TestErrorStackProps = HTMLAttributes<HTMLPreElement>;
 
 export const TestErrorStack = ({ className, children, ...props }: TestErrorStackProps) => (
   <pre
-    className={cn("mt-2 overflow-auto font-mono text-xs text-red-600 dark:text-red-400", className)}
+    className={cn("mt-2 overflow-auto font-mono text-xs text-destructive", className)}
     {...props}
   >
     {children}

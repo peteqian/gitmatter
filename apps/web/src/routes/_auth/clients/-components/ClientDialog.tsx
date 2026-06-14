@@ -9,8 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StateCue } from "@/components/StateCue";
-import { api, type Client } from "../lib/api";
-import { queryKeys } from "../lib/queries";
+import { api, type Client } from "@/lib/api";
+import { queryKeys } from "@/lib/queries";
 
 /** Click a client row → this dialog. Loads the client's work (matters, documents,
  *  contracts, reviews the caller can see) on open; rows link out to their detail. */

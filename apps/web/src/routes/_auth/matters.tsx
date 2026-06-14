@@ -1,6 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  createColumnHelper,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type SortingState,
+} from "@tanstack/react-table";
 import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,19 +15,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
 import { StateCue } from "@/components/StateCue";
 import { ToolbarTabs } from "@/components/ToolbarTabs";
-import { api } from "../../lib/api";
+import { api, type MatterListItem } from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
+import { useColumnSizing } from "../../lib/useColumnSizing";
 import { useMatters } from "../../lib/matters-context";
 
 export const Route = createFileRoute("/_auth/matters")({
@@ -41,35 +42,118 @@ function fmtDate(s: string): string {
   });
 }
 
+const columnHelper = createColumnHelper<MatterListItem>();
+const columns = [
+  columnHelper.display({
+    id: "select",
+    size: 44,
+    enableResizing: false,
+    header: ({ table }) => (
+      <Checkbox
+        checked={table.getIsAllRowsSelected()}
+        onChange={table.getToggleAllRowsSelectedHandler()}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onChange={row.getToggleSelectedHandler()}
+        onClick={(e) => e.stopPropagation()}
+        aria-label="Select row"
+      />
+    ),
+  }),
+  columnHelper.accessor((m) => m.matter.name, {
+    id: "name",
+    header: "Name",
+    size: 260,
+    cell: (c) => (
+      <span className="block truncate font-medium">
+        {c.getValue()}
+        {c.row.original.matter.status === "closed" && (
+          <StateCue tone="muted">
+            <span className="ml-2">Closed</span>
+          </StateCue>
+        )}
+      </span>
+    ),
+  }),
+  columnHelper.accessor((m) => m.client.name, {
+    id: "client",
+    header: "Client",
+    size: 180,
+    cell: (c) => <span className="text-muted-foreground">{c.getValue()}</span>,
+  }),
+  columnHelper.accessor((m) => (m.role === "owner" ? "Me" : (m.ownerName ?? "—")), {
+    id: "owner",
+    header: "Owner",
+    size: 140,
+    cell: (c) => <span className="text-muted-foreground">{c.getValue()}</span>,
+  }),
+  columnHelper.accessor((m) => m.memberCount, {
+    id: "shared",
+    header: "Shared with",
+    size: 130,
+    cell: (c) => (
+      <span className="text-muted-foreground">
+        {c.getValue() > 1 ? `${c.getValue()} people` : "Private"}
+      </span>
+    ),
+  }),
+  columnHelper.accessor((m) => m.matter.updatedAt, {
+    id: "updatedAt",
+    header: "Recent activity",
+    size: 140,
+    cell: (c) => <span className="text-muted-foreground">{fmtDate(c.getValue())}</span>,
+  }),
+  columnHelper.accessor((m) => m.matter.createdAt, {
+    id: "createdAt",
+    header: "Created",
+    size: 140,
+    cell: (c) => <span className="text-muted-foreground">{fmtDate(c.getValue())}</span>,
+  }),
+];
+
 function Matters() {
   const navigate = useNavigate();
   const { matters, refresh, setCurrent } = useMatters();
   const [creating, setCreating] = useState(false);
   const [scope, setScope] = useState<Scope>("all");
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [sorting, setSorting] = useState<SortingState>([{ id: "updatedAt", desc: true }]);
+  const [rowSelection, setRowSelection] = useState({});
 
-  const shown = matters
-    .filter((m) =>
-      scope === "all" ? true : scope === "mine" ? m.role === "owner" : m.role !== "owner"
-    )
-    .filter((m) => {
-      const q = query.trim().toLowerCase();
-      return (
-        !q || m.matter.name.toLowerCase().includes(q) || m.client.name.toLowerCase().includes(q)
-      );
-    });
-  const allChecked = shown.length > 0 && shown.every((m) => selected.has(m.matter.id));
+  const shown = useMemo(
+    () =>
+      matters
+        .filter((m) =>
+          scope === "all" ? true : scope === "mine" ? m.role === "owner" : m.role !== "owner"
+        )
+        .filter((m) => {
+          const q = query.trim().toLowerCase();
+          return (
+            !q || m.matter.name.toLowerCase().includes(q) || m.client.name.toLowerCase().includes(q)
+          );
+        }),
+    [matters, query, scope]
+  );
 
-  const toggle = (id: string) =>
-    setSelected((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-  const toggleAll = () =>
-    setSelected(allChecked ? new Set() : new Set(shown.map((m) => m.matter.id)));
+  const { columnSizing, onColumnSizingChange } = useColumnSizing("matters");
+  const table = useReactTable({
+    data: shown,
+    columns,
+    getRowId: (m) => m.matter.id,
+    state: { sorting, rowSelection, columnSizing },
+    onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    onColumnSizingChange,
+    enableRowSelection: true,
+    enableColumnResizing: true,
+    columnResizeMode: "onChange",
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   return (
     <div className="-mb-12 flex min-h-0 flex-1 flex-col gap-stack">
@@ -121,67 +205,15 @@ function Matters() {
         />
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg p-2">
-        <Table containerClassName="overflow-x-visible">
-          <TableHeader className="sticky top-0 z-10 bg-background">
-            <TableRow>
-              <TableHead className="w-10">
-                <Checkbox checked={allChecked} onChange={toggleAll} aria-label="Select all" />
-              </TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Client</TableHead>
-              <TableHead>Owner</TableHead>
-              <TableHead>Shared with</TableHead>
-              <TableHead>Recent activity</TableHead>
-              <TableHead>Created</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {shown.map(({ matter, client, role, ownerName, memberCount }) => (
-              <TableRow
-                key={matter.id}
-                data-state={selected.has(matter.id) ? "selected" : undefined}
-                className="cursor-pointer"
-                onClick={() => navigate({ to: "/matters/$id", params: { id: matter.id } })}
-              >
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Checkbox
-                    checked={selected.has(matter.id)}
-                    onChange={() => toggle(matter.id)}
-                    aria-label={`Select ${matter.name}`}
-                  />
-                </TableCell>
-                <TableCell className="font-medium">
-                  {matter.name}
-                  {matter.status === "closed" && (
-                    <StateCue tone="muted">
-                      <span className="ml-2">Closed</span>
-                    </StateCue>
-                  )}
-                </TableCell>
-                <TableCell className="text-muted-foreground">{client.name}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {role === "owner" ? "Me" : (ownerName ?? "—")}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {memberCount > 1 ? `${memberCount} people` : "Private"}
-                </TableCell>
-                <TableCell className="text-muted-foreground">{fmtDate(matter.updatedAt)}</TableCell>
-                <TableCell className="text-muted-foreground">{fmtDate(matter.createdAt)}</TableCell>
-              </TableRow>
-            ))}
-            {!shown.length && (
-              <TableRow>
-                <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
-                  {matters.length
-                    ? "No matters match this filter."
-                    : "No matters yet. Create one to start filing work."}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable
+        table={table}
+        empty={
+          matters.length
+            ? "No matters match this filter."
+            : "No matters yet. Create one to start filing work."
+        }
+        onRowClick={(m) => navigate({ to: "/matters/$id", params: { id: m.matter.id } })}
+      />
     </div>
   );
 }

@@ -40,10 +40,10 @@ export function PageHeader({
                     params={c.params}
                     className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
                   >
-                    {c.label}
+                    {c.label || "Untitled"}
                   </Link>
                 ) : (
-                  <span className="truncate">{c.label}</span>
+                  <span className="truncate">{c.label || "Untitled"}</span>
                 )}
               </span>
             ))}

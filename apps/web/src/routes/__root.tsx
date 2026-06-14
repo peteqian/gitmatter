@@ -1,6 +1,7 @@
-import { HeadContent, Link, Scripts, createRootRoute } from "@tanstack/react-router";
+import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Suspense, lazy } from "react";
+import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MattersProvider } from "../lib/matters-context";
 import { queryClient } from "../lib/query";
@@ -51,14 +52,6 @@ function Shell({ children }: { children: React.ReactNode }) {
   if (!session) {
     return (
       <div className="min-h-dvh bg-background">
-        <header className="flex h-12 items-center justify-end gap-3 px-4 text-sm">
-          <Link to="/login" className="text-muted-foreground hover:text-foreground">
-            Log in
-          </Link>
-          <Link to="/signup" className="text-muted-foreground hover:text-foreground">
-            Sign up
-          </Link>
-        </header>
         <main className="container mx-auto px-6 pt-page pb-12">{children}</main>
       </div>
     );
@@ -69,13 +62,13 @@ function Shell({ children }: { children: React.ReactNode }) {
       <div className="flex h-dvh bg-background">
         <Suspense
           fallback={
-            <div className="my-2 ml-2 h-[calc(100dvh-1.5rem)] w-14 shrink-0 rounded-2xl glass-panel md:my-3 md:ml-3 md:w-64" />
+            <div className="fixed top-0 bottom-0 left-0 z-40 m-2 h-[calc(100dvh-1rem)] w-14 rounded-2xl glass-panel md:static md:z-auto md:my-3 md:mr-0 md:ml-3 md:h-[calc(100dvh-1.5rem)] md:w-64 md:shrink-0" />
           }
         >
           <AppSidebar session={session} />
         </Suspense>
-        <main className="h-dvh flex-1 overflow-y-auto">
-          <div className="container mx-auto flex h-full flex-col px-6 pt-page pb-12">
+        <main className="min-h-0 flex-1 overflow-hidden">
+          <div className="container mx-auto flex h-full min-h-0 flex-col px-6 pt-page pb-12">
             {children}
           </div>
         </main>
@@ -86,15 +79,22 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body>
         <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <Shell>{children}</Shell>
-          </TooltipProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <TooltipProvider>
+              <Shell>{children}</Shell>
+            </TooltipProvider>
+          </ThemeProvider>
         </QueryClientProvider>
         <Suspense fallback={null}>
           <Toaster />

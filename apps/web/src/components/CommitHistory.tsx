@@ -22,7 +22,7 @@ export function CommitHistory({ commits }: { commits: Blame[] }) {
           <div className="min-w-0 flex-1 text-xs">
             <div className="flex flex-wrap items-center gap-2">
               <ActorBadge actorType={c.actorType} agentLabel={c.agentLabel} />
-              <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+              <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
                 {c.op}
               </span>
               <span className="font-mono text-muted-foreground">#{c.seq}</span>
