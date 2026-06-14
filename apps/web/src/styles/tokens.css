@@ -48,3 +48,40 @@
   --bronze: oklch(0.7 0.09 75);
   --bronze-tint: oklch(0.28 0.04 75);
 }
+
+/* ---- mike-inspired chrome, in Quiet Chambers tones ----
+   Frosted "paper-glass" surface (mike's backdrop-blur panels, but our warm
+   ivory rather than cool grey) used for the sidebar, modals, and side panels. */
+@utility glass-panel {
+  background-color: color-mix(in oklab, var(--card) 78%, transparent);
+  border: 1px solid color-mix(in oklab, var(--background) 70%, white 30%);
+  backdrop-filter: blur(24px);
+  box-shadow:
+    0 -2px 7px oklch(0.17 0.008 90 / 0.04),
+    0 5px 14px oklch(0.17 0.008 90 / 0.08),
+    inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+
+/* Stronger frosted overlay for modal backdrops. */
+@utility glass-scrim {
+  background-color: color-mix(in oklab, var(--background) 40%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+/* Sticky left "name" column for the dense mike-style tables — tinted so it
+   reads as pinned while rows scroll horizontally beneath it. */
+@utility sticky-name {
+  position: sticky;
+  left: 0;
+  z-index: 30;
+  background-color: color-mix(in oklab, var(--card) 92%, var(--muted) 8%);
+}
+
+/* Large serif title input used in the New-* modals (mike's editorial inputs). */
+@utility serif-input {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  background: transparent;
+  outline: none;
+}

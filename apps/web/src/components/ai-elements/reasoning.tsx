@@ -3,15 +3,13 @@
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { cjk } from "@streamdown/cjk";
-import { code } from "@streamdown/code";
-import { math } from "@streamdown/math";
-import { mermaid } from "@streamdown/mermaid";
 import { BrainIcon, ChevronDownIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import {
   createContext,
+  lazy,
   memo,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -19,9 +17,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { Streamdown } from "streamdown";
 
 import { Shimmer } from "./shimmer";
+
+const StreamdownRenderer = lazy(() => import("./streamdown-renderer"));
 
 interface ReasoningContextValue {
   isStreaming: boolean;
@@ -188,8 +187,6 @@ export type ReasoningContentProps = ComponentProps<typeof CollapsibleContent> & 
   children: string;
 };
 
-const streamdownPlugins = { cjk, code, math, mermaid };
-
 export const ReasoningContent = memo(({ className, children, ...props }: ReasoningContentProps) => (
   <CollapsibleContent
     className={cn(
@@ -199,7 +196,9 @@ export const ReasoningContent = memo(({ className, children, ...props }: Reasoni
     )}
     {...props}
   >
-    <Streamdown plugins={streamdownPlugins}>{children}</Streamdown>
+    <Suspense fallback={null}>
+      <StreamdownRenderer>{children}</StreamdownRenderer>
+    </Suspense>
   </CollapsibleContent>
 ));
 

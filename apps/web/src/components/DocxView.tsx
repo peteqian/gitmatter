@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { renderAsync } from "docx-preview";
 
 /**
- * Render a contract's current DOCX (with Word tracked changes) client-side.
+ * Render a document's current DOCX (with Word tracked changes) client-side.
  * `versionToken` changes whenever a new version is written (propose/resolve),
  * triggering a re-fetch + re-render so the redline stays current.
  */

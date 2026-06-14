@@ -59,25 +59,13 @@ export function ClientDialog({ client, onClose }: { client: Client | null; onClo
                 </Section>
                 <Section title="Documents" empty="No documents.">
                   {overview.documents.map((d) => (
-                    <div
-                      key={d.id}
-                      className="flex items-center justify-between gap-3 py-2 text-sm"
-                    >
-                      <span className="truncate">{d.title}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground uppercase">
-                        {d.fileType}
-                      </span>
-                    </div>
-                  ))}
-                </Section>
-                <Section title="Contracts" empty="No contracts.">
-                  {overview.contracts.map((ct) => (
                     <Row
-                      key={ct.id}
-                      to="/contracts/$id"
-                      id={ct.id}
+                      key={d.id}
+                      to="/documents/$id"
+                      id={d.id}
                       onNavigate={onClose}
-                      label={ct.title}
+                      label={d.title}
+                      meta={d.fileType}
                     />
                   ))}
                 </Section>
@@ -129,7 +117,7 @@ function Row({
   meta,
   onNavigate,
 }: {
-  to: "/matters/$id" | "/contracts/$id" | "/reviews/$id";
+  to: "/matters/$id" | "/documents/$id" | "/reviews/$id";
   id: string;
   label: string;
   meta?: string;
