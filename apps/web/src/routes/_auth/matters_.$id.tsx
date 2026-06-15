@@ -2,12 +2,15 @@ import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-r
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Download,
   FileText,
   FolderPlus,
   MessageSquarePlus,
   MoreHorizontal,
+  Pencil,
   Search,
   TableProperties,
+  Trash2,
   Upload,
   Users,
 } from "lucide-react";
@@ -35,6 +38,8 @@ import { StateCue } from "@/components/StateCue";
 import { ToolbarTabs } from "@/components/ToolbarTabs";
 import { VersionChip } from "./matters/-components/VersionChip";
 import { PeopleModal } from "./matters/-components/PeopleModal";
+import { EditMatterModal } from "./matters/-components/EditMatterModal";
+import { DocumentDrawer } from "./documents/-components/DocumentDrawer";
 import { api, type Doc, type Folder } from "../../lib/api";
 import { useChats } from "../../lib/queries";
 import { useSession } from "../../lib/auth-client";
@@ -52,6 +57,12 @@ function MatterWorkspace() {
   const { refresh: refreshMatters, setCurrent } = useMatters();
   const [tab, setTab] = useState<Tab>("documents");
   const [peopleOpen, setPeopleOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  // Documents toolbar lives in the tab row (parent-owned so it can sit beside the
+  // tabs); the doc list/folder nav reads these via props.
+  const [docSearch, setDocSearch] = useState("");
+  const [docFolderId, setDocFolderId] = useState<string | null>(null);
+  const docFileRef = useRef<HTMLInputElement>(null);
 
   // New Chat / New Review file under this matter — set it working, then route out.
   const openInMatter = (to: "/assistant" | "/reviews") => {
@@ -68,12 +79,25 @@ function MatterWorkspace() {
     queryFn: () => api.getMatterPeople(id),
   });
 
-  const closeMutation = useMutation({
-    mutationFn: () => api.closeMatter(id),
+  const onMatterChanged = () => {
+    void qc.invalidateQueries({ queryKey: ["matter", id] });
+    refreshMatters();
+  };
+
+  const uploadDoc = useMutation({
+    mutationFn: (file: File) => api.uploadDocument(file, undefined, id, docFolderId),
     onSuccess: () => {
-      toast.success("Matter closed");
-      void qc.invalidateQueries({ queryKey: ["matter", id] });
-      refreshMatters();
+      toast.success("Uploaded");
+      void qc.invalidateQueries({ queryKey: ["matter-docs", id, docFolderId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Upload failed"),
+  });
+
+  const addFolderMut = useMutation({
+    mutationFn: (name: string) => api.createFolder(id, name, docFolderId),
+    onSuccess: () => {
+      toast.success("Folder added");
+      void qc.invalidateQueries({ queryKey: ["folders", id] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
@@ -104,40 +128,21 @@ function MatterWorkspace() {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                title="Search"
-                aria-label="Search"
-                onClick={() => setTab("documents")}
-              >
-                <Search className="size-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
                 title="People"
                 aria-label="People"
                 onClick={() => setPeopleOpen(true)}
               >
                 <Users className="size-4" />
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button variant="ghost" size="icon-sm" title="More" aria-label="More">
-                      <MoreHorizontal className="size-4" />
-                    </Button>
-                  }
-                />
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem disabled={!matter.conflictCleared}>
-                    {matter.conflictCleared ? "Conflicts cleared" : "Conflicts pending"}
-                  </DropdownMenuItem>
-                  {isOwner && matter.status === "active" && (
-                    <DropdownMenuItem onClick={() => closeMutation.mutate()}>
-                      Close matter
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Edit matter"
+                aria-label="Edit matter"
+                onClick={() => setEditOpen(true)}
+              >
+                <Pencil className="size-4" />
+              </Button>
             </div>,
             <div key="create" className="flex items-center gap-0.5 rounded-full glass-panel p-1">
               <Button
@@ -183,9 +188,60 @@ function MatterWorkspace() {
         ]}
         active={tab}
         onChange={setTab}
+        actions={
+          tab === "documents" ? (
+            <>
+              <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-2.5">
+                <Search className="size-4 text-muted-foreground" />
+                <input
+                  value={docSearch}
+                  onChange={(e) => setDocSearch(e.target.value)}
+                  placeholder="Search"
+                  className="h-8 w-40 bg-transparent text-sm outline-none"
+                />
+              </div>
+              {myRole !== "viewer" && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const name = window.prompt("Folder name");
+                      if (name?.trim()) addFolderMut.mutate(name.trim());
+                    }}
+                  >
+                    <FolderPlus className="size-4" /> Add Subfolder
+                  </Button>
+                  <Button size="sm" onClick={() => docFileRef.current?.click()}>
+                    <Upload className="size-4" /> Add Documents
+                  </Button>
+                  <input
+                    ref={docFileRef}
+                    type="file"
+                    accept=".pdf,.docx,.doc"
+                    hidden
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadDoc.mutate(f);
+                      e.target.value = "";
+                    }}
+                  />
+                </>
+              )}
+            </>
+          ) : undefined
+        }
       />
 
-      {tab === "documents" && <DocumentsTab matterId={id} canEdit={myRole !== "viewer"} />}
+      {tab === "documents" && (
+        <DocumentsTab
+          matterId={id}
+          canEdit={myRole !== "viewer"}
+          folderId={docFolderId}
+          setFolderId={setDocFolderId}
+          search={docSearch}
+        />
+      )}
       {tab === "chats" && <ChatsTab matterId={id} />}
       {tab === "reviews" && <ReviewsTab matterId={id} />}
 
@@ -195,6 +251,14 @@ function MatterWorkspace() {
         canManage={isOwner}
         open={peopleOpen}
         onOpenChange={setPeopleOpen}
+      />
+
+      <EditMatterModal
+        matter={matter}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        canClose={isOwner}
+        onSaved={onMatterChanged}
       />
     </PageShell>
   );
@@ -214,12 +278,26 @@ function fmtDate(s: string): string {
   });
 }
 
-function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolean }) {
+function DocumentsTab({
+  matterId,
+  canEdit,
+  folderId,
+  setFolderId,
+  search,
+}: {
+  matterId: string;
+  canEdit: boolean;
+  folderId: string | null;
+  setFolderId: (id: string | null) => void;
+  search: string;
+}) {
   const qc = useQueryClient();
-  const [folderId, setFolderId] = useState<string | null>(null); // null = root
-  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  // Upload-new-version targets a specific document; one hidden input, target id
+  // captured when the menu item is clicked.
+  const versionInputRef = useRef<HTMLInputElement>(null);
+  const versionTargetId = useRef<string | null>(null);
 
   const { data: folders = [] } = useQuery({
     queryKey: ["folders", matterId],
@@ -233,22 +311,31 @@ function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolea
   const invalidateDocs = () =>
     qc.invalidateQueries({ queryKey: ["matter-docs", matterId, folderId] });
 
-  const upload = useMutation({
-    mutationFn: (file: File) => api.uploadDocument(file, undefined, matterId, folderId),
+  const renameDoc = useMutation({
+    mutationFn: (v: { id: string; title: string }) => api.renameDocument(v.id, v.title),
     onSuccess: () => {
-      toast.success("Uploaded");
+      toast.success("Renamed");
+      void invalidateDocs();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Rename failed"),
+  });
+
+  const uploadVersion = useMutation({
+    mutationFn: (v: { id: string; file: File }) => api.uploadDocumentVersion(v.id, v.file),
+    onSuccess: () => {
+      toast.success("New version uploaded — extracting…");
       void invalidateDocs();
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Upload failed"),
   });
 
-  const addFolder = useMutation({
-    mutationFn: (name: string) => api.createFolder(matterId, name, folderId),
+  const deleteDoc = useMutation({
+    mutationFn: (id: string) => api.deleteDocument(id),
     onSuccess: () => {
-      toast.success("Folder added");
-      void qc.invalidateQueries({ queryKey: ["folders", matterId] });
+      toast.success("Document deleted");
+      void invalidateDocs();
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Delete failed"),
   });
 
   const rootFolders = folders.filter((f: Folder) => f.parentFolderId === (folderId ?? null));
@@ -257,58 +344,30 @@ function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolea
 
   return (
     <div className="flex flex-col gap-stack">
-      <div className="flex items-center justify-between gap-3">
+      {/* Folder breadcrumb only when inside a subfolder (root needs no chrome). */}
+      {current && (
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <button onClick={() => setFolderId(null)} className="hover:text-foreground">
             All documents
           </button>
-          {current && (
-            <>
-              <span className="text-border">›</span>
-              <span className="text-foreground">{current.name}</span>
-            </>
-          )}
+          <span className="text-border">›</span>
+          <span className="text-foreground">{current.name}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-2.5">
-            <Search className="size-4 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search"
-              className="h-8 w-40 bg-transparent text-sm outline-none"
-            />
-          </div>
-          {canEdit && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const name = window.prompt("Folder name");
-                  if (name?.trim()) addFolder.mutate(name.trim());
-                }}
-              >
-                <FolderPlus className="size-4" /> Add Subfolder
-              </Button>
-              <Button size="sm" onClick={() => fileRef.current?.click()}>
-                <Upload className="size-4" /> Add Documents
-              </Button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".pdf,.docx,.doc"
-                hidden
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) upload.mutate(f);
-                  e.target.value = "";
-                }}
-              />
-            </>
-          )}
-        </div>
-      </div>
+      )}
+
+      <input
+        ref={versionInputRef}
+        type="file"
+        accept=".pdf,.docx,.doc"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          const id = versionTargetId.current;
+          if (f && id) uploadVersion.mutate({ id, file: f });
+          e.target.value = "";
+          versionTargetId.current = null;
+        }}
+      />
 
       <div className="overflow-hidden rounded-lg border border-border">
         <Table>
@@ -333,6 +392,7 @@ function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolea
               <TableHead>Version</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -349,10 +409,16 @@ function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolea
                 <TableCell className="text-muted-foreground">—</TableCell>
                 <TableCell className="text-muted-foreground">{fmtDate(f.createdAt)}</TableCell>
                 <TableCell />
+                <TableCell />
               </TableRow>
             ))}
             {filtered.map((d: Doc) => (
-              <TableRow key={d.id} data-state={selected.has(d.id) ? "selected" : undefined}>
+              <TableRow
+                key={d.id}
+                className="cursor-pointer"
+                data-state={selected.has(d.id) ? "selected" : undefined}
+                onClick={() => setPreviewId(d.id)}
+              >
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Checkbox
                     checked={selected.has(d.id)}
@@ -381,11 +447,72 @@ function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolea
                 <TableCell>
                   <DocStatusCue status={d.status} />
                 </TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  {canEdit && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            title="Document actions"
+                            aria-label="Document actions"
+                          >
+                            <MoreHorizontal className="size-4" />
+                          </Button>
+                        }
+                      />
+                      <DropdownMenuContent align="end" className="min-w-52">
+                        <DropdownMenuItem
+                          className="whitespace-nowrap"
+                          onClick={() => {
+                            const name = window.prompt("Rename document", d.title);
+                            if (name?.trim() && name.trim() !== d.title)
+                              renameDoc.mutate({ id: d.id, title: name.trim() });
+                          }}
+                        >
+                          <Pencil className="size-4" /> Rename document
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="whitespace-nowrap"
+                          onClick={() => {
+                            window.location.href = api.documentDownloadUrl(d.id);
+                          }}
+                        >
+                          <Download className="size-4" /> Download
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="whitespace-nowrap"
+                          onClick={() => {
+                            versionTargetId.current = d.id;
+                            versionInputRef.current?.click();
+                          }}
+                        >
+                          <Upload className="size-4" /> Upload new version
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          className="whitespace-nowrap"
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Delete "${d.title}"? This can be undone within 30 days.`
+                              )
+                            )
+                              deleteDoc.mutate(d.id);
+                          }}
+                        >
+                          <Trash2 className="size-4" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </TableCell>
               </TableRow>
             ))}
             {!rootFolders.length && !filtered.length && (
               <TableRow>
-                <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
                   No documents yet. {canEdit && "Add documents to get started."}
                 </TableCell>
               </TableRow>
@@ -393,6 +520,8 @@ function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolea
           </TableBody>
         </Table>
       </div>
+
+      <DocumentDrawer docId={previewId} onClose={() => setPreviewId(null)} />
     </div>
   );
 }

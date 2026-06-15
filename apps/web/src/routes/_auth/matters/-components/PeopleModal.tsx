@@ -6,11 +6,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { api, type MatterMember, type MatterRole } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
+import {
+  Select,
+  SelectValue,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
 
 const ROLES: MatterRole[] = ["editor", "viewer", "owner"];
 
-// mike's PeopleModal (Image #2): people-with-access list + add-by-email, scoped
-// to the tenant. Sharing is restricted to users in the same organization.
 export function PeopleModal({
   matterId,
   matterName,
@@ -80,17 +86,20 @@ export function PeopleModal({
                 className="h-9 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
             </div>
-            <select
-              className="h-9 rounded-md border border-input bg-background px-2 text-sm capitalize"
-              value={role}
-              onChange={(e) => setRole(e.target.value as MatterRole)}
-            >
-              {ROLES.map((r) => (
-                <option key={r} value={r} className="capitalize">
-                  {r}
-                </option>
-              ))}
-            </select>
+            <Select value={role} onValueChange={(v) => setRole(v as MatterRole)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Choose a role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {ROLES.map((r: MatterRole) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
             <Button
               type="submit"
               size="icon"
