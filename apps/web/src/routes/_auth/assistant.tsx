@@ -90,6 +90,30 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
     session?.user.name?.split(" ")[0] || session?.user.email?.split("@")[0] || "there";
   const empty = turns.length === 0;
 
+  // A workflow "Use" launch stashes a seed (prompt + document attachments) then
+  // navigates here; consume it once on a fresh chat and auto-send.
+  const [pendingAutoSend, setPendingAutoSend] = useState(false);
+  useEffect(() => {
+    if (loaded) return;
+    const raw = sessionStorage.getItem("workflowChatSeed");
+    if (!raw) return;
+    sessionStorage.removeItem("workflowChatSeed");
+    try {
+      const seed = JSON.parse(raw) as { input: string; attachments: ChatAttachment[] };
+      setInput(seed.input);
+      setAttachments(seed.attachments ?? []);
+      setPendingAutoSend(true);
+    } catch {
+      /* ignore malformed seed */
+    }
+  }, [loaded]);
+  useEffect(() => {
+    if (pendingAutoSend && input.trim() && !busy) {
+      setPendingAutoSend(false);
+      void send();
+    }
+  }, [pendingAutoSend, input, busy]);
+
   async function send() {
     const message = input.trim();
     if (!message || busy) return;
@@ -166,6 +190,9 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
             });
             setTools(r.tools);
             setJurisdiction(r.jurisdiction);
+            // Drop the cached snapshot so resuming this chat (via /assistant/$id)
+            // refetches the server copy with these new turns, not a stale one.
+            queryClient.removeQueries({ queryKey: queryKeys.chat(r.chatId) });
             // First turn of a new chat: adopt its id, refresh the sidebar list,
             // and reflect it in the URL (remounts to the resumed conversation).
             if (!chatId) {
@@ -228,7 +255,7 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
   }
 
   return (
-    <div className="mx-auto flex h-full min-h-0 max-w-2xl flex-col">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col">
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="gap-6 px-0">
           {(jurisdiction || tools.length > 0) && (

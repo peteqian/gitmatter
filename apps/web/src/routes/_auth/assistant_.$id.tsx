@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
+import { queryKeys } from "../../lib/queries";
 import { AssistantView } from "./assistant";
 
 // Resume a conversation. Fetched client-side (react-query) rather than in a route
@@ -14,7 +15,7 @@ function ResumeChat() {
   // AssistantView seeds its turns from `loaded` at mount (it's keyed by id), so
   // wait for the fetch before mounting it.
   const { data: loaded, isPending } = useQuery({
-    queryKey: ["chat", id],
+    queryKey: queryKeys.chat(id),
     queryFn: () => api.getChat(id).catch(() => null),
   });
   if (isPending) return null;
