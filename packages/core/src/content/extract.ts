@@ -1,4 +1,6 @@
 import * as mammoth from "mammoth";
+import JSZip from "jszip";
+import { XMLParser } from "fast-xml-parser";
 
 // mammoth ships markdown conversion at runtime but omits it from its type defs.
 const convertToMarkdown = (
@@ -13,32 +15,60 @@ const convertToMarkdown = (
 
 export type SupportedFileType = "pdf" | "docx" | "doc";
 
+export type ExtractResult = { markdown: string; pageCount: number | null };
+
 export function fileTypeFromName(name: string): SupportedFileType | null {
   const ext = name.toLowerCase().split(".").pop();
   if (ext === "pdf" || ext === "docx" || ext === "doc") return ext;
   return null;
 }
 
-/** Extract markdown from a document's bytes. */
-export async function extractMarkdown(bytes: Buffer, fileType: SupportedFileType): Promise<string> {
+/** Extract markdown (and a best-effort page count) from a document's bytes. */
+export async function extractMarkdown(
+  bytes: Buffer,
+  fileType: SupportedFileType
+): Promise<ExtractResult> {
   if (fileType === "docx" || fileType === "doc") {
     const { value } = await convertToMarkdown({ buffer: bytes });
-    return value;
+    return { markdown: value, pageCount: await docxPageCount(bytes) };
   }
   return extractPdfViaDocling(bytes);
 }
 
-async function extractPdfViaDocling(bytes: Buffer): Promise<string> {
+/**
+ * Word stamps the page count it computed at save time into docProps/app.xml as
+ * `<Pages>`. Read it straight from the zip — null if absent (.doc binary, or a
+ * generated file that never carried the property).
+ */
+async function docxPageCount(bytes: Buffer): Promise<number | null> {
+  try {
+    const zip = await JSZip.loadAsync(bytes);
+    const xml = await zip.file("docProps/app.xml")?.async("string");
+    if (!xml) return null;
+    const parsed = new XMLParser().parse(xml) as { Properties?: { Pages?: number | string } };
+    const pages = Number(parsed.Properties?.Pages);
+    return Number.isFinite(pages) && pages > 0 ? pages : null;
+  } catch {
+    return null;
+  }
+}
+
+async function extractPdfViaDocling(bytes: Buffer): Promise<ExtractResult> {
   const url = process.env.DOCLING_URL || "http://localhost:5001/v1/convert/source";
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify({
-      options: { to_formats: ["md"] },
+      // Ask for json too so we can read the page map for a reliable page count.
+      options: { to_formats: ["md", "json"] },
       file_sources: [{ base64_string: bytes.toString("base64"), filename: "doc.pdf" }],
     }),
   });
   if (!res.ok) throw new Error(`docling-serve responded ${res.status}`);
-  const data = (await res.json()) as { document?: { md_content?: string } };
-  return data.document?.md_content ?? "";
+  const data = (await res.json()) as {
+    document?: { md_content?: string; json_content?: { pages?: Record<string, unknown> } };
+  };
+  const pages = data.document?.json_content?.pages;
+  const pageCount = pages ? Object.keys(pages).length || null : null;
+  return { markdown: data.document?.md_content ?? "", pageCount };
 }

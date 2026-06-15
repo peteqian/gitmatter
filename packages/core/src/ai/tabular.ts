@@ -76,7 +76,7 @@ function coerceCitations(raw: unknown): CellCitation[] {
   return raw
     .filter((c): c is { page?: unknown; quote?: unknown } => !!c && typeof c === "object")
     .map((c) => ({
-      quote: String(c.quote ?? "").trim(),
+      quote: (typeof c.quote === "string" ? c.quote : "").trim(),
       ...(typeof c.page === "number" ? { page: c.page } : {}),
     }))
     .filter((c) => c.quote);
@@ -180,9 +180,9 @@ export async function queryRow(params: {
     out.set(idx, {
       content: normalizeCell(
         {
-          summary: String(cell.summary ?? "").trim() || "Not addressed",
+          summary: (typeof cell.summary === "string" ? cell.summary : "").trim() || "Not addressed",
           flag: coerceFlag(cell.flag),
-          reasoning: String(cell.reasoning ?? ""),
+          reasoning: typeof cell.reasoning === "string" ? cell.reasoning : "",
         },
         col.format,
         col.tags

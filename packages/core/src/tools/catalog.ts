@@ -22,6 +22,7 @@ import {
   resolveEdit,
 } from "../content/index.js";
 import {
+  createClient,
   createMatter,
   createWorkflow,
   ensureDefaultMatter,
@@ -221,6 +222,25 @@ export function buildToolCatalog(
       handler: async () => {
         const tenantId = await getUserTenant(actor.userId);
         return tenantId ? listClients(tenantId) : [];
+      },
+    },
+    {
+      name: "create_client",
+      description: "Create a client for your firm.",
+      schema: {
+        name: z.string(),
+        type: z.enum(["organization", "individual"]).optional(),
+        clientNumber: z.string().optional(),
+      },
+      handler: async ({ name, type, clientNumber }) => {
+        const tenantId = await getUserTenant(actor.userId);
+        if (!tenantId) return { error: "Forbidden: no tenant" };
+        const client = await createClient(actor.userId, tenantId, {
+          name: name as string,
+          type: type as "organization" | "individual" | undefined,
+          clientNumber: clientNumber as string | undefined,
+        });
+        return { clientId: client.id, name: client.name, type: client.type };
       },
     },
     {

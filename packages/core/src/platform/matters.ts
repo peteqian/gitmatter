@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 import { db } from "@workspace/db/client";
 import {
   type MatterRole,
@@ -54,11 +54,14 @@ export type ClientListParams = {
   dir?: "asc" | "desc";
 };
 
-export async function listClientsPage(tenantId: string, params: ClientListParams) {
-  const q = params.q?.trim();
-  const where = and(
+// Shared WHERE for the client list: tenant scope + optional status + fuzzy
+// search. Used by the paged list, bulk delete, and CSV export so all three
+// resolve the exact same set for a given filter.
+function clientFilter(tenantId: string, opts: { q?: string; status?: "active" | "inactive" }) {
+  const q = opts.q?.trim();
+  return and(
     eq(clients.tenantId, tenantId),
-    params.status ? eq(clients.status, params.status) : undefined,
+    opts.status ? eq(clients.status, opts.status) : undefined,
     q
       ? or(
           ilike(clients.name, `%${q}%`),
@@ -67,6 +70,10 @@ export async function listClientsPage(tenantId: string, params: ClientListParams
         )
       : undefined
   );
+}
+
+export async function listClientsPage(tenantId: string, params: ClientListParams) {
+  const where = clientFilter(tenantId, params);
   const sortCols = {
     name: clients.name,
     type: clients.type,
@@ -84,6 +91,65 @@ export async function listClientsPage(tenantId: string, params: ClientListParams
   ]);
 
   return { rows, rowCount: Number(countRows[0]?.count ?? 0) };
+}
+
+// A bulk selection is either an explicit set of ids (the rows the user ticked)
+// or "everything matching the current filter" — the latter never enumerates ids
+// on the client, so it stays correct across pages and large result sets.
+export type ClientSelection =
+  | { ids: string[] }
+  | { all: true; q?: string; status?: "active" | "inactive" };
+
+async function resolveClientIds(tenantId: string, sel: ClientSelection): Promise<string[]> {
+  if ("ids" in sel) {
+    if (!sel.ids.length) return [];
+    // Re-scope to the tenant so a caller can't act on ids from another firm.
+    const rows = await db
+      .select({ id: clients.id })
+      .from(clients)
+      .where(and(eq(clients.tenantId, tenantId), inArray(clients.id, sel.ids)));
+    return rows.map((r) => r.id);
+  }
+  const rows = await db.select({ id: clients.id }).from(clients).where(clientFilter(tenantId, sel));
+  return rows.map((r) => r.id);
+}
+
+/** Full client rows for a selection, name-sorted — backs CSV export. */
+export async function selectClients(tenantId: string, sel: ClientSelection) {
+  if ("ids" in sel) {
+    if (!sel.ids.length) return [];
+    return db
+      .select()
+      .from(clients)
+      .where(and(eq(clients.tenantId, tenantId), inArray(clients.id, sel.ids)))
+      .orderBy(asc(clients.name));
+  }
+  return db.select().from(clients).where(clientFilter(tenantId, sel)).orderBy(asc(clients.name));
+}
+
+/** Bulk-delete clients in a selection. Clients that still have matters are
+ *  blocked (would orphan work) and counted as `skipped`; the rest are deleted.
+ *  Returns the split so the UI can report it. */
+export async function deleteClients(
+  tenantId: string,
+  sel: ClientSelection
+): Promise<{ deleted: number; skipped: number }> {
+  const candidateIds = await resolveClientIds(tenantId, sel);
+  if (!candidateIds.length) return { deleted: 0, skipped: 0 };
+
+  const withMatters = await db
+    .selectDistinct({ clientId: matters.clientId })
+    .from(matters)
+    .where(inArray(matters.clientId, candidateIds));
+  const blocked = new Set(withMatters.map((r) => r.clientId));
+  const deletable = candidateIds.filter((id) => !blocked.has(id));
+
+  // Chunk to stay clear of the bind-parameter limit on large "select all" sets.
+  for (let i = 0; i < deletable.length; i += 500) {
+    const chunk = deletable.slice(i, i + 500);
+    await db.delete(clients).where(and(eq(clients.tenantId, tenantId), inArray(clients.id, chunk)));
+  }
+  return { deleted: deletable.length, skipped: blocked.size };
 }
 
 export async function getClient(id: string) {
@@ -121,7 +187,7 @@ export async function getClientOverview(userId: string, clientId: string) {
         createdAt: documents.createdAt,
       })
       .from(documents)
-      .where(inArray(documents.matterId, matterIds))
+      .where(and(inArray(documents.matterId, matterIds), isNull(documents.deletedAt)))
       .orderBy(desc(documents.createdAt)),
     db
       .select({
@@ -180,6 +246,26 @@ export async function createMatter(creatorId: string, input: MatterInput) {
       .values({ matterId: matter!.id, userId: creatorId, role: "owner" });
     return matter!;
   });
+}
+
+/** Update a matter's editable details (plain CRUD — matters aren't commit-spine
+ *  artifacts). Only provided fields change. */
+export async function updateMatter(
+  id: string,
+  fields: {
+    clientId?: string;
+    name?: string;
+    matterNumber?: string | null;
+    practiceArea?: string | null;
+    jurisdiction?: string | null;
+  }
+) {
+  const [row] = await db
+    .update(matters)
+    .set({ ...fields, updatedAt: new Date() })
+    .where(eq(matters.id, id))
+    .returning();
+  return row ?? null;
 }
 
 /** Matters the user is staffed on, newest first, with the client, the user's

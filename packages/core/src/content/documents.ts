@@ -7,6 +7,7 @@ import {
   documentVersions,
   documents,
   matters,
+  user,
   type Document,
 } from "@workspace/db/schema";
 import { type Actor, recordCommit } from "../core/commit.js";
@@ -18,7 +19,7 @@ import {
   extractDocxBodyText,
   resolveTrackedChange,
 } from "./docx/trackedChanges.js";
-import { buildStoragePath, getObject, putObject } from "../core/storage.js";
+import { buildStoragePath, deleteObject, getObject, putObject } from "../core/storage.js";
 
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -61,7 +62,7 @@ export function listDocuments(userId: string) {
   return db
     .select(documentListFields)
     .from(documents)
-    .where(eq(documents.userId, userId))
+    .where(and(eq(documents.userId, userId), isNull(documents.deletedAt)))
     .orderBy(desc(documents.createdAt));
 }
 
@@ -76,11 +77,7 @@ export function listMatterDocuments(matterId: string, folderId?: string | null) 
   return db
     .select(documentListFields)
     .from(documents)
-    .where(
-      folderCond
-        ? and(eq(documents.matterId, matterId), folderCond)
-        : eq(documents.matterId, matterId)
-    )
+    .where(and(eq(documents.matterId, matterId), folderCond, isNull(documents.deletedAt)))
     .orderBy(desc(documents.createdAt));
 }
 
@@ -94,6 +91,7 @@ export async function listDocumentsPage(userId: string, params: DocumentListPara
         : eq(documents.folderId, params.folderId);
   const where = and(
     params.matterId ? eq(documents.matterId, params.matterId) : eq(documents.userId, userId),
+    isNull(documents.deletedAt),
     folderCond,
     params.status === "processing"
       ? inArray(documents.status, ["pending", "processing"])
@@ -127,7 +125,10 @@ export async function listDocumentsPage(userId: string, params: DocumentListPara
 }
 
 export async function getDocument(id: string) {
-  const [row] = await db.select().from(documents).where(eq(documents.id, id));
+  const [row] = await db
+    .select()
+    .from(documents)
+    .where(and(eq(documents.id, id), isNull(documents.deletedAt)));
   return row ?? null;
 }
 
@@ -297,8 +298,182 @@ export async function activeStoragePath(doc: Document): Promise<string | null> {
 
 // Access is checked at the route/tool layer via the matter guard; these operate
 // by id.
-export function deleteDocument(id: string) {
-  return db.delete(documents).where(eq(documents.id, id));
+//
+// Soft-delete: hide the document from lists and record a `delete` commit. The
+// row, its versions, and S3 bytes stay until the retention window lapses, then
+// `purgeExpiredDocuments` hard-deletes them. Kicks an opportunistic purge.
+export async function deleteDocument(actor: Actor, id: string) {
+  const doc = await getDocument(id);
+  if (!doc) return;
+  await recordCommit({
+    artifactType: "document",
+    artifactId: id,
+    actor,
+    op: "delete",
+    message: `Deleted ${doc.title}`,
+    apply: async ({ tx }) => {
+      await tx
+        .update(documents)
+        .set({ deletedAt: new Date(), deletedBy: actor.userId })
+        .where(eq(documents.id, id));
+      return { changes: [{ path: "deletedAt", before: null, after: "now" }] };
+    },
+  });
+  void purgeExpiredDocuments().catch(() => {});
+}
+
+const RETENTION_DAYS = 30;
+
+/**
+ * Hard-delete documents whose soft-delete is older than the retention window:
+ * free their S3 bytes, then remove the row (cascades versions/edits/commits).
+ * Idempotent and safe to call repeatedly (startup + after each delete).
+ */
+export async function purgeExpiredDocuments(): Promise<number> {
+  const expired = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(
+      and(
+        sql`${documents.deletedAt} is not null`,
+        sql`${documents.deletedAt} < now() - interval '${sql.raw(String(RETENTION_DAYS))} days'`
+      )
+    );
+  for (const { id } of expired) {
+    const versions = await db
+      .select({ storagePath: documentVersions.storagePath })
+      .from(documentVersions)
+      .where(eq(documentVersions.documentId, id));
+    for (const v of versions) {
+      if (v.storagePath) await deleteObject(v.storagePath).catch(() => {});
+    }
+    await db.delete(documents).where(eq(documents.id, id));
+  }
+  return expired.length;
+}
+
+/** Rename a document, recording the change on the audit spine. */
+export async function renameDocument(actor: Actor, id: string, title: string) {
+  const doc = await getDocument(id);
+  if (!doc) throw new Error("Document not found");
+  await recordCommit({
+    artifactType: "document",
+    artifactId: id,
+    actor,
+    op: "rename",
+    message: `Renamed to "${title}"`,
+    skipIfNoChanges: true,
+    apply: async ({ tx }) => {
+      await tx.update(documents).set({ title }).where(eq(documents.id, id));
+      return {
+        changes: title === doc.title ? [] : [{ path: "title", before: doc.title, after: title }],
+      };
+    },
+  });
+  return getDocumentDetail(id);
+}
+
+/**
+ * Replace a document's file with a new uploaded version: store the bytes as the
+ * next version, repoint `currentVersionId`, and reset the row to `pending` so the
+ * caller can re-run extraction against the new content.
+ */
+export async function addDocumentVersion(
+  actor: Actor,
+  documentId: string,
+  input: { fileType: SupportedFileType; bytes: Buffer }
+): Promise<Document> {
+  const doc = await getDocument(documentId);
+  if (!doc) throw new Error("Document not found");
+  const latest = await latestVersion(documentId);
+  const versionNumber = (latest?.versionNumber ?? 0) + 1;
+  const storagePath = buildStoragePath({
+    tenantId: doc.tenantId,
+    userId: doc.userId,
+    matterId: doc.matterId,
+    artifactId: doc.id,
+    ext: input.fileType,
+    version: versionNumber,
+  });
+  await putObject(storagePath, input.bytes);
+  await recordCommit({
+    artifactType: "document",
+    artifactId: documentId,
+    actor,
+    op: "replace",
+    message: latest
+      ? `Replaced active file with version ${versionNumber} (superseded version ${latest.versionNumber})`
+      : `Uploaded version ${versionNumber}`,
+    apply: async ({ tx, commitId }) => {
+      const [nv] = await tx
+        .insert(documentVersions)
+        .values({
+          documentId,
+          versionNumber,
+          storagePath,
+          source: "replace",
+          fileType: input.fileType,
+          sizeBytes: input.bytes.length,
+          lastCommitId: commitId,
+        })
+        .returning();
+      await tx
+        .update(documents)
+        .set({
+          fileType: input.fileType,
+          sizeBytes: input.bytes.length,
+          currentVersionId: nv!.id,
+          status: "pending",
+          extractionError: null,
+          attempts: 0,
+          claimedAt: null,
+        })
+        .where(eq(documents.id, documentId));
+      return {
+        changes: [{ path: "version", before: latest?.versionNumber ?? null, after: versionNumber }],
+      };
+    },
+  });
+  const [row] = await db.select().from(documents).where(eq(documents.id, documentId));
+  return row!;
+}
+
+/**
+ * Soft-delete a past version: purge its stored bytes and tombstone the row so it
+ * stays in the history. The active version can't be deleted — replace it first.
+ */
+export async function deleteDocumentVersion(actor: Actor, documentId: string, versionId: string) {
+  const doc = await getDocument(documentId);
+  if (!doc) throw new Error("Document not found");
+  if (doc.currentVersionId === versionId) throw new Error("Cannot delete the active version");
+  const [v] = await db
+    .select()
+    .from(documentVersions)
+    .where(and(eq(documentVersions.id, versionId), eq(documentVersions.documentId, documentId)));
+  if (!v) throw new Error("Version not found");
+  if (v.deletedAt) throw new Error("Version already deleted");
+  if (v.storagePath) await deleteObject(v.storagePath);
+  await recordCommit({
+    artifactType: "document",
+    artifactId: documentId,
+    actor,
+    op: "delete_version",
+    message: `Deleted version ${v.versionNumber}`,
+    apply: async ({ tx, commitId }) => {
+      await tx
+        .update(documentVersions)
+        .set({
+          deletedAt: new Date(),
+          deletedBy: actor.userId,
+          storagePath: null,
+          lastCommitId: commitId,
+        })
+        .where(eq(documentVersions.id, versionId));
+      return {
+        changes: [{ path: `version/${v.versionNumber}`, before: "active", after: "deleted" }],
+      };
+    },
+  });
 }
 
 /**
@@ -357,7 +532,7 @@ export async function processDocument(doc: Document): Promise<void> {
   }
   try {
     const bytes = Buffer.from(await getObject(storagePath));
-    const markdown = await extractMarkdown(bytes, doc.fileType as SupportedFileType);
+    const { markdown, pageCount } = await extractMarkdown(bytes, doc.fileType as SupportedFileType);
 
     await recordCommit({
       artifactType: "document",
@@ -369,7 +544,7 @@ export async function processDocument(doc: Document): Promise<void> {
       apply: async ({ tx }) => {
         await tx
           .update(documents)
-          .set({ markdown, status: "ready", extractionError: null, claimedAt: null })
+          .set({ markdown, pageCount, status: "ready", extractionError: null, claimedAt: null })
           .where(eq(documents.id, doc.id));
         return { changes: [{ path: "markdown", before: null, after: markdown }] };
       },
@@ -681,8 +856,13 @@ export async function getDocumentDetail(documentId: string) {
     : [];
   const blameById = new Map(blameRows.map((b) => [b.id, b]));
 
+  const [owner] = await db
+    .select({ name: user.name, email: user.email })
+    .from(user)
+    .where(eq(user.id, doc.userId));
+
   return {
-    document: doc,
+    document: { ...doc, ownerName: owner?.name ?? null, ownerEmail: owner?.email ?? null },
     edits: edits.map((e) => ({
       ...e,
       blame: e.lastCommitId ? (blameById.get(e.lastCommitId) ?? null) : null,

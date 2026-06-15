@@ -1,16 +1,35 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { db } from "@workspace/db/client";
-import { commits, matters, workflows } from "@workspace/db/schema";
-import type { TabularColumn } from "@workspace/db/schema";
+import {
+  commits,
+  hiddenWorkflows,
+  matters,
+  user,
+  workflowShares,
+  workflows,
+} from "@workspace/db/schema";
+import type { TabularColumn, Workflow, WorkflowShare } from "@workspace/db/schema";
 import { type Actor, recordCommit } from "../core/commit.js";
+import { canAccessArtifact } from "../core/access.js";
 
 type WorkflowInput = {
   title: string;
   type: "assistant" | "tabular";
   promptMd: string;
   columnsConfig?: TabularColumn[];
+  practice?: string | null;
 };
+
+// Access flags layered onto a workflow row for the current viewer. Mirrors the
+// shape the UI reads (is_owner / allow_edit / shared_by_name) but camelCased.
+export type WorkflowAccess = {
+  isOwner: boolean;
+  allowEdit: boolean;
+  sharedByName: string | null;
+};
+
+export type EnrichedWorkflow = Workflow & WorkflowAccess & { hidden: boolean };
 
 export async function createWorkflow(actor: Actor, input: WorkflowInput & { matterId: string }) {
   const workflowId = randomUUID();
@@ -31,6 +50,7 @@ export async function createWorkflow(actor: Actor, input: WorkflowInput & { matt
         "field/type": commitId,
         "field/prompt_md": commitId,
         "field/columns_config": commitId,
+        "field/practice": commitId,
       };
       await tx.insert(workflows).values({
         id: workflowId,
@@ -42,6 +62,7 @@ export async function createWorkflow(actor: Actor, input: WorkflowInput & { matt
         type: input.type,
         promptMd: input.promptMd,
         columnsConfig: input.columnsConfig ?? null,
+        practice: input.practice ?? null,
         fieldCommits,
       });
       return {
@@ -50,6 +71,7 @@ export async function createWorkflow(actor: Actor, input: WorkflowInput & { matt
           { path: "field/type", before: null, after: input.type },
           { path: "field/prompt_md", before: null, after: input.promptMd },
           { path: "field/columns_config", before: null, after: input.columnsConfig ?? null },
+          { path: "field/practice", before: null, after: input.practice ?? null },
         ],
       };
     },
@@ -84,6 +106,13 @@ export async function updateWorkflow(
       before: wf.columnsConfig,
       after: patch.columnsConfig,
     });
+  if (patch.practice !== undefined && patch.practice !== wf.practice)
+    fields.push({
+      key: "field/practice",
+      col: "practice",
+      before: wf.practice,
+      after: patch.practice,
+    });
 
   if (!fields.length) return { commit: null, changes: [] };
 
@@ -107,12 +136,95 @@ export async function updateWorkflow(
   });
 }
 
-export async function listWorkflows(userId: string) {
-  // System workflows + the user's own.
-  return db
+// Built-ins + the user's own + workflows shared to their email, each tagged with
+// per-viewer access flags and a `hidden` marker. The UI loads this whole set
+// once and slices it into tabs / filters client-side (counts are small).
+export async function listWorkflows(userId: string, email?: string): Promise<EnrichedWorkflow[]> {
+  const e = email?.trim().toLowerCase() || null;
+  const [hiddenRows, shareRows] = await Promise.all([
+    db
+      .select({ id: hiddenWorkflows.workflowId })
+      .from(hiddenWorkflows)
+      .where(eq(hiddenWorkflows.userId, userId)),
+    e
+      ? db.select().from(workflowShares).where(eq(workflowShares.sharedWithEmail, e))
+      : Promise.resolve([] as WorkflowShare[]),
+  ]);
+  const hiddenSet = new Set(hiddenRows.map((h) => h.id));
+  const shareByWorkflow = new Map(shareRows.map((s) => [s.workflowId, s]));
+  const sharedIds = shareRows.map((s) => s.workflowId);
+
+  const rows = await db
     .select()
     .from(workflows)
-    .where(or(eq(workflows.isSystem, true), eq(workflows.userId, userId)));
+    .where(
+      or(
+        eq(workflows.isSystem, true),
+        eq(workflows.userId, userId),
+        sharedIds.length ? inArray(workflows.id, sharedIds) : undefined
+      )
+    );
+
+  const ownerIds = [
+    ...new Set(
+      rows
+        .filter((r) => !r.isSystem && r.userId && r.userId !== userId)
+        .map((r) => r.userId as string)
+    ),
+  ];
+  const owners = ownerIds.length
+    ? await db
+        .select({ id: user.id, name: user.name, email: user.email })
+        .from(user)
+        .where(inArray(user.id, ownerIds))
+    : [];
+  const ownerName = new Map(owners.map((o) => [o.id, o.name || o.email]));
+
+  return rows.map((r) => {
+    const isOwner = !r.isSystem && r.userId === userId;
+    const share = shareByWorkflow.get(r.id);
+    const allowEdit = r.isSystem ? false : isOwner ? true : (share?.allowEdit ?? false);
+    const sharedByName =
+      !r.isSystem && !isOwner ? (ownerName.get(r.userId ?? "") ?? "Shared") : null;
+    return { ...r, isOwner, allowEdit, sharedByName, hidden: hiddenSet.has(r.id) };
+  });
+}
+
+// Resolve a viewer's access to one workflow. Covers ownership, per-email shares,
+// and matter membership (system templates are read-only-public).
+async function resolveWorkflowAccess(
+  wf: Workflow,
+  userId: string,
+  email?: string
+): Promise<WorkflowAccess & { canView: boolean; canEdit: boolean }> {
+  if (wf.isSystem)
+    return { isOwner: false, allowEdit: false, sharedByName: null, canView: true, canEdit: false };
+  if (wf.userId === userId)
+    return { isOwner: true, allowEdit: true, sharedByName: null, canView: true, canEdit: true };
+
+  const e = email?.trim().toLowerCase() || null;
+  const [matterEdit, share] = await Promise.all([
+    canAccessArtifact(userId, "workflow", wf.id, "editor"),
+    e
+      ? db
+          .select()
+          .from(workflowShares)
+          .where(and(eq(workflowShares.workflowId, wf.id), eq(workflowShares.sharedWithEmail, e)))
+          .then((r) => r[0] ?? null)
+      : Promise.resolve(null),
+  ]);
+  const matterView = matterEdit || (await canAccessArtifact(userId, "workflow", wf.id, "viewer"));
+  const canView = matterView || !!share;
+  const canEdit = matterEdit || (share?.allowEdit ?? false);
+  let sharedByName: string | null = null;
+  if (canView && wf.userId) {
+    const [owner] = await db
+      .select({ name: user.name, email: user.email })
+      .from(user)
+      .where(eq(user.id, wf.userId));
+    sharedByName = owner?.name || owner?.email || "Shared";
+  }
+  return { isOwner: false, allowEdit: canEdit, sharedByName, canView, canEdit };
 }
 
 export type WorkflowListSource = "builtin" | "custom";
@@ -156,9 +268,7 @@ export async function listWorkflowsPage(userId: string, params: WorkflowListPara
   return { rows, rowCount: Number(countRows[0]?.count ?? 0) };
 }
 
-export async function getWorkflow(workflowId: string) {
-  const [wf] = await db.select().from(workflows).where(eq(workflows.id, workflowId));
-  if (!wf) return null;
+async function blameFor(wf: Workflow): Promise<Record<string, unknown>> {
   const commitIds = [...new Set(Object.values(wf.fieldCommits ?? {}))];
   const blameRows = commitIds.length
     ? await db.select().from(commits).where(inArray(commits.id, commitIds))
@@ -168,7 +278,108 @@ export async function getWorkflow(workflowId: string) {
   for (const [field, cid] of Object.entries(wf.fieldCommits ?? {})) {
     blame[field] = blameById.get(cid) ?? null;
   }
-  return { workflow: wf, blame };
+  return blame;
+}
+
+export async function getWorkflow(workflowId: string) {
+  const [wf] = await db.select().from(workflows).where(eq(workflows.id, workflowId));
+  if (!wf) return null;
+  return { workflow: wf, blame: await blameFor(wf) };
+}
+
+// Like getWorkflow, but resolves the viewer's access and attaches access flags
+// to the workflow. Returns null when the workflow doesn't exist; callers gate on
+// `access.canView` / `access.canEdit`.
+export async function getWorkflowForViewer(workflowId: string, userId: string, email?: string) {
+  const [wf] = await db.select().from(workflows).where(eq(workflows.id, workflowId));
+  if (!wf) return null;
+  const access = await resolveWorkflowAccess(wf, userId, email);
+  return {
+    workflow: {
+      ...wf,
+      isOwner: access.isOwner,
+      allowEdit: access.allowEdit,
+      sharedByName: access.sharedByName,
+    },
+    blame: await blameFor(wf),
+    access,
+  };
+}
+
+// Hard-delete a workflow (owner only). Cascades remove shares, hidden markers,
+// and field changes; commits remain as orphaned history. Done outside
+// recordCommit because that path stamps a head pointer on the (now gone) row.
+export async function deleteWorkflow(actor: Actor, workflowId: string) {
+  const [wf] = await db.select().from(workflows).where(eq(workflows.id, workflowId));
+  if (!wf) throw new Error("Workflow not found");
+  if (wf.isSystem || wf.userId !== actor.userId) throw new Error("Forbidden");
+  await db.delete(workflows).where(eq(workflows.id, workflowId));
+}
+
+// ---------------------------------------------------------------------------
+// Sharing
+// ---------------------------------------------------------------------------
+export async function listWorkflowShares(workflowId: string) {
+  return db
+    .select()
+    .from(workflowShares)
+    .where(eq(workflowShares.workflowId, workflowId))
+    .orderBy(asc(workflowShares.createdAt));
+}
+
+export async function shareWorkflow(
+  actor: Actor,
+  workflowId: string,
+  input: { emails: string[]; allowEdit: boolean }
+) {
+  const emails = [
+    ...new Set(input.emails.map((e) => e.trim().toLowerCase()).filter((e) => e.length > 0)),
+  ];
+  for (const email of emails) {
+    await db
+      .insert(workflowShares)
+      .values({
+        workflowId,
+        sharedWithEmail: email,
+        allowEdit: input.allowEdit,
+        createdBy: actor.userId,
+      })
+      .onConflictDoUpdate({
+        target: [workflowShares.workflowId, workflowShares.sharedWithEmail],
+        set: { allowEdit: input.allowEdit },
+      });
+  }
+  return listWorkflowShares(workflowId);
+}
+
+export async function deleteWorkflowShare(workflowId: string, shareId: string) {
+  await db
+    .delete(workflowShares)
+    .where(and(eq(workflowShares.id, shareId), eq(workflowShares.workflowId, workflowId)));
+}
+
+// ---------------------------------------------------------------------------
+// Hidden built-ins (per user)
+// ---------------------------------------------------------------------------
+export async function listHiddenWorkflows(userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: hiddenWorkflows.workflowId })
+    .from(hiddenWorkflows)
+    .where(eq(hiddenWorkflows.userId, userId));
+  return rows.map((r) => r.id);
+}
+
+export async function hideWorkflow(userId: string, workflowId: string) {
+  await db
+    .insert(hiddenWorkflows)
+    .values({ userId, workflowId })
+    .onConflictDoNothing({ target: [hiddenWorkflows.userId, hiddenWorkflows.workflowId] });
+}
+
+export async function unhideWorkflow(userId: string, workflowId: string) {
+  await db
+    .delete(hiddenWorkflows)
+    .where(and(eq(hiddenWorkflows.userId, userId), eq(hiddenWorkflows.workflowId, workflowId)));
 }
 
 const BUILTINS: WorkflowInput[] = [
