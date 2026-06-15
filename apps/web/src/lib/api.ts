@@ -78,6 +78,7 @@ export type Matter = {
   name: string;
   matterNumber: string | null;
   practiceArea: string | null;
+  jurisdiction: string | null;
   status: "active" | "closed";
   adverseParties: string[] | null;
   conflictCleared: boolean;
@@ -168,6 +169,21 @@ export type ListPageParams = {
   dir?: "asc" | "desc";
 };
 
+// A bulk client selection: explicit ids, or "all matching the current filter".
+export type ClientSelection = { ids: string[] } | { all: true; q?: string; status?: string };
+
+function selectionQuery(sel: ClientSelection): string {
+  const search = new URLSearchParams();
+  if ("all" in sel) {
+    search.set("all", "1");
+    if (sel.q?.trim()) search.set("q", sel.q.trim());
+    if (sel.status && sel.status !== "all") search.set("status", sel.status);
+  } else {
+    search.set("ids", sel.ids.join(","));
+  }
+  return search.toString();
+}
+
 export type DocVersion = {
   id: string;
   documentId: string;
@@ -245,6 +261,12 @@ export const api = {
   listClientsPage: (params: ListPageParams) =>
     req<PageResult<Client>>(`/api/clients?${listQuery(params)}`),
   getClient: (id: string) => req<ClientOverview>(`/api/clients/${id}`),
+  bulkDeleteClients: (sel: ClientSelection) =>
+    req<{ deleted: number; skipped: number }>("/api/clients/bulk-delete", {
+      method: "POST",
+      body: JSON.stringify(sel),
+    }),
+  clientsExportUrl: (sel: ClientSelection) => `/api/clients/export?${selectionQuery(sel)}`,
   createClient: (d: {
     name: string;
     type?: "organization" | "individual";
@@ -260,6 +282,16 @@ export const api = {
     adverseParties?: string[];
   }) => req<Matter>("/api/matters", { method: "POST", body: JSON.stringify(d) }),
   closeMatter: (id: string) => req<null>(`/api/matters/${id}/close`, { method: "POST" }),
+  updateMatter: (
+    id: string,
+    fields: {
+      clientId?: string;
+      name?: string;
+      matterNumber?: string | null;
+      practiceArea?: string | null;
+      jurisdiction?: string | null;
+    }
+  ) => req<Matter>(`/api/matters/${id}`, { method: "PATCH", body: JSON.stringify(fields) }),
   clearConflicts: (id: string, notes?: string) =>
     req<null>(`/api/matters/${id}/clear-conflicts`, {
       method: "POST",
@@ -319,6 +351,15 @@ export const api = {
     return req<Doc[]>(`/api/documents?matterId=${matterId}${f}`);
   },
   listDocVersions: (id: string) => req<DocVersion[]>(`/api/documents/${id}/versions`),
+  uploadDocumentVersion: (id: string, file: File) => {
+    const f = new FormData();
+    f.append("file", file);
+    return upload<Doc>(`/api/documents/${id}/versions`, f);
+  },
+  deleteDocVersion: (id: string, versionId: string) =>
+    req<null>(`/api/documents/${id}/versions/${versionId}`, { method: "DELETE" }),
+  versionDownloadUrl: (id: string, versionId: string) =>
+    `/api/documents/${id}/versions/${versionId}/download`,
   createDocument: (d: {
     title: string;
     markdown: string;
@@ -382,6 +423,11 @@ export const api = {
 
   // Document redline (tracked changes)
   getDocumentDetail: (id: string) => req<DocumentDetail>(`/api/documents/${id}`),
+  renameDocument: (id: string, title: string) =>
+    req<DocumentDetail>(`/api/documents/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
   proposeEdit: (id: string, d: { find: string; replace: string; reason?: string }) =>
     req<DocumentDetail>(`/api/documents/${id}/edits`, { method: "POST", body: JSON.stringify(d) }),
   resolveEdit: (id: string, changeId: string, decision: "accept" | "reject") =>
@@ -392,8 +438,7 @@ export const api = {
   documentHistory: (id: string) => req<Blame[]>(`/api/documents/${id}/history`),
 
   // Workflows
-  listWorkflows: () =>
-    req<Array<{ id: string; title: string; type: string; isSystem: boolean }>>("/api/workflows"),
+  listWorkflows: () => req<WorkflowListItem[]>("/api/workflows"),
   listWorkflowsPage: (params: ListPageParams & { source?: string }) => {
     const search = listQuery(params);
     const source = params.source && params.source !== "all" ? `&source=${params.source}` : "";
@@ -404,12 +449,48 @@ export const api = {
   createWorkflow: (d: {
     title: string;
     type: "assistant" | "tabular";
-    promptMd: string;
+    promptMd?: string;
+    columnsConfig?: Column[];
+    practice?: string | null;
     matterId?: string;
-  }) => req<{ id: string }>("/api/workflows", { method: "POST", body: JSON.stringify(d) }),
+  }) => req<WorkflowDetail>("/api/workflows", { method: "POST", body: JSON.stringify(d) }),
   getWorkflow: (id: string) => req<WorkflowDetail>(`/api/workflows/${id}`),
-  updateWorkflow: (id: string, patch: { title?: string; promptMd?: string }) =>
+  updateWorkflow: (
+    id: string,
+    patch: {
+      title?: string;
+      promptMd?: string;
+      columnsConfig?: Column[];
+      practice?: string | null;
+    }
+  ) =>
     req<WorkflowDetail>(`/api/workflows/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteWorkflow: (id: string) => req<null>(`/api/workflows/${id}`, { method: "DELETE" }),
+  workflowHistory: (id: string) => req<Blame[]>(`/api/workflows/${id}/history`),
+  // Hidden built-ins (per user)
+  listHiddenWorkflows: () => req<string[]>("/api/workflows/hidden"),
+  hideWorkflow: (workflowId: string) =>
+    req<null>("/api/workflows/hidden", {
+      method: "POST",
+      body: JSON.stringify({ workflowId }),
+    }),
+  unhideWorkflow: (workflowId: string) =>
+    req<null>(`/api/workflows/hidden/${workflowId}`, { method: "DELETE" }),
+  // Sharing
+  listWorkflowShares: (id: string) => req<WorkflowShare[]>(`/api/workflows/${id}/shares`),
+  shareWorkflow: (id: string, d: { emails: string[]; allowEdit: boolean }) =>
+    req<WorkflowShare[]>(`/api/workflows/${id}/share`, {
+      method: "POST",
+      body: JSON.stringify(d),
+    }),
+  deleteWorkflowShare: (id: string, shareId: string) =>
+    req<null>(`/api/workflows/${id}/shares/${shareId}`, { method: "DELETE" }),
+  // Draft a column extraction prompt from its title/format/tags.
+  generateColumnPrompt: (d: { title: string; format?: string; tags?: string[] }) =>
+    req<{ prompt: string }>("/api/tabular/prompt", {
+      method: "POST",
+      body: JSON.stringify(d),
+    }),
 
   // Chat (consumes the shared gitcounsel tool catalog + external MCP tools)
   sendChat: (
@@ -561,8 +642,46 @@ export type DocumentDetail = {
     status: DocStatus;
     headCommitId: string | null;
     currentVersionId: string | null;
+    sizeBytes: number | null;
+    pageCount: number | null;
+    createdAt: string;
+    ownerName: string | null;
+    ownerEmail: string | null;
   };
   edits: DocEdit[];
+};
+
+// A row in the workflows library list (built-ins + own + shared), tagged with
+// the viewer's access flags so the UI can render Source/owner and gate actions.
+export type WorkflowListItem = {
+  id: string;
+  title: string;
+  type: "assistant" | "tabular";
+  promptMd: string;
+  columnsConfig: Column[] | null;
+  practice: string | null;
+  isSystem: boolean;
+  isOwner: boolean;
+  allowEdit: boolean;
+  sharedByName: string | null;
+  hidden: boolean;
+  userId: string | null;
+  createdAt: string;
+};
+
+export type WorkflowShare = {
+  id: string;
+  sharedWithEmail: string;
+  allowEdit: boolean;
+  createdAt: string;
+};
+
+export type WorkflowAccess = {
+  isOwner: boolean;
+  allowEdit: boolean;
+  sharedByName: string | null;
+  canView: boolean;
+  canEdit: boolean;
 };
 
 export type WorkflowDetail = {
@@ -571,7 +690,14 @@ export type WorkflowDetail = {
     title: string;
     type: "assistant" | "tabular";
     promptMd: string;
+    columnsConfig: Column[] | null;
+    practice: string | null;
     isSystem: boolean;
+    isOwner: boolean;
+    allowEdit: boolean;
+    sharedByName: string | null;
+    matterId: string | null;
   };
   blame: Record<string, Blame | null>;
+  access: WorkflowAccess;
 };
