@@ -15,7 +15,7 @@ export default defineConfig({
     options: { typeAware: true, typeCheck: true },
     // Vendored shadcn/ai-elements registry components — owned but not authored
     // here. Exclude from app-strict lint instead of editing 40+ upstream files.
-    ignorePatterns: ["**/components/ai-elements/**"],
+    ignorePatterns: ["**/components/ai-elements/**", "scripts/"],
   },
   fmt: {
     endOfLine: "lf",
@@ -40,6 +40,8 @@ export default defineConfig({
       "coverage/",
       "pnpm-lock.yaml",
       ".pnpm-store/",
+      "**/routeTree.gen.ts",
+      "scripts/",
     ],
   },
 });
