@@ -3,6 +3,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Suspense, lazy } from "react";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ErrorState } from "../components/ErrorState";
 import { MattersProvider } from "../lib/matters-context";
 import { queryClient } from "../lib/query";
 import { getServerSession } from "../lib/session";
@@ -34,10 +35,23 @@ export const Route = createRootRoute({
     links: [{ rel: "stylesheet", href: appCss }],
   }),
   notFoundComponent: () => (
-    <main className="container mx-auto p-4 pt-16">
-      <h1 className="text-lg font-medium">404</h1>
-      <p className="text-muted-foreground">The requested page could not be found.</p>
-    </main>
+    <ErrorState
+      code="404"
+      title="Page not found"
+      message="The page you're looking for doesn't exist or may have moved."
+    />
+  ),
+  errorComponent: ({ error, reset }) => (
+    <ErrorState
+      code="Error"
+      title="Something went wrong"
+      message={
+        import.meta.env.DEV && error?.message
+          ? error.message
+          : "An unexpected error occurred. Try again, or head back home."
+      }
+      onRetry={reset}
+    />
   ),
   shellComponent: RootDocument,
 });

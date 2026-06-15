@@ -148,3 +148,33 @@
     @apply font-serif font-normal tracking-tight;
   }
 }
+
+/* Tiptap workflow prompt editor */
+.workflow-editor-content {
+  @apply min-h-full px-5 py-4 text-sm leading-relaxed text-foreground outline-none;
+}
+.workflow-editor-content :where(h1) {
+  @apply mt-4 mb-1 font-sans text-base font-semibold first:mt-0;
+}
+.workflow-editor-content :where(h2) {
+  @apply mt-3 mb-1 font-sans text-sm font-semibold first:mt-0;
+}
+.workflow-editor-content :where(h3) {
+  @apply mt-2 mb-0.5 font-sans text-xs font-semibold first:mt-0;
+}
+.workflow-editor-content :where(p) {
+  @apply mb-2 last:mb-0;
+}
+.workflow-editor-content :where(ul) {
+  @apply mb-2 list-disc space-y-0.5 ps-5;
+}
+.workflow-editor-content :where(ol) {
+  @apply mb-2 list-decimal space-y-0.5 ps-5;
+}
+.workflow-editor-content :where(strong) {
+  @apply font-semibold;
+}
+.workflow-editor-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  @apply pointer-events-none float-left h-0 text-muted-foreground;
+}
