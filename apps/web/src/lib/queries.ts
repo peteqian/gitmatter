@@ -16,16 +16,17 @@ export const queryKeys = {
   workflows: ["workflows"] as const,
   workflowsPage: (params: unknown) => ["workflows", "page", params] as const,
   chats: ["chats"] as const,
+  matterChats: (matterId: string) => ["chats", "matter", matterId] as const,
   chat: (id: string) => ["chat", id] as const,
   client: (id: string) => ["client", id] as const,
 };
 
 // Conversation list for the sidebar. Client-side (react-query) like the other
 // lists — a route loader would fetch with a relative URL that fails under SSR.
-export function useChats() {
+export function useChats(matterId?: string) {
   return useQuery({
-    queryKey: queryKeys.chats,
-    queryFn: () => api.listChats(),
+    queryKey: matterId ? queryKeys.matterChats(matterId) : queryKeys.chats,
+    queryFn: () => api.listChats(matterId),
   });
 }
 

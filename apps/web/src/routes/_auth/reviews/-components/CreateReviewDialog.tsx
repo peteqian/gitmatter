@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { api, type Column, type Doc } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
 import { useMatters } from "@/lib/matters-context";
+import { formatShortDate } from "@/lib/format";
 
 const COLUMN_FORMATS = [
   { value: "", label: "Free text" },
@@ -31,9 +32,6 @@ const COLUMN_FORMATS = [
 ] as const;
 
 const NO_TEMPLATE = "none";
-
-const fmtDate = (s: string) =>
-  new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
 export function CreateReviewDialog({
   open,
@@ -204,7 +202,6 @@ export function CreateReviewDialog({
                   {matters.map((m) => (
                     <SelectItem key={m.matter.id} value={m.matter.id}>
                       {m.matter.name}
-                      {m.matter.matterNumber ? ` (#${m.matter.matterNumber})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -253,7 +250,6 @@ export function CreateReviewDialog({
                         key={m.matter.id}
                         matterId={m.matter.id}
                         name={m.matter.name}
-                        matterNumber={m.matter.matterNumber}
                         selected={selected}
                         onToggle={toggleDoc}
                       />
@@ -371,7 +367,7 @@ function DocRow({
       <Checkbox checked={checked} onChange={onToggle} aria-label={`Select ${doc.title}`} />
       <FileText className="size-4 shrink-0 text-bronze" />
       <span className="min-w-0 flex-1 truncate">{doc.title}</span>
-      <span className="shrink-0 text-xs text-muted-foreground">{fmtDate(doc.createdAt)}</span>
+      <span className="shrink-0 text-xs text-muted-foreground">{formatShortDate(doc.createdAt)}</span>
     </label>
   );
 }
@@ -380,13 +376,11 @@ function DocRow({
 function MatterFolder({
   matterId,
   name,
-  matterNumber,
   selected,
   onToggle,
 }: {
   matterId: string;
   name: string;
-  matterNumber: string | null;
   selected: Set<string>;
   onToggle: (id: string) => void;
 }) {
@@ -408,10 +402,7 @@ function MatterFolder({
           className={`size-3.5 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
         />
         <Folder className="size-4 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate text-start">
-          {name}
-          {matterNumber && <span className="ml-1 text-muted-foreground">(#{matterNumber})</span>}
-        </span>
+        <span className="min-w-0 flex-1 truncate text-start">{name}</span>
       </button>
       {open &&
         (isLoading ? (

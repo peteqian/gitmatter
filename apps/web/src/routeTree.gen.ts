@@ -31,6 +31,8 @@ import { Route as AuthDocumentsIdRouteImport } from './routes/_auth/documents_.$
 import { Route as AuthAssistantIdRouteImport } from './routes/_auth/assistant_.$id'
 import { Route as AuthWorkflowsTabularReviewIdRouteImport } from './routes/_auth/workflows.tabular-review.$id'
 import { Route as AuthWorkflowsAssistantIdRouteImport } from './routes/_auth/workflows.assistant.$id'
+import { Route as AuthMattersIdAssistantRouteImport } from './routes/_auth/matters_.$id_.assistant'
+import { Route as AuthMattersIdAssistantChatIdRouteImport } from './routes/_auth/matters_.$id_.assistant_.$chatId'
 
 const UnauthRouteRoute = UnauthRouteRouteImport.update({
   id: '/_unauth',
@@ -141,6 +143,17 @@ const AuthWorkflowsAssistantIdRoute =
     path: '/assistant/$id',
     getParentRoute: () => AuthWorkflowsRoute,
   } as any)
+const AuthMattersIdAssistantRoute = AuthMattersIdAssistantRouteImport.update({
+  id: '/matters_/$id_/assistant',
+  path: '/matters/$id/assistant',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthMattersIdAssistantChatIdRoute =
+  AuthMattersIdAssistantChatIdRouteImport.update({
+    id: '/matters_/$id_/assistant_/$chatId',
+    path: '/matters/$id/assistant/$chatId',
+    getParentRoute: () => AuthRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof marketingIndexRoute
@@ -160,8 +173,10 @@ export interface FileRoutesByFullPath {
   '/documents/$id': typeof AuthDocumentsIdRoute
   '/matters/$id': typeof AuthMattersIdRoute
   '/reviews/$id': typeof AuthReviewsIdRoute
+  '/matters/$id/assistant': typeof AuthMattersIdAssistantRoute
   '/workflows/assistant/$id': typeof AuthWorkflowsAssistantIdRoute
   '/workflows/tabular-review/$id': typeof AuthWorkflowsTabularReviewIdRoute
+  '/matters/$id/assistant/$chatId': typeof AuthMattersIdAssistantChatIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof marketingIndexRoute
@@ -181,8 +196,10 @@ export interface FileRoutesByTo {
   '/documents/$id': typeof AuthDocumentsIdRoute
   '/matters/$id': typeof AuthMattersIdRoute
   '/reviews/$id': typeof AuthReviewsIdRoute
+  '/matters/$id/assistant': typeof AuthMattersIdAssistantRoute
   '/workflows/assistant/$id': typeof AuthWorkflowsAssistantIdRoute
   '/workflows/tabular-review/$id': typeof AuthWorkflowsTabularReviewIdRoute
+  '/matters/$id/assistant/$chatId': typeof AuthMattersIdAssistantChatIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -206,8 +223,10 @@ export interface FileRoutesById {
   '/_auth/documents_/$id': typeof AuthDocumentsIdRoute
   '/_auth/matters_/$id': typeof AuthMattersIdRoute
   '/_auth/reviews/$id': typeof AuthReviewsIdRoute
+  '/_auth/matters_/$id_/assistant': typeof AuthMattersIdAssistantRoute
   '/_auth/workflows/assistant/$id': typeof AuthWorkflowsAssistantIdRoute
   '/_auth/workflows/tabular-review/$id': typeof AuthWorkflowsTabularReviewIdRoute
+  '/_auth/matters_/$id_/assistant_/$chatId': typeof AuthMattersIdAssistantChatIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -229,8 +248,10 @@ export interface FileRouteTypes {
     | '/documents/$id'
     | '/matters/$id'
     | '/reviews/$id'
+    | '/matters/$id/assistant'
     | '/workflows/assistant/$id'
     | '/workflows/tabular-review/$id'
+    | '/matters/$id/assistant/$chatId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -250,8 +271,10 @@ export interface FileRouteTypes {
     | '/documents/$id'
     | '/matters/$id'
     | '/reviews/$id'
+    | '/matters/$id/assistant'
     | '/workflows/assistant/$id'
     | '/workflows/tabular-review/$id'
+    | '/matters/$id/assistant/$chatId'
   id:
     | '__root__'
     | '/(marketing)'
@@ -274,8 +297,10 @@ export interface FileRouteTypes {
     | '/_auth/documents_/$id'
     | '/_auth/matters_/$id'
     | '/_auth/reviews/$id'
+    | '/_auth/matters_/$id_/assistant'
     | '/_auth/workflows/assistant/$id'
     | '/_auth/workflows/tabular-review/$id'
+    | '/_auth/matters_/$id_/assistant_/$chatId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -442,6 +467,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthWorkflowsAssistantIdRouteImport
       parentRoute: typeof AuthWorkflowsRoute
     }
+    '/_auth/matters_/$id_/assistant': {
+      id: '/_auth/matters_/$id_/assistant'
+      path: '/matters/$id/assistant'
+      fullPath: '/matters/$id/assistant'
+      preLoaderRoute: typeof AuthMattersIdAssistantRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/matters_/$id_/assistant_/$chatId': {
+      id: '/_auth/matters_/$id_/assistant_/$chatId'
+      path: '/matters/$id/assistant/$chatId'
+      fullPath: '/matters/$id/assistant/$chatId'
+      preLoaderRoute: typeof AuthMattersIdAssistantChatIdRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
   }
 }
 
@@ -496,6 +535,8 @@ interface AuthRouteRouteChildren {
   AuthAssistantIdRoute: typeof AuthAssistantIdRoute
   AuthDocumentsIdRoute: typeof AuthDocumentsIdRoute
   AuthMattersIdRoute: typeof AuthMattersIdRoute
+  AuthMattersIdAssistantRoute: typeof AuthMattersIdAssistantRoute
+  AuthMattersIdAssistantChatIdRoute: typeof AuthMattersIdAssistantChatIdRoute
 }
 
 const AuthRouteRouteChildren: AuthRouteRouteChildren = {
@@ -509,6 +550,8 @@ const AuthRouteRouteChildren: AuthRouteRouteChildren = {
   AuthAssistantIdRoute: AuthAssistantIdRoute,
   AuthDocumentsIdRoute: AuthDocumentsIdRoute,
   AuthMattersIdRoute: AuthMattersIdRoute,
+  AuthMattersIdAssistantRoute: AuthMattersIdAssistantRoute,
+  AuthMattersIdAssistantChatIdRoute: AuthMattersIdAssistantChatIdRoute,
 }
 
 const AuthRouteRouteWithChildren = AuthRouteRoute._addFileChildren(

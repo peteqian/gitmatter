@@ -9,7 +9,6 @@ export const createClientSchema = z.object({
 export const createMatterSchema = z.object({
   clientId: z.string().uuid(),
   name: z.string().min(1),
-  matterNumber: z.string().optional(),
   practiceArea: z.string().optional(),
   adverseParties: z.array(z.string()).optional(),
 });
@@ -17,7 +16,6 @@ export const createMatterSchema = z.object({
 export const updateMatterSchema = z.object({
   clientId: z.string().uuid().optional(),
   name: z.string().min(1).optional(),
-  matterNumber: z.string().nullish(),
   practiceArea: z.string().nullish(),
   jurisdiction: z.string().nullish(),
 });

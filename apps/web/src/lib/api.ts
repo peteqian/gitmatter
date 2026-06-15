@@ -76,7 +76,6 @@ export type Matter = {
   id: string;
   clientId: string;
   name: string;
-  matterNumber: string | null;
   practiceArea: string | null;
   jurisdiction: string | null;
   status: "active" | "closed";
@@ -277,7 +276,6 @@ export const api = {
   createMatter: (d: {
     clientId: string;
     name: string;
-    matterNumber?: string;
     practiceArea?: string;
     adverseParties?: string[];
   }) => req<Matter>("/api/matters", { method: "POST", body: JSON.stringify(d) }),
@@ -287,7 +285,6 @@ export const api = {
     fields: {
       clientId?: string;
       name?: string;
-      matterNumber?: string | null;
       practiceArea?: string | null;
       jurisdiction?: string | null;
     }
@@ -520,8 +517,10 @@ export const api = {
     handlers: ChatStreamHandlers,
     signal?: AbortSignal
   ) => streamChat(message, opts, handlers, signal),
-  // Conversation history.
-  listChats: () => req<ChatSummary[]>("/api/chats"),
+  // Conversation history. `matterId` scopes to a matter's chats; omitted lists
+  // the global (unscoped) assistant chats.
+  listChats: (matterId?: string) =>
+    req<ChatSummary[]>(`/api/chats${matterId ? `?matterId=${matterId}` : ""}`),
   getChat: (id: string) => req<ChatDetail>(`/api/chats/${id}`),
   documentDownloadUrl: (id: string) => `/api/documents/${id}/download`,
 };
@@ -531,6 +530,8 @@ export type ChatSendOpts = {
   attachments?: ChatAttachment[];
   reasoning?: ReasoningEffort;
   chatId?: string;
+  // Scope a new chat to a matter (matter workspace). Ignored when chatId is set.
+  matterId?: string;
 };
 
 export type ChatResult = {

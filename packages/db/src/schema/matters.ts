@@ -20,7 +20,6 @@ export const matters = pgTable(
       .notNull()
       .references(() => clients.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    matterNumber: text("matter_number").unique(),
     practiceArea: text("practice_area"),
     // Governing-law jurisdiction for the matter (registry code, e.g. "US-NY").
     jurisdiction: text("jurisdiction"),

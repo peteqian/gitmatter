@@ -23,6 +23,7 @@ import { api, type MatterListItem } from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
 import { useColumnSizing } from "../../lib/useColumnSizing";
 import { useMatters } from "../../lib/matters-context";
+import { formatShortDate } from "../../lib/format";
 
 export const Route = createFileRoute("/_auth/matters")({
   component: Matters,
@@ -33,14 +34,6 @@ export const Route = createFileRoute("/_auth/matters")({
 });
 
 type Scope = "all" | "mine" | "shared";
-
-function fmtDate(s: string): string {
-  return new Date(s).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 const columnHelper = createColumnHelper<MatterListItem>();
 const columns = [
@@ -105,13 +98,13 @@ const columns = [
     id: "updatedAt",
     header: "Recent activity",
     size: 140,
-    cell: (c) => <span className="text-muted-foreground">{fmtDate(c.getValue())}</span>,
+    cell: (c) => <span className="text-muted-foreground">{formatShortDate(c.getValue())}</span>,
   }),
   columnHelper.accessor((m) => m.matter.createdAt, {
     id: "createdAt",
     header: "Created",
     size: 140,
-    cell: (c) => <span className="text-muted-foreground">{fmtDate(c.getValue())}</span>,
+    cell: (c) => <span className="text-muted-foreground">{formatShortDate(c.getValue())}</span>,
   }),
 ];
 
@@ -225,7 +218,6 @@ function CreateMatter({ onCreated }: { onCreated: (id: string) => void }) {
   });
   const [clientId, setClientId] = useState("");
   const [name, setName] = useState("");
-  const [matterNumber, setMatterNumber] = useState("");
   const [practiceArea, setPracticeArea] = useState("");
   const [adverse, setAdverse] = useState("");
   const [conflicts, setConflicts] = useState<string[] | null>(null);
@@ -264,7 +256,6 @@ function CreateMatter({ onCreated }: { onCreated: (id: string) => void }) {
     createMutation.mutate({
       clientId,
       name: name.trim(),
-      matterNumber: matterNumber.trim() || undefined,
       practiceArea: practiceArea.trim() || undefined,
       adverseParties: adverseParties(),
     });
@@ -307,14 +298,6 @@ function CreateMatter({ onCreated }: { onCreated: (id: string) => void }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Series A financing"
-            />
-          </div>
-          <div className="flex flex-col gap-field">
-            <Label>Matter number (optional)</Label>
-            <Input
-              value={matterNumber}
-              onChange={(e) => setMatterNumber(e.target.value)}
-              placeholder="M-2024-014"
             />
           </div>
           <div className="flex flex-col gap-field">

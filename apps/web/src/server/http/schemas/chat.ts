@@ -14,4 +14,7 @@ export const chatSchema = z.object({
   reasoning: z.enum(["low", "medium", "high"]).optional(),
   // Continue an existing conversation; omitted starts a new one.
   chatId: z.string().uuid().optional(),
+  // Scope a NEW chat to a matter (the 3-pane matter workspace). Ignored when
+  // continuing an existing chat — scope is fixed at creation.
+  matterId: z.string().uuid().optional(),
 });

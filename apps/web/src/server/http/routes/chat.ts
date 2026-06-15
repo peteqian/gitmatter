@@ -247,7 +247,8 @@ async function runAssistant(
   const chatId = await persistChat(
     user.id,
     { message: body.message, finalText: displayText, toolCalls, citations },
-    body.chatId
+    body.chatId,
+    body.matterId
   );
 
   return {
@@ -293,8 +294,11 @@ chatRoute.post("/api/chat/stream", zValidator("json", chatSchema), async (c) => 
   });
 });
 
-// List the user's conversations for the history panel.
-chatRoute.get("/api/chats", async (c) => c.json(await listChats(c.get("user").id)));
+// List the user's conversations for the history panel. `?matterId=` scopes to a
+// matter's chats; omitted returns global (unscoped) chats.
+chatRoute.get("/api/chats", async (c) =>
+  c.json(await listChats(c.get("user").id, c.req.query("matterId")))
+);
 
 // Load one conversation's turns to resume it.
 chatRoute.get("/api/chats/:id", async (c) => {

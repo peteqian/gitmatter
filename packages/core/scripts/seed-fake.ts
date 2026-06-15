@@ -88,7 +88,6 @@ async function seedForUser(u: { id: string; name: string; tenantId: string; emai
       tenantId,
       clientId: pick(clientIds, i),
       name: `${name.split(" ")[0]} ${pick(MATTER_SUFFIX, i)} ${i + 1}`,
-      matterNumber: `${SEED_PREFIX}M-${tag}-${String(i + 1).padStart(5, "0")}`,
       practiceArea: pick(PRACTICE_AREAS, i),
       status: i % 4 === 0 ? ("closed" as const) : ("open" as const),
       leadAttorney: u.id,

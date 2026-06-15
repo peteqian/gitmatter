@@ -45,6 +45,7 @@ import { api, type Doc, type Folder } from "../../lib/api";
 import { useChats } from "../../lib/queries";
 import { useSession } from "../../lib/auth-client";
 import { useMatters } from "../../lib/matters-context";
+import { formatBytes, formatShortDate } from "../../lib/format";
 
 export const Route = createFileRoute("/_auth/matters_/$id")({ component: MatterWorkspace });
 
@@ -65,11 +66,13 @@ function MatterWorkspace() {
   const [docFolderId, setDocFolderId] = useState<string | null>(null);
   const docFileRef = useRef<HTMLInputElement>(null);
 
-  // New Chat / New Review file under this matter — set it working, then route out.
-  const openInMatter = (to: "/assistant" | "/reviews") => {
+  // New Review files under this matter — set it working, then route out.
+  const openInMatter = (to: "/reviews") => {
     setCurrent(id);
     void navigate({ to });
   };
+  // New Chat opens the matter's own 3-pane assistant workspace.
+  const openMatterChat = () => void navigate({ to: "/matters/$id/assistant", params: { id } });
 
   const { data: matter, isError: notFound } = useQuery({
     queryKey: ["matter", id],
@@ -151,7 +154,7 @@ function MatterWorkspace() {
                 size="icon-sm"
                 title="New chat"
                 aria-label="New chat"
-                onClick={() => openInMatter("/assistant")}
+                onClick={openMatterChat}
               >
                 <MessageSquarePlus className="size-4" />
               </Button>
@@ -170,7 +173,6 @@ function MatterWorkspace() {
       }
     >
       <div className="flex flex-wrap items-center gap-2">
-        {matter.matterNumber && <Badge variant="secondary">No. {matter.matterNumber}</Badge>}
         <Badge variant="outline" className="capitalize">
           {matter.status}
         </Badge>
@@ -263,20 +265,6 @@ function MatterWorkspace() {
       />
     </PageShell>
   );
-}
-
-function fmtBytes(b: number | null): string {
-  if (b == null) return "—";
-  if (b < 1024) return `${b} B`;
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
-  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
-}
-function fmtDate(s: string): string {
-  return new Date(s).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 function DocumentsTab({
@@ -421,7 +409,7 @@ function DocumentsTab({
                 <TableCell className="text-muted-foreground">Folder</TableCell>
                 <TableCell className="text-muted-foreground">—</TableCell>
                 <TableCell className="text-muted-foreground">—</TableCell>
-                <TableCell className="text-muted-foreground">{fmtDate(f.createdAt)}</TableCell>
+                <TableCell className="text-muted-foreground">{formatShortDate(f.createdAt)}</TableCell>
                 <TableCell />
                 <TableCell />
               </TableRow>
@@ -453,11 +441,11 @@ function DocumentsTab({
                   </span>
                 </TableCell>
                 <TableCell className="text-muted-foreground uppercase">{d.fileType}</TableCell>
-                <TableCell className="text-muted-foreground">{fmtBytes(d.sizeBytes)}</TableCell>
+                <TableCell className="text-muted-foreground">{formatBytes(d.sizeBytes)}</TableCell>
                 <TableCell>
                   <VersionChip n={1} />
                 </TableCell>
-                <TableCell className="text-muted-foreground">{fmtDate(d.createdAt)}</TableCell>
+                <TableCell className="text-muted-foreground">{formatShortDate(d.createdAt)}</TableCell>
                 <TableCell>
                   <DocStatusCue status={d.status} />
                 </TableCell>
@@ -557,13 +545,9 @@ function DocStatusCue({ status }: { status: Doc["status"] }) {
 
 function ChatsTab({ matterId }: { matterId: string }) {
   const navigate = useNavigate();
-  const { setCurrent } = useMatters();
-  const { data: chats = [] } = useChats();
+  const { data: chats = [] } = useChats(matterId);
 
-  const startChat = () => {
-    setCurrent(matterId);
-    void navigate({ to: "/assistant" });
-  };
+  const startChat = () => void navigate({ to: "/matters/$id/assistant", params: { id: matterId } });
 
   return (
     <div className="flex flex-col gap-stack">
@@ -576,12 +560,12 @@ function ChatsTab({ matterId }: { matterId: string }) {
         {chats.map((ch) => (
           <li key={ch.id}>
             <Link
-              to="/assistant/$id"
-              params={{ id: ch.id }}
+              to="/matters/$id/assistant/$chatId"
+              params={{ id: matterId, chatId: ch.id }}
               className="flex items-center justify-between px-4 py-2.5 text-sm hover:bg-muted/40"
             >
               <span className="truncate">{ch.title || "Untitled chat"}</span>
-              <span className="text-xs text-muted-foreground">{fmtDate(ch.updatedAt)}</span>
+              <span className="text-xs text-muted-foreground">{formatShortDate(ch.updatedAt)}</span>
             </Link>
           </li>
         ))}
@@ -622,7 +606,7 @@ function ReviewsTab({ matterId }: { matterId: string }) {
               className="flex items-center justify-between px-4 py-2.5 text-sm hover:bg-muted/40"
             >
               <span className="truncate">{r.title || "Untitled review"}</span>
-              <span className="text-xs text-muted-foreground">{fmtDate(r.createdAt)}</span>
+              <span className="text-xs text-muted-foreground">{formatShortDate(r.createdAt)}</span>
             </Link>
           </li>
         ))}

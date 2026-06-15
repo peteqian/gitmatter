@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@workspace/db/client";
 import { chatMessages, chats, user } from "@workspace/db/schema";
 import type { Citation } from "../ai/citations.js";
@@ -25,13 +25,19 @@ export async function persistChat(
     toolCalls: Array<{ tool: string; input: unknown }>;
     citations?: Citation[];
   },
-  chatId?: string
+  chatId?: string,
+  matterId?: string
 ): Promise<string> {
   let id = chatId;
   if (!id) {
     const [chat] = await db
       .insert(chats)
-      .values({ userId, tenantId: await userTenant(userId), title: turn.message.slice(0, 60) })
+      .values({
+        userId,
+        tenantId: await userTenant(userId),
+        matterId: matterId ?? null,
+        title: turn.message.slice(0, 60),
+      })
       .returning();
     id = chat!.id;
   }
@@ -65,14 +71,24 @@ export async function persistChat(
   return id;
 }
 
-/** List a user's conversations, most recently updated first. */
+/**
+ * List a user's conversations, most recently updated first. Scope splits global
+ * chats from matter-scoped ones: pass a `matterId` for that matter's chats; omit
+ * it for the global assistant (chats with no matter), so the two never bleed.
+ */
 export async function listChats(
-  userId: string
+  userId: string,
+  matterId?: string
 ): Promise<Array<{ id: string; title: string | null; updatedAt: Date }>> {
   return db
     .select({ id: chats.id, title: chats.title, updatedAt: chats.updatedAt })
     .from(chats)
-    .where(eq(chats.userId, userId))
+    .where(
+      and(
+        eq(chats.userId, userId),
+        matterId ? eq(chats.matterId, matterId) : isNull(chats.matterId)
+      )
+    )
     .orderBy(desc(chats.updatedAt))
     .limit(100);
 }

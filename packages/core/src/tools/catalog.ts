@@ -18,6 +18,7 @@ import {
   getDocument,
   getDocumentDetail,
   listDocuments,
+  listMatterDocuments,
   proposeEdit,
   resolveEdit,
 } from "../content/index.js";
@@ -82,7 +83,11 @@ export function buildToolCatalog(
       schema: {},
       handler: async () => {
         const rows = await listReviews(actor.userId);
-        return rows.map((r) => ({ id: r.id, title: r.title, documentIds: r.documentIds }));
+        return rows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          documentIds: r.documentIds,
+        }));
       },
     },
     {
@@ -123,7 +128,12 @@ export function buildToolCatalog(
           title: title as string,
           documentIds: documentIds as string[],
           columnsConfig: (
-            columns as Array<{ name: string; prompt: string; format?: string; tags?: string[] }>
+            columns as Array<{
+              name: string;
+              prompt: string;
+              format?: string;
+              tags?: string[];
+            }>
           ).map((c, i) => ({
             index: i,
             name: c.name,
@@ -180,7 +190,12 @@ export function buildToolCatalog(
     {
       name: "diff",
       description: "Field-level diff of an artifact between two commit sequence numbers.",
-      schema: { artifactType, artifactId: z.string(), fromSeq: z.number(), toSeq: z.number() },
+      schema: {
+        artifactType,
+        artifactId: z.string(),
+        fromSeq: z.number(),
+        toSeq: z.number(),
+      },
       handler: async ({ artifactType: kind, artifactId, fromSeq, toSeq }) =>
         (await canRead(kind as ArtifactKind, artifactId as string))
           ? diffCommits(
@@ -255,17 +270,36 @@ export function buildToolCatalog(
       schema: {
         clientId: z.string(),
         name: z.string(),
-        matterNumber: z.string().optional(),
         practiceArea: z.string().optional(),
       },
-      handler: async ({ clientId, name, matterNumber, practiceArea }) => {
+      handler: async ({ clientId, name, practiceArea }) => {
         const matter = await createMatter(actor.userId, {
           clientId: clientId as string,
           name: name as string,
-          matterNumber: matterNumber as string | undefined,
           practiceArea: practiceArea as string | undefined,
         });
         return { matterId: matter.id };
+      },
+    },
+
+    {
+      name: "list_matter_documents",
+      description:
+        "List the documents filed under a matter (newest first), with title, type, and extraction status. Use this to find a matter's documents — `search` only matches titles.",
+      schema: { matterId: z.string() },
+      handler: async ({ matterId }) => {
+        const resolved = await resolveMatter(matterId as string | undefined);
+        if (!resolved) return { error: "Forbidden: no access to that matter" };
+        const docs = await listMatterDocuments(resolved);
+        return {
+          documents: docs.map((d) => ({
+            id: d.id,
+            title: d.title,
+            fileType: d.fileType,
+            status: d.status,
+            createdAt: d.createdAt,
+          })),
+        };
       },
     },
 
@@ -316,10 +350,18 @@ export function buildToolCatalog(
         const results = [
           ...reviews
             .filter((r) => hit(r.title))
-            .map((r) => ({ id: `review:${r.id}`, title: r.title, url: `/reviews/${r.id}` })),
+            .map((r) => ({
+              id: `review:${r.id}`,
+              title: r.title,
+              url: `/reviews/${r.id}`,
+            })),
           ...docs
             .filter((d) => hit(d.title))
-            .map((d) => ({ id: `document:${d.id}`, title: d.title, url: `/documents/${d.id}` })),
+            .map((d) => ({
+              id: `document:${d.id}`,
+              title: d.title,
+              url: `/documents/${d.id}`,
+            })),
         ];
         return { results };
       },

@@ -113,7 +113,6 @@ export function EditMatterModal({
   const [clientId, setClientId] = useState(matter.clientId);
   const [clientName, setClientName] = useState("");
   const [name, setName] = useState(matter.name);
-  const [matterNumber, setMatterNumber] = useState(matter.matterNumber ?? "");
   const [practiceArea, setPracticeArea] = useState(matter.practiceArea ?? "");
   const [jurisdiction, setJurisdiction] = useState(matter.jurisdiction ?? "");
 
@@ -130,7 +129,6 @@ export function EditMatterModal({
     setClientId(matter.clientId);
     setClientName(currentClient?.client.name ?? "");
     setName(matter.name);
-    setMatterNumber(matter.matterNumber ?? "");
     setPracticeArea(matter.practiceArea ?? "");
     setJurisdiction(matter.jurisdiction ?? "");
   }, [open, matter, currentClient]);
@@ -140,7 +138,6 @@ export function EditMatterModal({
       api.updateMatter(matter.id, {
         clientId,
         name: name.trim(),
-        matterNumber: matterNumber.trim() || null,
         practiceArea: practiceArea.trim() || null,
         jurisdiction: jurisdiction || null,
       }),
@@ -184,10 +181,6 @@ export function EditMatterModal({
           <div className="flex flex-col gap-1.5">
             <Label>Matter name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>Matter number</Label>
-            <Input value={matterNumber} onChange={(e) => setMatterNumber(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Practice area</Label>

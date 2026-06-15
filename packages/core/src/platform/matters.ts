@@ -214,7 +214,6 @@ export async function getClientOverview(userId: string, clientId: string) {
 type MatterInput = {
   clientId: string;
   name: string;
-  matterNumber?: string;
   practiceArea?: string;
   adverseParties?: string[];
 };
@@ -234,7 +233,6 @@ export async function createMatter(creatorId: string, input: MatterInput) {
         tenantId: client.tenantId,
         clientId: input.clientId,
         name: input.name,
-        matterNumber: input.matterNumber ?? null,
         practiceArea: input.practiceArea ?? null,
         adverseParties: input.adverseParties ?? null,
         createdBy: creatorId,
@@ -255,7 +253,6 @@ export async function updateMatter(
   fields: {
     clientId?: string;
     name?: string;
-    matterNumber?: string | null;
     practiceArea?: string | null;
     jurisdiction?: string | null;
   }
