@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -20,6 +20,7 @@ import { queryKeys } from "../../lib/queries";
 import { useColumnSizing } from "../../lib/useColumnSizing";
 import { useDebouncedValue } from "../../lib/useDebouncedValue";
 import { useWorkingMatterId } from "../../lib/matters-context";
+import { DocumentDrawer } from "./documents/-components/DocumentDrawer";
 
 export const Route = createFileRoute("/_auth/documents")({
   component: Documents,
@@ -34,8 +35,8 @@ const columnHelper = createColumnHelper<Doc>();
 
 function Documents() {
   const qc = useQueryClient();
-  const router = useRouter();
   const matterId = useWorkingMatterId();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const { view = "all" } = Route.useSearch();
   const [query, setQuery] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -287,7 +288,7 @@ function Documents() {
         <>
           <DataTable
             table={table}
-            onRowClick={(doc) => router.navigate({ to: "/documents/$id", params: { id: doc.id } })}
+            onRowClick={(doc) => setSelectedId(doc.id)}
             empty={query.trim() ? `No documents match "${query}".` : "No documents in this view."}
           />
           <TablePager table={table} />
@@ -309,6 +310,7 @@ function Documents() {
           </button>
         )
       )}
+      <DocumentDrawer docId={selectedId} onClose={() => setSelectedId(null)} />
     </div>
   );
 }

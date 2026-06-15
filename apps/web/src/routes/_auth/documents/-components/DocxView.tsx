@@ -23,6 +23,10 @@ export function DocxView({ url, versionToken }: { url: string; versionToken: str
         await renderAsync(blob, container.current, undefined, {
           inWrapper: true,
           renderChanges: true, // show w:ins / w:del tracked-change markup
+          // Flow the page to the container width instead of a fixed A4 width,
+          // so it never overflows / clips inside a narrow preview pane.
+          ignoreWidth: true,
+          ignoreHeight: true,
         });
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to render document");
@@ -34,5 +38,12 @@ export function DocxView({ url, versionToken }: { url: string; versionToken: str
   }, [url, versionToken]);
 
   if (error) return <p className="text-sm text-destructive">{error}</p>;
-  return <div ref={container} className="docx-view overflow-x-auto text-sm" />;
+  // Tame docx-preview's chrome: drop its gray wrapper bg + heavy padding and the
+  // page shadow so it blends into the pane and reads as a clean sheet.
+  return (
+    <div
+      ref={container}
+      className="docx-view text-sm [&_.docx]:mx-auto [&_.docx]:w-full [&_.docx]:bg-card [&_.docx]:shadow-none [&_.docx-wrapper]:bg-transparent [&_.docx-wrapper]:p-0"
+    />
+  );
 }
