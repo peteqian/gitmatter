@@ -1,5 +1,5 @@
 import { ActorBadge } from "@/components/ActorBadge";
-import type { Blame } from "../lib/api";
+import type { Blame } from "../lib/data/api";
 
 /**
  * Shared git-style audit trail for any artifact (reviews, contracts, …). A quiet

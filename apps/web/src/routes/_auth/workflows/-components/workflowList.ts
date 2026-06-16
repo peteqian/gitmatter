@@ -1,5 +1,5 @@
 import { MessageSquare, Table2 } from "lucide-react";
-import type { WorkflowListItem } from "@/lib/api";
+import type { WorkflowListItem } from "@/lib/data/api";
 
 export type WorkflowTab = "all" | "builtin" | "custom" | "hidden";
 

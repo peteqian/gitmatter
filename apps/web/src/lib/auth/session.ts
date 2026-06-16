@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { auth } from "../server/http/lib/auth";
+import { auth } from "../../server/http/lib/auth";
 
 // Resolves the better-auth session on the server from the request's cookies.
 // Called in the root route's beforeLoad so the session is known during SSR —

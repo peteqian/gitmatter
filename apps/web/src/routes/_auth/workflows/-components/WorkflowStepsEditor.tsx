@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
-import type { WorkflowStep } from "@/lib/api";
+import type { WorkflowStep } from "@/lib/data/api";
 import { Button } from "@/components/ui/button";
 import { WorkflowPromptEditor } from "./WorkflowPromptEditor";
 

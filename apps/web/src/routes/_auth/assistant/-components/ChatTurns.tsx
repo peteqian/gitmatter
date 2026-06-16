@@ -2,7 +2,7 @@ import { FileDown, FileText } from "lucide-react";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { api, type Citation } from "../../../../lib/api";
+import { api, type Citation } from "../../../../lib/data/api";
 import { ChatEditCards } from "./ChatEditCards";
 import { StepsTimeline } from "./StepsTimeline";
 import { type Turn } from "./useChatSession";
@@ -46,10 +46,9 @@ export function ChatTurns({
           <Message key={i} from="assistant">
             <MessageContent>
               {/* Pre-first-token cue: model reached but nothing streamed back yet. */}
-              {busy &&
-                i === turns.length - 1 &&
-                !t.text &&
-                !(t.steps && t.steps.length) && <Shimmer duration={1}>Thinking…</Shimmer>}
+              {busy && i === turns.length - 1 && !t.text && !(t.steps && t.steps.length) && (
+                <Shimmer duration={1}>Thinking…</Shimmer>
+              )}
               {t.steps && t.steps.length > 0 && <StepsTimeline steps={t.steps} />}
               {t.text && <MessageResponse>{t.text}</MessageResponse>}
               {t.edits && t.edits.length > 0 && <ChatEditCards edits={t.edits} />}

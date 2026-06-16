@@ -3,7 +3,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
 import { useEffect, useRef } from "react";
 import { Bold, Heading1, Heading2, Heading3, Italic, List, ListOrdered } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 
 interface Props {
   value: string;

@@ -6,15 +6,15 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import { Composer } from "./assistant/-components/Composer";
-import { ChatTurns } from "./assistant/-components/ChatTurns";
-import { useChatSession } from "./assistant/-components/useChatSession";
-import { type ChatAttachment, type ChatDetail } from "../../lib/api";
-import { useSession } from "../../lib/auth-client";
+import { Composer } from "./-components/Composer";
+import { ChatTurns } from "./-components/ChatTurns";
+import { useChatSession } from "./-components/useChatSession";
+import { type ChatAttachment, type ChatDetail } from "@/lib/data/api";
+import { useSession } from "@/lib/auth/auth-client";
 
 // Fresh chat. Resuming a conversation lives at /assistant/$id (assistant.$id.tsx),
 // which seeds AssistantView from its loader. Keyed "new" so state starts clean.
-export const Route = createFileRoute("/_auth/assistant")({
+export const Route = createFileRoute("/_auth/assistant/")({
   component: () => <AssistantView key="new" loaded={null} />,
 });
 

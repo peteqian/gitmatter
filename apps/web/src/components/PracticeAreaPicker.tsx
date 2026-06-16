@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
-import { api } from "@/lib/api";
-import { queryKeys } from "@/lib/queries";
-import { cn } from "@/lib/utils";
+import { api } from "@/lib/data/api";
+import { queryKeys } from "@/lib/data/queries";
+import { cn } from "@/lib/util/utils";
 import { Button } from "@/components/ui/button";
 import {
   Command,

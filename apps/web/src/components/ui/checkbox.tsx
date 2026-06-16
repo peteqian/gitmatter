@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 
 // Lightweight native checkbox styled to the theme — used for table row selection.
 function Checkbox({ className, ...props }: React.ComponentProps<"input">) {

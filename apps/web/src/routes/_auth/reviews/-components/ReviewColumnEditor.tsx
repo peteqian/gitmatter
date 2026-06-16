@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { Column } from "@/lib/api";
+import type { Column } from "@/lib/data/api";
 
 const COLUMN_FORMATS = [
   { value: "", label: "Free text" },

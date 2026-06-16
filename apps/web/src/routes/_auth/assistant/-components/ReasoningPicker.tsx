@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { Brain, Check } from "lucide-react";
-import { type ReasoningEffort } from "@/lib/api";
-import { useModelCatalog } from "@/lib/queries";
+import { type ReasoningEffort } from "@/lib/data/api";
+import { useModelCatalog } from "@/lib/data/queries";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 
 // null = Instant (no extended thinking).
 const LEVELS: { value: ReasoningEffort | null; label: string }[] = [

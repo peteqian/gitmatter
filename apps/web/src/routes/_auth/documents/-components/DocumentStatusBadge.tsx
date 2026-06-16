@@ -1,4 +1,4 @@
-import type { Doc } from "@/lib/api";
+import type { Doc } from "@/lib/data/api";
 
 export function DocumentStatusBadge({ status }: { status: Doc["status"] }) {
   const map: Record<Doc["status"], { label: string; cls: string }> = {

@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { flexRender, type Row, type Table as RTable } from "@tanstack/react-table";
 import type { VirtualItem } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 import {
   Table,
   TableBody,

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
-import { api, type Column } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { api, type Column } from "@/lib/data/api";
+import { cn } from "@/lib/util/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,

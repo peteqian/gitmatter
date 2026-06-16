@@ -10,14 +10,14 @@ import { PageHeader } from "@/components/PageHeader";
 import { PageShell } from "@/components/PageShell";
 import { TablePager } from "@/components/TablePager";
 import { TableSearch } from "@/components/TableSearch";
-import { CreateReviewDialog } from "./reviews/-components/CreateReviewDialog";
-import { api } from "../../lib/api";
-import { queryKeys } from "../../lib/queries";
-import { useDataTable } from "../../lib/useDataTable";
-import { formatShortDate } from "../../lib/format";
-import { useTablePageParams } from "../../lib/useTablePageParams";
+import { CreateReviewDialog } from "./-components/CreateReviewDialog";
+import { api } from "@/lib/data/api";
+import { queryKeys } from "@/lib/data/queries";
+import { useDataTable } from "@/lib/hooks/table/useDataTable";
+import { formatShortDate } from "@/lib/format/format";
+import { useTablePageParams } from "@/lib/hooks/table/useTablePageParams";
 
-export const Route = createFileRoute("/_auth/reviews")({ component: Reviews });
+export const Route = createFileRoute("/_auth/reviews/")({ component: Reviews });
 
 type ReviewRow = { id: string; title: string; documentIds: string[]; createdAt: string };
 

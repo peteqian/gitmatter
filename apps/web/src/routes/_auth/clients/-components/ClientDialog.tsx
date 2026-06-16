@@ -21,8 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type Client } from "@/lib/api";
-import { queryKeys } from "@/lib/queries";
+import { api, type Client } from "@/lib/data/api";
+import { queryKeys } from "@/lib/data/queries";
 
 /** Click a client row → this dialog. Edits the client's directory details inline
  *  (name, type, number, status) and lists the client's work (matters, documents,

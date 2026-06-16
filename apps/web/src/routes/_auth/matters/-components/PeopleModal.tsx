@@ -4,8 +4,8 @@ import { UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { api, type MatterMember, type MatterRole } from "@/lib/api";
-import { useSession } from "@/lib/auth-client";
+import { api, type MatterMember, type MatterRole } from "@/lib/data/api";
+import { useSession } from "@/lib/auth/auth-client";
 import {
   Select,
   SelectValue,

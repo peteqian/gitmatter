@@ -17,10 +17,10 @@ import {
   type Cell,
   type ReviewDetail,
   type ReviewStreamCell,
-} from "../../lib/api";
-import { queryKeys } from "../../lib/queries";
-import { useColumnSizing } from "../../lib/useColumnSizing";
-import { useSelectedModel } from "../../lib/useSelectedModel";
+} from "@/lib/data/api";
+import { queryKeys } from "@/lib/data/queries";
+import { useColumnSizing } from "@/lib/hooks/table/useColumnSizing";
+import { useSelectedModel } from "@/lib/hooks/state/useSelectedModel";
 
 export const Route = createFileRoute("/_auth/reviews/$id")({ component: ReviewView });
 

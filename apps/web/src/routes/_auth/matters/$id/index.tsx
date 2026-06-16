@@ -37,23 +37,23 @@ import { PageHeader } from "@/components/PageHeader";
 import { PageShell } from "@/components/PageShell";
 import { StateCue } from "@/components/StateCue";
 import { ToolbarTabs } from "@/components/ToolbarTabs";
-import { VersionChip } from "./matters/-components/VersionChip";
-import { PeopleModal } from "./matters/-components/PeopleModal";
-import { EditMatterModal } from "./matters/-components/EditMatterModal";
-import { AddDocumentsModal } from "./matters/-components/AddDocumentsModal";
-import { DocumentDrawer } from "./documents/-components/DocumentDrawer";
-import { api, type Doc, type Folder } from "../../lib/api";
-import { useChats } from "../../lib/queries";
-import { useSession } from "../../lib/auth-client";
-import { useMatters } from "../../lib/matters-context";
-import { formatBytes, formatShortDate } from "../../lib/format";
+import { VersionChip } from "@/routes/_auth/matters/-components/VersionChip";
+import { PeopleModal } from "@/routes/_auth/matters/-components/PeopleModal";
+import { EditMatterModal } from "@/routes/_auth/matters/-components/EditMatterModal";
+import { AddDocumentsModal } from "@/routes/_auth/matters/-components/AddDocumentsModal";
+import { DocumentDrawer } from "@/routes/_auth/documents/-components/DocumentDrawer";
+import { api, type Doc, type Folder } from "@/lib/data/api";
+import { useChats } from "@/lib/data/queries";
+import { useSession } from "@/lib/auth/auth-client";
+import { useMatters } from "@/lib/context/matters-context";
+import { formatBytes, formatShortDate } from "@/lib/format/format";
 
-export const Route = createFileRoute("/_auth/matters_/$id")({ component: MatterWorkspace });
+export const Route = createFileRoute("/_auth/matters/$id/")({ component: MatterWorkspace });
 
 type Tab = "documents" | "chats" | "reviews";
 
 function MatterWorkspace() {
-  const { id } = useParams({ from: "/_auth/matters_/$id" });
+  const { id } = useParams({ from: "/_auth/matters/$id/" });
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { data: session } = useSession();

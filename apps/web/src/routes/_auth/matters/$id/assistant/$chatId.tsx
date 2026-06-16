@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../../lib/api";
-import { queryKeys } from "../../lib/queries";
-import { MatterChatWorkspace } from "./matters/-components/MatterChatWorkspace";
+import { api } from "@/lib/data/api";
+import { queryKeys } from "@/lib/data/queries";
+import { MatterChatWorkspace } from "@/routes/_auth/matters/-components/MatterChatWorkspace";
 
 // Resume a matter-scoped conversation. Fetched client-side (react-query) rather
 // than in a route loader — a loader fetches with a relative URL that fails under
 // SSR/hard-reload (same pattern as /assistant/$id).
-export const Route = createFileRoute("/_auth/matters_/$id_/assistant_/$chatId")({
+export const Route = createFileRoute("/_auth/matters/$id/assistant/$chatId")({
   component: ResumeMatterChat,
 });
 

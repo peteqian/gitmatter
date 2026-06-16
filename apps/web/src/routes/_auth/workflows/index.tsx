@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { type PaginationState, type SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { Library, Plus } from "lucide-react";
-import { api, type WorkflowListItem } from "@/lib/api";
+import { api, type WorkflowListItem } from "@/lib/data/api";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
@@ -12,17 +12,17 @@ import { PageShell } from "@/components/PageShell";
 import { TablePager } from "@/components/TablePager";
 import { TableSearch } from "@/components/TableSearch";
 import { ToolbarTabs } from "@/components/ToolbarTabs";
-import { queryKeys } from "@/lib/queries";
-import { useDataTable } from "@/lib/useDataTable";
-import { useTablePageParams } from "@/lib/useTablePageParams";
-import { DisplayWorkflowModal } from "./workflows/-components/DisplayWorkflowModal";
-import { NewWorkflowModal } from "./workflows/-components/NewWorkflowModal";
-import { WorkflowToolbarActions } from "./workflows/-components/WorkflowToolbarActions";
-import { workflowColumns } from "./workflows/-components/workflowColumns";
-import { WORKFLOW_TABS, type WorkflowTab } from "./workflows/-components/workflowList";
-import { workflowDetailRoute } from "./workflows/-components/workflowRoutes";
+import { queryKeys } from "@/lib/data/queries";
+import { useDataTable } from "@/lib/hooks/table/useDataTable";
+import { useTablePageParams } from "@/lib/hooks/table/useTablePageParams";
+import { DisplayWorkflowModal } from "./-components/DisplayWorkflowModal";
+import { NewWorkflowModal } from "./-components/NewWorkflowModal";
+import { WorkflowToolbarActions } from "./-components/WorkflowToolbarActions";
+import { workflowColumns } from "./-components/workflowColumns";
+import { WORKFLOW_TABS, type WorkflowTab } from "./-components/workflowList";
+import { workflowDetailRoute } from "./-components/workflowRoutes";
 
-export const Route = createFileRoute("/_auth/workflows")({ component: Workflows });
+export const Route = createFileRoute("/_auth/workflows/")({ component: Workflows });
 
 function Workflows() {
   const navigate = useNavigate();

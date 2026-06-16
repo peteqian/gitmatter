@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, type MatterListItem } from "./api";
-import { queryKeys } from "./queries";
+import { api, type MatterListItem } from "../data/api";
+import { queryKeys } from "../data/queries";
 
 type MattersContext = {
   matters: MatterListItem[];

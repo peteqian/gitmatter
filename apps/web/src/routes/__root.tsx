@@ -4,9 +4,9 @@ import { Suspense, lazy } from "react";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorState } from "../components/ErrorState";
-import { MattersProvider } from "../lib/matters-context";
-import { queryClient } from "../lib/query";
-import { getServerSession } from "../lib/session";
+import { MattersProvider } from "../lib/context/matters-context";
+import { queryClient } from "../lib/data/query";
+import { getServerSession } from "../lib/auth/session";
 
 import appCss from "@/styles/globals.css?url";
 

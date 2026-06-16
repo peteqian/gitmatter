@@ -9,11 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CommitHistory } from "@/components/CommitHistory";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DocxView } from "./documents/-components/DocxView";
+import { DocxView } from "./-components/DocxView";
 import { PageHeader } from "@/components/PageHeader";
-import { api, type DocumentDetail, type DocEdit } from "../../lib/api";
+import { api, type DocumentDetail, type DocEdit } from "@/lib/data/api";
 
-export const Route = createFileRoute("/_auth/documents_/$id")({ component: DocumentView });
+export const Route = createFileRoute("/_auth/documents/$id")({ component: DocumentView });
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   pending: "outline",

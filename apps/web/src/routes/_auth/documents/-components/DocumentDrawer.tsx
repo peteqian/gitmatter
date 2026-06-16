@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { Download, ExternalLink, Pencil, RefreshCw, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,13 +12,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CommitHistory } from "@/components/CommitHistory";
 import { DocxView } from "./DocxView";
-import { api, type DocVersion } from "../../../../lib/api";
+import { api, type DocVersion } from "../../../../lib/data/api";
 import {
   documentSourceLabel,
   fileTypeLabel,
   hasExtensionChanged,
-} from "../../../../lib/documentLabels";
-import { formatBytes, formatDateTime } from "../../../../lib/format";
+} from "../../../../lib/format/documentLabels";
+import { formatBytes, formatDateTime } from "../../../../lib/format/format";
 
 /**
  * Slide-in drawer with a document's preview + metadata + version history — a

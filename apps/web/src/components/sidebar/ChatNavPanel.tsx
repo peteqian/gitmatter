@@ -6,10 +6,10 @@ import {
   type RouterState,
 } from "@tanstack/react-router";
 import { ChevronDown, Folder, MoreHorizontal, Pin, PinOff, Plus, SquarePen } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useAllChats, useSetChatPin } from "@/lib/queries";
-import { useMatters } from "@/lib/matters-context";
-import type { ChatSummary } from "@/lib/api";
+import { cn } from "@/lib/util/utils";
+import { useAllChats, useSetChatPin } from "@/lib/data/queries";
+import { useMatters } from "@/lib/context/matters-context";
+import type { ChatSummary } from "@/lib/data/api";
 import {
   DropdownMenu,
   DropdownMenuContent,

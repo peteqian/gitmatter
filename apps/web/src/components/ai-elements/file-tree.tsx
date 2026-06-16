@@ -1,7 +1,7 @@
 "use client";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 import { ChevronRightIcon, FileIcon, FolderIcon, FolderOpenIcon } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";

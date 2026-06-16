@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ReasoningEffort } from "./api";
+import type { ReasoningEffort } from "../../data/api";
 
 // Remembers the user's model choice across chat and review runs. Empty string
 // means "no choice yet" — callers send `model || undefined` so the server picks.

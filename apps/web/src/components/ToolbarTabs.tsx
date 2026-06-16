@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 
 // mike-style thin tab bar: underlined active tab on the left, optional actions
 // on the right. Lighter and denser than the shadcn Tabs primitive — used for

@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, FileText, Folder } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { api, type Doc } from "@/lib/api";
-import { formatShortDate } from "@/lib/format";
+import { api, type Doc } from "@/lib/data/api";
+import { formatShortDate } from "@/lib/format/format";
 
 type MatterChoice = {
   matter: {

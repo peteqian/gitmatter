@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from "react";
-import { api, type WorkflowListItem } from "@/lib/api";
+import { api, type WorkflowListItem } from "@/lib/data/api";
 import { WorkflowModal } from "./WorkflowModal";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
 

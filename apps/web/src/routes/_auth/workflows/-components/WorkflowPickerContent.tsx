@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, MessageSquare, Search, Table2, X } from "lucide-react";
 import { Streamdown } from "streamdown";
-import type { Column, WorkflowListItem } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import type { Column, WorkflowListItem } from "@/lib/data/api";
+import { cn } from "@/lib/util/utils";
 import { formatIcon, formatLabel } from "./columnFormat";
 import { TAG_COLORS } from "./pillUtils";
 

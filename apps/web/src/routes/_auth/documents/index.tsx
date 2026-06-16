@@ -10,16 +10,16 @@ import { PageHeader } from "@/components/PageHeader";
 import { TablePager } from "@/components/TablePager";
 import { TableSearch } from "@/components/TableSearch";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { api, type Doc } from "../../lib/api";
-import { queryKeys } from "../../lib/queries";
-import { useDataTable } from "../../lib/useDataTable";
-import { useWorkingMatterId } from "../../lib/matters-context";
-import { useTablePageParams } from "../../lib/useTablePageParams";
-import { DocumentDrawer } from "./documents/-components/DocumentDrawer";
-import { documentColumns } from "./documents/-components/documentColumns";
-import { useDocumentUpload } from "./documents/-hooks/useDocumentUpload";
+import { api, type Doc } from "@/lib/data/api";
+import { queryKeys } from "@/lib/data/queries";
+import { useDataTable } from "@/lib/hooks/table/useDataTable";
+import { useWorkingMatterId } from "@/lib/context/matters-context";
+import { useTablePageParams } from "@/lib/hooks/table/useTablePageParams";
+import { DocumentDrawer } from "./-components/DocumentDrawer";
+import { documentColumns } from "./-components/documentColumns";
+import { useDocumentUpload } from "./-hooks/useDocumentUpload";
 
-export const Route = createFileRoute("/_auth/documents")({
+export const Route = createFileRoute("/_auth/documents/")({
   component: Documents,
   // ?view filters by extraction status (set from the sidebar): all | ready |
   // processing (pending+processing) | failed.

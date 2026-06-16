@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { MessageSquare, Table2 } from "lucide-react";
-import { api, type WorkflowListItem } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { api, type WorkflowListItem } from "@/lib/data/api";
+import { cn } from "@/lib/util/utils";
 import { PracticeAreaPicker } from "@/components/PracticeAreaPicker";
 import { WorkflowModal } from "./WorkflowModal";
 

@@ -7,9 +7,12 @@ import {
   type ChatDetail,
   type ChatEdit,
   type Citation,
-} from "../../../../lib/api";
-import { useSelectedModel, useSelectedReasoning } from "../../../../lib/useSelectedModel";
-import { queryKeys } from "../../../../lib/queries";
+} from "../../../../lib/data/api";
+import {
+  useSelectedModel,
+  useSelectedReasoning,
+} from "../../../../lib/hooks/state/useSelectedModel";
+import { queryKeys } from "../../../../lib/data/queries";
 
 // One entry in the assistant's execution timeline, in arrival order. Reasoning
 // blocks and tool calls interleave exactly as the model emitted them, so the UI

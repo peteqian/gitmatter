@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ModelPicker } from "@/components/ModelPicker";
 import { ReasoningPicker } from "./ReasoningPicker";
 import { AttachChips, AttachControls } from "./ChatAttachments";
-import { type ChatAttachment, type ReasoningEffort } from "../../../../lib/api";
+import { type ChatAttachment, type ReasoningEffort } from "../../../../lib/data/api";
 
 /** The message composer — textarea, model/reasoning/attachment controls, send. */
 export function Composer({

@@ -2,12 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
 import { PageShell } from "@/components/PageShell";
-import { AccountSettings } from "./settings/-components/AccountSettings";
-import { JurisdictionCard, ProviderKeys } from "./settings/-components/AiSettings";
-import { ConnectAgent } from "./settings/-components/ConnectAgent";
-import { OrganizationCard } from "./settings/-components/OrganizationCard";
+import { AccountSettings } from "./-components/AccountSettings";
+import { JurisdictionCard, ProviderKeys } from "./-components/AiSettings";
+import { ConnectAgent } from "./-components/ConnectAgent";
+import { OrganizationCard } from "./-components/OrganizationCard";
 
-export const Route = createFileRoute("/_auth/settings")({ component: Settings });
+export const Route = createFileRoute("/_auth/settings/")({ component: Settings });
 
 function Settings() {
   const { session } = Route.useRouteContext();

@@ -9,10 +9,10 @@ import {
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { api, type Doc, type Folder } from "../../../../lib/api";
+import { api, type Doc, type Folder } from "../../../../lib/data/api";
 
 /**
  * Left pane of the matter workspace — a navigable file explorer over the

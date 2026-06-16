@@ -1,7 +1,7 @@
 import { createColumnHelper } from "@tanstack/react-table";
 import { Sparkles, User } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { WorkflowListItem } from "@/lib/api";
+import type { WorkflowListItem } from "@/lib/data/api";
 import { RowActions } from "./RowActions";
 import type { WorkflowTab } from "./workflowList";
 import { workflowTypeMeta } from "./workflowList";

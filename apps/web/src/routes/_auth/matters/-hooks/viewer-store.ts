@@ -1,5 +1,5 @@
 import { Store } from "@tanstack/react-store";
-import { type DocTab } from "../routes/_auth/matters/-components/DocViewerTabs";
+import { type DocTab } from "../-components/DocViewerTabs";
 
 // The matter workspace's open document tabs live here, not in component state.
 // Sending the first message remounts the workspace (the route changes

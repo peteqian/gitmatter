@@ -9,8 +9,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StateCue } from "@/components/StateCue";
-import { formatShortDate } from "@/lib/format";
-import type { MatterListItem } from "@/lib/api";
+import { formatShortDate } from "@/lib/format/format";
+import type { MatterListItem } from "@/lib/data/api";
 
 const columnHelper = createColumnHelper<MatterListItem>();
 

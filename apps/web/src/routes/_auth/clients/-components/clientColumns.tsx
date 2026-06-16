@@ -3,7 +3,7 @@ import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StateCue } from "@/components/StateCue";
-import type { Client } from "@/lib/api";
+import type { Client } from "@/lib/data/api";
 
 const columnHelper = createColumnHelper<Client>();
 

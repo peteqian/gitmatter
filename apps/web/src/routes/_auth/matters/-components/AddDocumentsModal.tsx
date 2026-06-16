@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Search, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { fileTypeLabel } from "@/lib/documentLabels";
+import { fileTypeLabel } from "@/lib/format/documentLabels";
 import {
   Dialog,
   DialogClose,
@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "../../../../lib/api";
+import { api } from "../../../../lib/data/api";
 
 /** Add documents to a matter: link pre-existing documents (any the user owns,
  *  across matters) or kick off a fresh upload. Docs already in this matter are

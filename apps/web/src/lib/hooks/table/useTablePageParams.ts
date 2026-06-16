@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { PaginationState, SortingState } from "@tanstack/react-table";
-import { useDebouncedValue } from "./useDebouncedValue";
+import { useDebouncedValue } from "../state/useDebouncedValue";
 
 export type TablePageParams = {
   q: string;

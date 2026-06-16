@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Info, Pencil, Plus, Trash2, Users, X } from "lucide-react";
-import { api, type Column, type WorkflowStep } from "@/lib/api";
+import { api, type Column, type WorkflowStep } from "@/lib/data/api";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { PageShell } from "@/components/PageShell";

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { api } from "@/lib/api";
+import { api } from "@/lib/data/api";
 
 const CONNECT_TABS = ["ChatGPT", "Claude", "Claude Code", "Codex"] as const;
 type ConnectTab = (typeof CONNECT_TABS)[number];

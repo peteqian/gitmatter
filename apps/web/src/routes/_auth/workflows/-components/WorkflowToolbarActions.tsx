@@ -1,6 +1,6 @@
 import { ChevronDown } from "lucide-react";
-import type { WorkflowListItem } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import type { WorkflowListItem } from "@/lib/data/api";
+import { cn } from "@/lib/util/utils";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,

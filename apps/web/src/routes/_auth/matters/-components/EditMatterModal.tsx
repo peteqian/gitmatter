@@ -26,9 +26,9 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PracticeAreaPicker } from "@/components/PracticeAreaPicker";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import { useDebouncedValue } from "@/lib/useDebouncedValue";
-import { api, type Matter } from "../../../../lib/api";
+import { cn } from "@/lib/util/utils";
+import { useDebouncedValue } from "@/lib/hooks/state/useDebouncedValue";
+import { api, type Matter } from "../../../../lib/data/api";
 
 const selectClass = "h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm";
 

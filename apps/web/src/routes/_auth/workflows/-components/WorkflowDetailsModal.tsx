@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Users } from "lucide-react";
-import { api, type WorkflowDetail } from "@/lib/api";
-import { useSession } from "@/lib/auth-client";
+import { api, type WorkflowDetail } from "@/lib/data/api";
+import { useSession } from "@/lib/auth/auth-client";
 import { WorkflowModal } from "./WorkflowModal";
 
 type DetailWorkflow = WorkflowDetail["workflow"];

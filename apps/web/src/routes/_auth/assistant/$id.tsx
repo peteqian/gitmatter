@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../../lib/api";
-import { queryKeys } from "../../lib/queries";
-import { AssistantView } from "./assistant";
+import { api } from "@/lib/data/api";
+import { queryKeys } from "@/lib/data/queries";
+import { AssistantView } from "./index";
 
 // Resume a conversation. Fetched client-side (react-query) rather than in a route
 // loader — a loader fetches with a relative URL that fails under SSR/hard-reload.
-export const Route = createFileRoute("/_auth/assistant_/$id")({
+export const Route = createFileRoute("/_auth/assistant/$id")({
   component: ResumeChat,
 });
 

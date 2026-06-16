@@ -5,14 +5,10 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { api, type ChatEdit } from "../../../../lib/api";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { api, type ChatEdit } from "../../../../lib/data/api";
 
 const STATUS_VARIANT: Record<ChatEdit["status"], "outline" | "secondary" | "destructive"> = {
   pending: "outline",
@@ -50,9 +46,7 @@ export function ChatEditCards({ edits }: { edits: ChatEdit[] }) {
       const byDoc = new Map<string, string[]>();
       for (const e of pending)
         byDoc.set(e.documentId, [...(byDoc.get(e.documentId) ?? []), e.changeId]);
-      await Promise.all(
-        [...byDoc].map(([docId, ids]) => api.resolveBatch(docId, ids, decision))
-      );
+      await Promise.all([...byDoc].map(([docId, ids]) => api.resolveBatch(docId, ids, decision)));
       return { decision, ids: pending.map((e) => e.changeId) };
     },
     onSuccess: ({ decision, ids }) =>

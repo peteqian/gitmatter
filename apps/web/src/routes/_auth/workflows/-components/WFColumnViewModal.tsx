@@ -1,5 +1,5 @@
 import { Streamdown } from "streamdown";
-import type { Column } from "@/lib/api";
+import type { Column } from "@/lib/data/api";
 import { formatIcon, formatLabel } from "./columnFormat";
 import { WorkflowModal } from "./WorkflowModal";
 

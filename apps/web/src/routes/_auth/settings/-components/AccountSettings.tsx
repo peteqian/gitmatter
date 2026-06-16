@@ -15,8 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { changeEmail, changePassword, deleteUser, updateUser } from "@/lib/auth-client";
-import type { ServerSession } from "@/lib/session";
+import { changeEmail, changePassword, deleteUser, updateUser } from "@/lib/auth/auth-client";
+import type { ServerSession } from "@/lib/auth/session";
 
 type Session = NonNullable<ServerSession>;
 

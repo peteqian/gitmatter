@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 
 /** Lifecycle cue: tinted 6px dot + label — quieter than a filled badge (DESIGN.md). */
 export function StateCue({ tone, children }: { tone: "bronze" | "muted"; children: ReactNode }) {

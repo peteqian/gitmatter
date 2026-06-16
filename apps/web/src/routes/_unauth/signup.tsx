@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { signUp } from "../../lib/auth-client";
+import { signUp } from "../../lib/auth/auth-client";
 import { AuthShell } from "./-components/AuthShell";
 import { FormError } from "../../components/form/FormError";
 

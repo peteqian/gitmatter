@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { AlertTriangle, Check, ChevronDown, Search } from "lucide-react";
-import { api, type LlmProvider, type OpenRouterModel } from "../lib/api";
-import { useModelCatalog } from "../lib/queries";
+import { api, type LlmProvider, type OpenRouterModel } from "../lib/data/api";
+import { useModelCatalog } from "../lib/data/queries";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 
 // Provider families we name in the rail. Anything else from OpenRouter buckets
 // into "other". `gemini` (native) and `google` (OpenRouter) share one family.

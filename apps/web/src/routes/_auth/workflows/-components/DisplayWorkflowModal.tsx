@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X } from "lucide-react";
-import { api, type ChatAttachment, type Doc, type WorkflowListItem } from "@/lib/api";
-import { useMatters } from "@/lib/matters-context";
-import { cn } from "@/lib/utils";
+import { api, type ChatAttachment, type Doc, type WorkflowListItem } from "@/lib/data/api";
+import { useMatters } from "@/lib/context/matters-context";
+import { cn } from "@/lib/util/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,

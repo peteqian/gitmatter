@@ -1,6 +1,6 @@
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,

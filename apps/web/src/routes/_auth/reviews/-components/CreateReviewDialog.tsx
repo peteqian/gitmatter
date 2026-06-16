@@ -13,9 +13,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { api, type Column } from "@/lib/api";
-import { queryKeys } from "@/lib/queries";
-import { useMatters } from "@/lib/matters-context";
+import { api, type Column } from "@/lib/data/api";
+import { queryKeys } from "@/lib/data/queries";
+import { useMatters } from "@/lib/context/matters-context";
 import { ReviewColumnEditor } from "./ReviewColumnEditor";
 import { ReviewDocumentPicker } from "./ReviewDocumentPicker";
 

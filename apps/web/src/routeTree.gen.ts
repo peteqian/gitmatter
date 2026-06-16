@@ -16,23 +16,23 @@ import { Route as marketingIndexRouteImport } from './routes/(marketing)/index'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as UnauthSignupRouteImport } from './routes/_unauth/signup'
 import { Route as UnauthLoginRouteImport } from './routes/_unauth/login'
-import { Route as AuthWorkflowsRouteImport } from './routes/_auth/workflows'
-import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
-import { Route as AuthReviewsRouteImport } from './routes/_auth/reviews'
-import { Route as AuthMattersRouteImport } from './routes/_auth/matters'
-import { Route as AuthDocumentsRouteImport } from './routes/_auth/documents'
-import { Route as AuthClientsRouteImport } from './routes/_auth/clients'
-import { Route as AuthAssistantRouteImport } from './routes/_auth/assistant'
 import { Route as DotwellKnownSplatRouteImport } from './routes/[.]well-known/$'
 import { Route as marketingAboutRouteImport } from './routes/(marketing)/about'
-import { Route as AuthReviewsIdRouteImport } from './routes/_auth/reviews.$id'
-import { Route as AuthMattersIdRouteImport } from './routes/_auth/matters_.$id'
-import { Route as AuthDocumentsIdRouteImport } from './routes/_auth/documents_.$id'
-import { Route as AuthAssistantIdRouteImport } from './routes/_auth/assistant_.$id'
-import { Route as AuthWorkflowsTabularReviewIdRouteImport } from './routes/_auth/workflows.tabular-review.$id'
-import { Route as AuthWorkflowsAssistantIdRouteImport } from './routes/_auth/workflows.assistant.$id'
-import { Route as AuthMattersIdAssistantRouteImport } from './routes/_auth/matters_.$id_.assistant'
-import { Route as AuthMattersIdAssistantChatIdRouteImport } from './routes/_auth/matters_.$id_.assistant_.$chatId'
+import { Route as AuthWorkflowsIndexRouteImport } from './routes/_auth/workflows/index'
+import { Route as AuthSettingsIndexRouteImport } from './routes/_auth/settings/index'
+import { Route as AuthReviewsIndexRouteImport } from './routes/_auth/reviews/index'
+import { Route as AuthMattersIndexRouteImport } from './routes/_auth/matters/index'
+import { Route as AuthDocumentsIndexRouteImport } from './routes/_auth/documents/index'
+import { Route as AuthClientsIndexRouteImport } from './routes/_auth/clients/index'
+import { Route as AuthAssistantIndexRouteImport } from './routes/_auth/assistant/index'
+import { Route as AuthReviewsIdRouteImport } from './routes/_auth/reviews/$id'
+import { Route as AuthDocumentsIdRouteImport } from './routes/_auth/documents/$id'
+import { Route as AuthAssistantIdRouteImport } from './routes/_auth/assistant/$id'
+import { Route as AuthMattersIdIndexRouteImport } from './routes/_auth/matters/$id/index'
+import { Route as AuthWorkflowsTabularReviewIdRouteImport } from './routes/_auth/workflows/tabular-review/$id'
+import { Route as AuthWorkflowsAssistantIdRouteImport } from './routes/_auth/workflows/assistant/$id'
+import { Route as AuthMattersIdAssistantIndexRouteImport } from './routes/_auth/matters/$id/assistant/index'
+import { Route as AuthMattersIdAssistantChatIdRouteImport } from './routes/_auth/matters/$id/assistant/$chatId'
 
 const UnauthRouteRoute = UnauthRouteRouteImport.update({
   id: '/_unauth',
@@ -66,41 +66,6 @@ const UnauthLoginRoute = UnauthLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => UnauthRouteRoute,
 } as any)
-const AuthWorkflowsRoute = AuthWorkflowsRouteImport.update({
-  id: '/workflows',
-  path: '/workflows',
-  getParentRoute: () => AuthRouteRoute,
-} as any)
-const AuthSettingsRoute = AuthSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AuthRouteRoute,
-} as any)
-const AuthReviewsRoute = AuthReviewsRouteImport.update({
-  id: '/reviews',
-  path: '/reviews',
-  getParentRoute: () => AuthRouteRoute,
-} as any)
-const AuthMattersRoute = AuthMattersRouteImport.update({
-  id: '/matters',
-  path: '/matters',
-  getParentRoute: () => AuthRouteRoute,
-} as any)
-const AuthDocumentsRoute = AuthDocumentsRouteImport.update({
-  id: '/documents',
-  path: '/documents',
-  getParentRoute: () => AuthRouteRoute,
-} as any)
-const AuthClientsRoute = AuthClientsRouteImport.update({
-  id: '/clients',
-  path: '/clients',
-  getParentRoute: () => AuthRouteRoute,
-} as any)
-const AuthAssistantRoute = AuthAssistantRouteImport.update({
-  id: '/assistant',
-  path: '/assistant',
-  getParentRoute: () => AuthRouteRoute,
-} as any)
 const DotwellKnownSplatRoute = DotwellKnownSplatRouteImport.update({
   id: '/.well-known/$',
   path: '/.well-known/$',
@@ -111,46 +76,82 @@ const marketingAboutRoute = marketingAboutRouteImport.update({
   path: '/about',
   getParentRoute: () => marketingRouteRoute,
 } as any)
-const AuthReviewsIdRoute = AuthReviewsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AuthReviewsRoute,
+const AuthWorkflowsIndexRoute = AuthWorkflowsIndexRouteImport.update({
+  id: '/workflows/',
+  path: '/workflows/',
+  getParentRoute: () => AuthRouteRoute,
 } as any)
-const AuthMattersIdRoute = AuthMattersIdRouteImport.update({
-  id: '/matters_/$id',
-  path: '/matters/$id',
+const AuthSettingsIndexRoute = AuthSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthReviewsIndexRoute = AuthReviewsIndexRouteImport.update({
+  id: '/reviews/',
+  path: '/reviews/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthMattersIndexRoute = AuthMattersIndexRouteImport.update({
+  id: '/matters/',
+  path: '/matters/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthDocumentsIndexRoute = AuthDocumentsIndexRouteImport.update({
+  id: '/documents/',
+  path: '/documents/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthClientsIndexRoute = AuthClientsIndexRouteImport.update({
+  id: '/clients/',
+  path: '/clients/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthAssistantIndexRoute = AuthAssistantIndexRouteImport.update({
+  id: '/assistant/',
+  path: '/assistant/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthReviewsIdRoute = AuthReviewsIdRouteImport.update({
+  id: '/reviews/$id',
+  path: '/reviews/$id',
   getParentRoute: () => AuthRouteRoute,
 } as any)
 const AuthDocumentsIdRoute = AuthDocumentsIdRouteImport.update({
-  id: '/documents_/$id',
+  id: '/documents/$id',
   path: '/documents/$id',
   getParentRoute: () => AuthRouteRoute,
 } as any)
 const AuthAssistantIdRoute = AuthAssistantIdRouteImport.update({
-  id: '/assistant_/$id',
+  id: '/assistant/$id',
   path: '/assistant/$id',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthMattersIdIndexRoute = AuthMattersIdIndexRouteImport.update({
+  id: '/matters/$id/',
+  path: '/matters/$id/',
   getParentRoute: () => AuthRouteRoute,
 } as any)
 const AuthWorkflowsTabularReviewIdRoute =
   AuthWorkflowsTabularReviewIdRouteImport.update({
-    id: '/tabular-review/$id',
-    path: '/tabular-review/$id',
-    getParentRoute: () => AuthWorkflowsRoute,
+    id: '/workflows/tabular-review/$id',
+    path: '/workflows/tabular-review/$id',
+    getParentRoute: () => AuthRouteRoute,
   } as any)
 const AuthWorkflowsAssistantIdRoute =
   AuthWorkflowsAssistantIdRouteImport.update({
-    id: '/assistant/$id',
-    path: '/assistant/$id',
-    getParentRoute: () => AuthWorkflowsRoute,
+    id: '/workflows/assistant/$id',
+    path: '/workflows/assistant/$id',
+    getParentRoute: () => AuthRouteRoute,
   } as any)
-const AuthMattersIdAssistantRoute = AuthMattersIdAssistantRouteImport.update({
-  id: '/matters_/$id_/assistant',
-  path: '/matters/$id/assistant',
-  getParentRoute: () => AuthRouteRoute,
-} as any)
+const AuthMattersIdAssistantIndexRoute =
+  AuthMattersIdAssistantIndexRouteImport.update({
+    id: '/matters/$id/assistant/',
+    path: '/matters/$id/assistant/',
+    getParentRoute: () => AuthRouteRoute,
+  } as any)
 const AuthMattersIdAssistantChatIdRoute =
   AuthMattersIdAssistantChatIdRouteImport.update({
-    id: '/matters_/$id_/assistant_/$chatId',
+    id: '/matters/$id/assistant/$chatId',
     path: '/matters/$id/assistant/$chatId',
     getParentRoute: () => AuthRouteRoute,
   } as any)
@@ -159,47 +160,47 @@ export interface FileRoutesByFullPath {
   '/': typeof marketingIndexRoute
   '/about': typeof marketingAboutRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
-  '/assistant': typeof AuthAssistantRoute
-  '/clients': typeof AuthClientsRoute
-  '/documents': typeof AuthDocumentsRoute
-  '/matters': typeof AuthMattersRoute
-  '/reviews': typeof AuthReviewsRouteWithChildren
-  '/settings': typeof AuthSettingsRoute
-  '/workflows': typeof AuthWorkflowsRouteWithChildren
   '/login': typeof UnauthLoginRoute
   '/signup': typeof UnauthSignupRoute
   '/api/$': typeof ApiSplatRoute
   '/assistant/$id': typeof AuthAssistantIdRoute
   '/documents/$id': typeof AuthDocumentsIdRoute
-  '/matters/$id': typeof AuthMattersIdRoute
   '/reviews/$id': typeof AuthReviewsIdRoute
-  '/matters/$id/assistant': typeof AuthMattersIdAssistantRoute
+  '/assistant/': typeof AuthAssistantIndexRoute
+  '/clients/': typeof AuthClientsIndexRoute
+  '/documents/': typeof AuthDocumentsIndexRoute
+  '/matters/': typeof AuthMattersIndexRoute
+  '/reviews/': typeof AuthReviewsIndexRoute
+  '/settings/': typeof AuthSettingsIndexRoute
+  '/workflows/': typeof AuthWorkflowsIndexRoute
   '/workflows/assistant/$id': typeof AuthWorkflowsAssistantIdRoute
   '/workflows/tabular-review/$id': typeof AuthWorkflowsTabularReviewIdRoute
+  '/matters/$id/': typeof AuthMattersIdIndexRoute
   '/matters/$id/assistant/$chatId': typeof AuthMattersIdAssistantChatIdRoute
+  '/matters/$id/assistant/': typeof AuthMattersIdAssistantIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof marketingIndexRoute
   '/about': typeof marketingAboutRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
-  '/assistant': typeof AuthAssistantRoute
-  '/clients': typeof AuthClientsRoute
-  '/documents': typeof AuthDocumentsRoute
-  '/matters': typeof AuthMattersRoute
-  '/reviews': typeof AuthReviewsRouteWithChildren
-  '/settings': typeof AuthSettingsRoute
-  '/workflows': typeof AuthWorkflowsRouteWithChildren
   '/login': typeof UnauthLoginRoute
   '/signup': typeof UnauthSignupRoute
   '/api/$': typeof ApiSplatRoute
   '/assistant/$id': typeof AuthAssistantIdRoute
   '/documents/$id': typeof AuthDocumentsIdRoute
-  '/matters/$id': typeof AuthMattersIdRoute
   '/reviews/$id': typeof AuthReviewsIdRoute
-  '/matters/$id/assistant': typeof AuthMattersIdAssistantRoute
+  '/assistant': typeof AuthAssistantIndexRoute
+  '/clients': typeof AuthClientsIndexRoute
+  '/documents': typeof AuthDocumentsIndexRoute
+  '/matters': typeof AuthMattersIndexRoute
+  '/reviews': typeof AuthReviewsIndexRoute
+  '/settings': typeof AuthSettingsIndexRoute
+  '/workflows': typeof AuthWorkflowsIndexRoute
   '/workflows/assistant/$id': typeof AuthWorkflowsAssistantIdRoute
   '/workflows/tabular-review/$id': typeof AuthWorkflowsTabularReviewIdRoute
+  '/matters/$id': typeof AuthMattersIdIndexRoute
   '/matters/$id/assistant/$chatId': typeof AuthMattersIdAssistantChatIdRoute
+  '/matters/$id/assistant': typeof AuthMattersIdAssistantIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -208,25 +209,25 @@ export interface FileRoutesById {
   '/_unauth': typeof UnauthRouteRouteWithChildren
   '/(marketing)/about': typeof marketingAboutRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
-  '/_auth/assistant': typeof AuthAssistantRoute
-  '/_auth/clients': typeof AuthClientsRoute
-  '/_auth/documents': typeof AuthDocumentsRoute
-  '/_auth/matters': typeof AuthMattersRoute
-  '/_auth/reviews': typeof AuthReviewsRouteWithChildren
-  '/_auth/settings': typeof AuthSettingsRoute
-  '/_auth/workflows': typeof AuthWorkflowsRouteWithChildren
   '/_unauth/login': typeof UnauthLoginRoute
   '/_unauth/signup': typeof UnauthSignupRoute
   '/api/$': typeof ApiSplatRoute
   '/(marketing)/': typeof marketingIndexRoute
-  '/_auth/assistant_/$id': typeof AuthAssistantIdRoute
-  '/_auth/documents_/$id': typeof AuthDocumentsIdRoute
-  '/_auth/matters_/$id': typeof AuthMattersIdRoute
+  '/_auth/assistant/$id': typeof AuthAssistantIdRoute
+  '/_auth/documents/$id': typeof AuthDocumentsIdRoute
   '/_auth/reviews/$id': typeof AuthReviewsIdRoute
-  '/_auth/matters_/$id_/assistant': typeof AuthMattersIdAssistantRoute
+  '/_auth/assistant/': typeof AuthAssistantIndexRoute
+  '/_auth/clients/': typeof AuthClientsIndexRoute
+  '/_auth/documents/': typeof AuthDocumentsIndexRoute
+  '/_auth/matters/': typeof AuthMattersIndexRoute
+  '/_auth/reviews/': typeof AuthReviewsIndexRoute
+  '/_auth/settings/': typeof AuthSettingsIndexRoute
+  '/_auth/workflows/': typeof AuthWorkflowsIndexRoute
   '/_auth/workflows/assistant/$id': typeof AuthWorkflowsAssistantIdRoute
   '/_auth/workflows/tabular-review/$id': typeof AuthWorkflowsTabularReviewIdRoute
-  '/_auth/matters_/$id_/assistant_/$chatId': typeof AuthMattersIdAssistantChatIdRoute
+  '/_auth/matters/$id/': typeof AuthMattersIdIndexRoute
+  '/_auth/matters/$id/assistant/$chatId': typeof AuthMattersIdAssistantChatIdRoute
+  '/_auth/matters/$id/assistant/': typeof AuthMattersIdAssistantIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -234,29 +235,35 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/.well-known/$'
-    | '/assistant'
-    | '/clients'
-    | '/documents'
-    | '/matters'
-    | '/reviews'
-    | '/settings'
-    | '/workflows'
     | '/login'
     | '/signup'
     | '/api/$'
     | '/assistant/$id'
     | '/documents/$id'
-    | '/matters/$id'
     | '/reviews/$id'
-    | '/matters/$id/assistant'
+    | '/assistant/'
+    | '/clients/'
+    | '/documents/'
+    | '/matters/'
+    | '/reviews/'
+    | '/settings/'
+    | '/workflows/'
     | '/workflows/assistant/$id'
     | '/workflows/tabular-review/$id'
+    | '/matters/$id/'
     | '/matters/$id/assistant/$chatId'
+    | '/matters/$id/assistant/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/about'
     | '/.well-known/$'
+    | '/login'
+    | '/signup'
+    | '/api/$'
+    | '/assistant/$id'
+    | '/documents/$id'
+    | '/reviews/$id'
     | '/assistant'
     | '/clients'
     | '/documents'
@@ -264,17 +271,11 @@ export interface FileRouteTypes {
     | '/reviews'
     | '/settings'
     | '/workflows'
-    | '/login'
-    | '/signup'
-    | '/api/$'
-    | '/assistant/$id'
-    | '/documents/$id'
-    | '/matters/$id'
-    | '/reviews/$id'
-    | '/matters/$id/assistant'
     | '/workflows/assistant/$id'
     | '/workflows/tabular-review/$id'
+    | '/matters/$id'
     | '/matters/$id/assistant/$chatId'
+    | '/matters/$id/assistant'
   id:
     | '__root__'
     | '/(marketing)'
@@ -282,25 +283,25 @@ export interface FileRouteTypes {
     | '/_unauth'
     | '/(marketing)/about'
     | '/.well-known/$'
-    | '/_auth/assistant'
-    | '/_auth/clients'
-    | '/_auth/documents'
-    | '/_auth/matters'
-    | '/_auth/reviews'
-    | '/_auth/settings'
-    | '/_auth/workflows'
     | '/_unauth/login'
     | '/_unauth/signup'
     | '/api/$'
     | '/(marketing)/'
-    | '/_auth/assistant_/$id'
-    | '/_auth/documents_/$id'
-    | '/_auth/matters_/$id'
+    | '/_auth/assistant/$id'
+    | '/_auth/documents/$id'
     | '/_auth/reviews/$id'
-    | '/_auth/matters_/$id_/assistant'
+    | '/_auth/assistant/'
+    | '/_auth/clients/'
+    | '/_auth/documents/'
+    | '/_auth/matters/'
+    | '/_auth/reviews/'
+    | '/_auth/settings/'
+    | '/_auth/workflows/'
     | '/_auth/workflows/assistant/$id'
     | '/_auth/workflows/tabular-review/$id'
-    | '/_auth/matters_/$id_/assistant_/$chatId'
+    | '/_auth/matters/$id/'
+    | '/_auth/matters/$id/assistant/$chatId'
+    | '/_auth/matters/$id/assistant/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -362,55 +363,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnauthLoginRouteImport
       parentRoute: typeof UnauthRouteRoute
     }
-    '/_auth/workflows': {
-      id: '/_auth/workflows'
-      path: '/workflows'
-      fullPath: '/workflows'
-      preLoaderRoute: typeof AuthWorkflowsRouteImport
-      parentRoute: typeof AuthRouteRoute
-    }
-    '/_auth/settings': {
-      id: '/_auth/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthSettingsRouteImport
-      parentRoute: typeof AuthRouteRoute
-    }
-    '/_auth/reviews': {
-      id: '/_auth/reviews'
-      path: '/reviews'
-      fullPath: '/reviews'
-      preLoaderRoute: typeof AuthReviewsRouteImport
-      parentRoute: typeof AuthRouteRoute
-    }
-    '/_auth/matters': {
-      id: '/_auth/matters'
-      path: '/matters'
-      fullPath: '/matters'
-      preLoaderRoute: typeof AuthMattersRouteImport
-      parentRoute: typeof AuthRouteRoute
-    }
-    '/_auth/documents': {
-      id: '/_auth/documents'
-      path: '/documents'
-      fullPath: '/documents'
-      preLoaderRoute: typeof AuthDocumentsRouteImport
-      parentRoute: typeof AuthRouteRoute
-    }
-    '/_auth/clients': {
-      id: '/_auth/clients'
-      path: '/clients'
-      fullPath: '/clients'
-      preLoaderRoute: typeof AuthClientsRouteImport
-      parentRoute: typeof AuthRouteRoute
-    }
-    '/_auth/assistant': {
-      id: '/_auth/assistant'
-      path: '/assistant'
-      fullPath: '/assistant'
-      preLoaderRoute: typeof AuthAssistantRouteImport
-      parentRoute: typeof AuthRouteRoute
-    }
     '/.well-known/$': {
       id: '/.well-known/$'
       path: '/.well-known/$'
@@ -425,57 +377,106 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof marketingAboutRouteImport
       parentRoute: typeof marketingRouteRoute
     }
-    '/_auth/reviews/$id': {
-      id: '/_auth/reviews/$id'
-      path: '/$id'
-      fullPath: '/reviews/$id'
-      preLoaderRoute: typeof AuthReviewsIdRouteImport
-      parentRoute: typeof AuthReviewsRoute
-    }
-    '/_auth/matters_/$id': {
-      id: '/_auth/matters_/$id'
-      path: '/matters/$id'
-      fullPath: '/matters/$id'
-      preLoaderRoute: typeof AuthMattersIdRouteImport
+    '/_auth/workflows/': {
+      id: '/_auth/workflows/'
+      path: '/workflows'
+      fullPath: '/workflows/'
+      preLoaderRoute: typeof AuthWorkflowsIndexRouteImport
       parentRoute: typeof AuthRouteRoute
     }
-    '/_auth/documents_/$id': {
-      id: '/_auth/documents_/$id'
+    '/_auth/settings/': {
+      id: '/_auth/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AuthSettingsIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/reviews/': {
+      id: '/_auth/reviews/'
+      path: '/reviews'
+      fullPath: '/reviews/'
+      preLoaderRoute: typeof AuthReviewsIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/matters/': {
+      id: '/_auth/matters/'
+      path: '/matters'
+      fullPath: '/matters/'
+      preLoaderRoute: typeof AuthMattersIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/documents/': {
+      id: '/_auth/documents/'
+      path: '/documents'
+      fullPath: '/documents/'
+      preLoaderRoute: typeof AuthDocumentsIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/clients/': {
+      id: '/_auth/clients/'
+      path: '/clients'
+      fullPath: '/clients/'
+      preLoaderRoute: typeof AuthClientsIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/assistant/': {
+      id: '/_auth/assistant/'
+      path: '/assistant'
+      fullPath: '/assistant/'
+      preLoaderRoute: typeof AuthAssistantIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/reviews/$id': {
+      id: '/_auth/reviews/$id'
+      path: '/reviews/$id'
+      fullPath: '/reviews/$id'
+      preLoaderRoute: typeof AuthReviewsIdRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/documents/$id': {
+      id: '/_auth/documents/$id'
       path: '/documents/$id'
       fullPath: '/documents/$id'
       preLoaderRoute: typeof AuthDocumentsIdRouteImport
       parentRoute: typeof AuthRouteRoute
     }
-    '/_auth/assistant_/$id': {
-      id: '/_auth/assistant_/$id'
+    '/_auth/assistant/$id': {
+      id: '/_auth/assistant/$id'
       path: '/assistant/$id'
       fullPath: '/assistant/$id'
       preLoaderRoute: typeof AuthAssistantIdRouteImport
       parentRoute: typeof AuthRouteRoute
     }
+    '/_auth/matters/$id/': {
+      id: '/_auth/matters/$id/'
+      path: '/matters/$id'
+      fullPath: '/matters/$id/'
+      preLoaderRoute: typeof AuthMattersIdIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
     '/_auth/workflows/tabular-review/$id': {
       id: '/_auth/workflows/tabular-review/$id'
-      path: '/tabular-review/$id'
+      path: '/workflows/tabular-review/$id'
       fullPath: '/workflows/tabular-review/$id'
       preLoaderRoute: typeof AuthWorkflowsTabularReviewIdRouteImport
-      parentRoute: typeof AuthWorkflowsRoute
+      parentRoute: typeof AuthRouteRoute
     }
     '/_auth/workflows/assistant/$id': {
       id: '/_auth/workflows/assistant/$id'
-      path: '/assistant/$id'
+      path: '/workflows/assistant/$id'
       fullPath: '/workflows/assistant/$id'
       preLoaderRoute: typeof AuthWorkflowsAssistantIdRouteImport
-      parentRoute: typeof AuthWorkflowsRoute
-    }
-    '/_auth/matters_/$id_/assistant': {
-      id: '/_auth/matters_/$id_/assistant'
-      path: '/matters/$id/assistant'
-      fullPath: '/matters/$id/assistant'
-      preLoaderRoute: typeof AuthMattersIdAssistantRouteImport
       parentRoute: typeof AuthRouteRoute
     }
-    '/_auth/matters_/$id_/assistant_/$chatId': {
-      id: '/_auth/matters_/$id_/assistant_/$chatId'
+    '/_auth/matters/$id/assistant/': {
+      id: '/_auth/matters/$id/assistant/'
+      path: '/matters/$id/assistant'
+      fullPath: '/matters/$id/assistant/'
+      preLoaderRoute: typeof AuthMattersIdAssistantIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/_auth/matters/$id/assistant/$chatId': {
+      id: '/_auth/matters/$id/assistant/$chatId'
       path: '/matters/$id/assistant/$chatId'
       fullPath: '/matters/$id/assistant/$chatId'
       preLoaderRoute: typeof AuthMattersIdAssistantChatIdRouteImport
@@ -498,60 +499,40 @@ const marketingRouteRouteWithChildren = marketingRouteRoute._addFileChildren(
   marketingRouteRouteChildren,
 )
 
-interface AuthReviewsRouteChildren {
-  AuthReviewsIdRoute: typeof AuthReviewsIdRoute
-}
-
-const AuthReviewsRouteChildren: AuthReviewsRouteChildren = {
-  AuthReviewsIdRoute: AuthReviewsIdRoute,
-}
-
-const AuthReviewsRouteWithChildren = AuthReviewsRoute._addFileChildren(
-  AuthReviewsRouteChildren,
-)
-
-interface AuthWorkflowsRouteChildren {
-  AuthWorkflowsAssistantIdRoute: typeof AuthWorkflowsAssistantIdRoute
-  AuthWorkflowsTabularReviewIdRoute: typeof AuthWorkflowsTabularReviewIdRoute
-}
-
-const AuthWorkflowsRouteChildren: AuthWorkflowsRouteChildren = {
-  AuthWorkflowsAssistantIdRoute: AuthWorkflowsAssistantIdRoute,
-  AuthWorkflowsTabularReviewIdRoute: AuthWorkflowsTabularReviewIdRoute,
-}
-
-const AuthWorkflowsRouteWithChildren = AuthWorkflowsRoute._addFileChildren(
-  AuthWorkflowsRouteChildren,
-)
-
 interface AuthRouteRouteChildren {
-  AuthAssistantRoute: typeof AuthAssistantRoute
-  AuthClientsRoute: typeof AuthClientsRoute
-  AuthDocumentsRoute: typeof AuthDocumentsRoute
-  AuthMattersRoute: typeof AuthMattersRoute
-  AuthReviewsRoute: typeof AuthReviewsRouteWithChildren
-  AuthSettingsRoute: typeof AuthSettingsRoute
-  AuthWorkflowsRoute: typeof AuthWorkflowsRouteWithChildren
   AuthAssistantIdRoute: typeof AuthAssistantIdRoute
   AuthDocumentsIdRoute: typeof AuthDocumentsIdRoute
-  AuthMattersIdRoute: typeof AuthMattersIdRoute
-  AuthMattersIdAssistantRoute: typeof AuthMattersIdAssistantRoute
+  AuthReviewsIdRoute: typeof AuthReviewsIdRoute
+  AuthAssistantIndexRoute: typeof AuthAssistantIndexRoute
+  AuthClientsIndexRoute: typeof AuthClientsIndexRoute
+  AuthDocumentsIndexRoute: typeof AuthDocumentsIndexRoute
+  AuthMattersIndexRoute: typeof AuthMattersIndexRoute
+  AuthReviewsIndexRoute: typeof AuthReviewsIndexRoute
+  AuthSettingsIndexRoute: typeof AuthSettingsIndexRoute
+  AuthWorkflowsIndexRoute: typeof AuthWorkflowsIndexRoute
+  AuthWorkflowsAssistantIdRoute: typeof AuthWorkflowsAssistantIdRoute
+  AuthWorkflowsTabularReviewIdRoute: typeof AuthWorkflowsTabularReviewIdRoute
+  AuthMattersIdIndexRoute: typeof AuthMattersIdIndexRoute
   AuthMattersIdAssistantChatIdRoute: typeof AuthMattersIdAssistantChatIdRoute
+  AuthMattersIdAssistantIndexRoute: typeof AuthMattersIdAssistantIndexRoute
 }
 
 const AuthRouteRouteChildren: AuthRouteRouteChildren = {
-  AuthAssistantRoute: AuthAssistantRoute,
-  AuthClientsRoute: AuthClientsRoute,
-  AuthDocumentsRoute: AuthDocumentsRoute,
-  AuthMattersRoute: AuthMattersRoute,
-  AuthReviewsRoute: AuthReviewsRouteWithChildren,
-  AuthSettingsRoute: AuthSettingsRoute,
-  AuthWorkflowsRoute: AuthWorkflowsRouteWithChildren,
   AuthAssistantIdRoute: AuthAssistantIdRoute,
   AuthDocumentsIdRoute: AuthDocumentsIdRoute,
-  AuthMattersIdRoute: AuthMattersIdRoute,
-  AuthMattersIdAssistantRoute: AuthMattersIdAssistantRoute,
+  AuthReviewsIdRoute: AuthReviewsIdRoute,
+  AuthAssistantIndexRoute: AuthAssistantIndexRoute,
+  AuthClientsIndexRoute: AuthClientsIndexRoute,
+  AuthDocumentsIndexRoute: AuthDocumentsIndexRoute,
+  AuthMattersIndexRoute: AuthMattersIndexRoute,
+  AuthReviewsIndexRoute: AuthReviewsIndexRoute,
+  AuthSettingsIndexRoute: AuthSettingsIndexRoute,
+  AuthWorkflowsIndexRoute: AuthWorkflowsIndexRoute,
+  AuthWorkflowsAssistantIdRoute: AuthWorkflowsAssistantIdRoute,
+  AuthWorkflowsTabularReviewIdRoute: AuthWorkflowsTabularReviewIdRoute,
+  AuthMattersIdIndexRoute: AuthMattersIdIndexRoute,
   AuthMattersIdAssistantChatIdRoute: AuthMattersIdAssistantChatIdRoute,
+  AuthMattersIdAssistantIndexRoute: AuthMattersIdAssistantIndexRoute,
 }
 
 const AuthRouteRouteWithChildren = AuthRouteRoute._addFileChildren(

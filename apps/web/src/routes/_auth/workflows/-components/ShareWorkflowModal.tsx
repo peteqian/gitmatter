@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { api, type WorkflowShare } from "@/lib/api";
-import { useSession } from "@/lib/auth-client";
-import { cn } from "@/lib/utils";
+import { api, type WorkflowShare } from "@/lib/data/api";
+import { useSession } from "@/lib/auth/auth-client";
+import { cn } from "@/lib/util/utils";
 import { EmailPillInput } from "./EmailPillInput";
 import { WorkflowModal } from "./WorkflowModal";
 

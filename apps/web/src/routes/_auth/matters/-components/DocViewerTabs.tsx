@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { FileText, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DocxView } from "../../documents/-components/DocxView";
-import { api } from "../../../../lib/api";
+import { api } from "../../../../lib/data/api";
 
 export type DocTab = { docId: string; title: string };
 

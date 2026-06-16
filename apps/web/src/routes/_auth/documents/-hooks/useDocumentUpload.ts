@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { PaginationState } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api } from "@/lib/data/api";
 
 export function useDocumentUpload({
   matterId,

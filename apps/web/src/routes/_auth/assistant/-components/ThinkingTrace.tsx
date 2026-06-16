@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Brain, Check, ChevronDown, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 
 export type ToolRun = { name: string; done: boolean; input?: unknown };
 

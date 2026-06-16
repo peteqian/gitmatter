@@ -9,17 +9,17 @@ import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
 import { TablePager } from "@/components/TablePager";
 import { TableSearch } from "@/components/TableSearch";
-import { api, type Client, type ClientSelection } from "../../lib/api";
-import { queryKeys } from "../../lib/queries";
-import { useDataTable } from "../../lib/useDataTable";
-import { useTablePageParams } from "../../lib/useTablePageParams";
-import { ClientDialog } from "./clients/-components/ClientDialog";
-import { ClientSelectionBar } from "./clients/-components/ClientSelectionBar";
-import { CreateClient } from "./clients/-components/CreateClient";
-import { DeleteClientsDialog } from "./clients/-components/DeleteClientsDialog";
-import { clientColumns } from "./clients/-components/clientColumns";
+import { api, type Client, type ClientSelection } from "@/lib/data/api";
+import { queryKeys } from "@/lib/data/queries";
+import { useDataTable } from "@/lib/hooks/table/useDataTable";
+import { useTablePageParams } from "@/lib/hooks/table/useTablePageParams";
+import { ClientDialog } from "./-components/ClientDialog";
+import { ClientSelectionBar } from "./-components/ClientSelectionBar";
+import { CreateClient } from "./-components/CreateClient";
+import { DeleteClientsDialog } from "./-components/DeleteClientsDialog";
+import { clientColumns } from "./-components/clientColumns";
 
-export const Route = createFileRoute("/_auth/clients")({
+export const Route = createFileRoute("/_auth/clients/")({
   component: Clients,
   // ?view filters by status; ?client opens that client's dialog (from the
   // sidebar's recent list).

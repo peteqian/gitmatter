@@ -15,15 +15,15 @@ import { ChatTurns } from "../../assistant/-components/ChatTurns";
 import { useChatSession } from "../../assistant/-components/useChatSession";
 import { MatterExplorer } from "./MatterExplorer";
 import { DocViewerTabs } from "./DocViewerTabs";
-import { api, type ChatDetail, type Doc } from "../../../../lib/api";
-import { useSession } from "../../../../lib/auth-client";
+import { api, type ChatDetail, type Doc } from "../../../../lib/data/api";
+import { useSession } from "../../../../lib/auth/auth-client";
 import {
   closeDocTab,
   openDocTab,
   setActiveDocTab,
   viewerStore,
   type ViewerState,
-} from "../../../../lib/viewer-store";
+} from "../-hooks/viewer-store";
 
 const EMPTY_VIEW = { tabs: [], activeTabId: null } as const;
 
@@ -247,23 +247,23 @@ export function MatterChatWorkspace({
                   <ChevronRight className="size-3.5" />
                 </Button>
               </div>
-          {s.turns.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center px-4">
-              <h1 className="flex items-center gap-2.5 font-heading text-2xl font-light tracking-tight">
-                <span className="grid size-7 place-items-center rounded-md bg-primary font-serif text-base text-primary-foreground">
-                  g
-                </span>
-                Hi, {firstName}
-              </h1>
-            </div>
-          ) : (
-            <Conversation className="min-h-0 flex-1">
-              <ConversationContent className="gap-6 px-4">
-                <ChatTurns turns={s.turns} busy={s.busy} onOpenDocument={openDoc} />
-              </ConversationContent>
-              <ConversationScrollButton />
-            </Conversation>
-          )}
+              {s.turns.length === 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center px-4">
+                  <h1 className="flex items-center gap-2.5 font-heading text-2xl font-light tracking-tight">
+                    <span className="grid size-7 place-items-center rounded-md bg-primary font-serif text-base text-primary-foreground">
+                      g
+                    </span>
+                    Hi, {firstName}
+                  </h1>
+                </div>
+              ) : (
+                <Conversation className="min-h-0 flex-1">
+                  <ConversationContent className="gap-6 px-4">
+                    <ChatTurns turns={s.turns} busy={s.busy} onOpenDocument={openDoc} />
+                  </ConversationContent>
+                  <ConversationScrollButton />
+                </Conversation>
+              )}
               <div className="shrink-0 px-4 pb-4">{composer}</div>
             </div>
           </>

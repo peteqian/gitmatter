@@ -22,7 +22,7 @@ import {
   Sun,
   Table2,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -34,8 +34,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { signOut } from "../lib/auth-client";
-import type { ServerSession } from "../lib/session";
+import { signOut } from "../lib/auth/auth-client";
+import type { ServerSession } from "../lib/auth/session";
 import { ChatNavPanel } from "./sidebar/ChatNavPanel";
 
 // "New chat" leads the rail (ChatGPT-style); the rest are the app sections.

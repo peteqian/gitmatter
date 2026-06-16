@@ -1,7 +1,7 @@
 import { Download, Trash2 } from "lucide-react";
 import type { Table } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import type { Client } from "@/lib/api";
+import type { Client } from "@/lib/data/api";
 
 export function ClientSelectionBar({
   table,

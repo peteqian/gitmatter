@@ -12,10 +12,10 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { api, type ChatAttachment } from "@/lib/api";
+import { api, type ChatAttachment } from "@/lib/data/api";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/util/utils";
 
 type Kind = ChatAttachment["kind"];
 type Option = { id: string; label: string; sub?: string };

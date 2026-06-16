@@ -8,9 +8,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { fileTypeLabel } from "@/lib/documentLabels";
-import { formatShortDate } from "@/lib/format";
-import type { Doc } from "@/lib/api";
+import { fileTypeLabel } from "@/lib/format/documentLabels";
+import { formatShortDate } from "@/lib/format/format";
+import type { Doc } from "@/lib/data/api";
 import { DocumentStatusBadge } from "./DocumentStatusBadge";
 
 const columnHelper = createColumnHelper<Doc>();

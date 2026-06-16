@@ -14,16 +14,16 @@ import { PageHeader } from "@/components/PageHeader";
 import { TablePager } from "@/components/TablePager";
 import { TableSearch } from "@/components/TableSearch";
 import { ToolbarTabs } from "@/components/ToolbarTabs";
-import { api, type MatterListItem } from "../../lib/api";
-import { queryKeys } from "../../lib/queries";
-import { useDataTable } from "../../lib/useDataTable";
-import { useTablePageParams } from "../../lib/useTablePageParams";
-import { useMatters } from "../../lib/matters-context";
-import { matterColumns } from "./matters/-components/matterColumns";
-import { EditMatterModal } from "./matters/-components/EditMatterModal";
-import { PeopleModal } from "./matters/-components/PeopleModal";
+import { api, type MatterListItem } from "@/lib/data/api";
+import { queryKeys } from "@/lib/data/queries";
+import { useDataTable } from "@/lib/hooks/table/useDataTable";
+import { useTablePageParams } from "@/lib/hooks/table/useTablePageParams";
+import { useMatters } from "@/lib/context/matters-context";
+import { matterColumns } from "./-components/matterColumns";
+import { EditMatterModal } from "./-components/EditMatterModal";
+import { PeopleModal } from "./-components/PeopleModal";
 
-export const Route = createFileRoute("/_auth/matters")({
+export const Route = createFileRoute("/_auth/matters/")({
   component: Matters,
   // ?view filters the list by status (set from the sidebar): all | active | closed.
   validateSearch: (s: Record<string, unknown>): { view?: string } => ({
