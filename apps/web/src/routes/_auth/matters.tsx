@@ -1,8 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  createColumnHelper,
   getCoreRowModel,
   getSortedRowModel,
   useReactTable,
@@ -14,16 +13,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
-import { StateCue } from "@/components/StateCue";
 import { ToolbarTabs } from "@/components/ToolbarTabs";
 import { api, type MatterListItem } from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
 import { useColumnSizing } from "../../lib/useColumnSizing";
 import { useMatters } from "../../lib/matters-context";
-import { formatShortDate } from "../../lib/format";
+import { matterColumns } from "./matters/-components/matterColumns";
+import { EditMatterModal } from "./matters/-components/EditMatterModal";
+import { PeopleModal } from "./matters/-components/PeopleModal";
 
 export const Route = createFileRoute("/_auth/matters")({
   component: Matters,
@@ -35,87 +34,40 @@ export const Route = createFileRoute("/_auth/matters")({
 
 type Scope = "all" | "mine" | "shared";
 
-const columnHelper = createColumnHelper<MatterListItem>();
-const columns = [
-  columnHelper.display({
-    id: "select",
-    size: 44,
-    enableResizing: false,
-    header: ({ table }) => (
-      <Checkbox
-        checked={table.getIsAllRowsSelected()}
-        onChange={table.getToggleAllRowsSelectedHandler()}
-        aria-label="Select all"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onChange={row.getToggleSelectedHandler()}
-        onClick={(e) => e.stopPropagation()}
-        aria-label="Select row"
-      />
-    ),
-  }),
-  columnHelper.accessor((m) => m.matter.name, {
-    id: "name",
-    header: "Name",
-    size: 260,
-    cell: (c) => (
-      <span className="block truncate font-medium">
-        {c.getValue()}
-        {c.row.original.matter.status === "closed" && (
-          <StateCue tone="muted">
-            <span className="ml-2">Closed</span>
-          </StateCue>
-        )}
-      </span>
-    ),
-  }),
-  columnHelper.accessor((m) => m.client.name, {
-    id: "client",
-    header: "Client",
-    size: 180,
-    cell: (c) => <span className="text-muted-foreground">{c.getValue()}</span>,
-  }),
-  columnHelper.accessor((m) => (m.role === "owner" ? "Me" : (m.ownerName ?? "—")), {
-    id: "owner",
-    header: "Owner",
-    size: 140,
-    cell: (c) => <span className="text-muted-foreground">{c.getValue()}</span>,
-  }),
-  columnHelper.accessor((m) => m.memberCount, {
-    id: "shared",
-    header: "Shared with",
-    size: 130,
-    cell: (c) => (
-      <span className="text-muted-foreground">
-        {c.getValue() > 1 ? `${c.getValue()} people` : "Private"}
-      </span>
-    ),
-  }),
-  columnHelper.accessor((m) => m.matter.updatedAt, {
-    id: "updatedAt",
-    header: "Recent activity",
-    size: 140,
-    cell: (c) => <span className="text-muted-foreground">{formatShortDate(c.getValue())}</span>,
-  }),
-  columnHelper.accessor((m) => m.matter.createdAt, {
-    id: "createdAt",
-    header: "Created",
-    size: 140,
-    cell: (c) => <span className="text-muted-foreground">{formatShortDate(c.getValue())}</span>,
-  }),
-];
-
 function Matters() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { matters, refresh, setCurrent } = useMatters();
   const [creating, setCreating] = useState(false);
   const [scope, setScope] = useState<Scope>("all");
   const [query, setQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "updatedAt", desc: true }]);
   const [rowSelection, setRowSelection] = useState({});
+  const [editing, setEditing] = useState<MatterListItem | null>(null);
+  const [peopleFor, setPeopleFor] = useState<MatterListItem | null>(null);
+
+  const closeMutation = useMutation({
+    mutationFn: (m: MatterListItem) =>
+      api.updateMatter(m.matter.id, {
+        status: m.matter.status === "closed" ? "open" : "closed",
+      }),
+    onSuccess: (_, m) => {
+      toast.success(m.matter.status === "closed" ? "Matter reopened" : "Matter closed");
+      refresh();
+      void qc.invalidateQueries({ queryKey: ["matter", m.matter.id] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Update failed"),
+  });
+
+  const columns = useMemo(
+    () =>
+      matterColumns({
+        onEdit: setEditing,
+        onManagePeople: setPeopleFor,
+        onToggleClose: (m) => closeMutation.mutate(m),
+      }),
+    [closeMutation]
+  );
 
   const shown = useMemo(
     () =>
@@ -207,6 +159,29 @@ function Matters() {
         }
         onRowClick={(m) => navigate({ to: "/matters/$id", params: { id: m.matter.id } })}
       />
+
+      {editing && (
+        <EditMatterModal
+          matter={editing.matter}
+          open
+          onOpenChange={(open) => !open && setEditing(null)}
+          canClose={editing.role === "owner"}
+          onSaved={() => {
+            refresh();
+            void qc.invalidateQueries({ queryKey: ["matter", editing.matter.id] });
+          }}
+        />
+      )}
+
+      {peopleFor && (
+        <PeopleModal
+          matterId={peopleFor.matter.id}
+          matterName={peopleFor.matter.name}
+          canManage={peopleFor.role === "owner"}
+          open
+          onOpenChange={(open) => !open && setPeopleFor(null)}
+        />
+      )}
     </div>
   );
 }

@@ -102,17 +102,19 @@ export function DataTable<T>({
       .filter((c) => c.getCanResize())
       .reduce((s, c) => s + c.getSize(), 0);
     const available = containerWidth - fixedTotal;
-    const scale =
-      containerWidth > 0 && resizableTotal > 0 && available > resizableTotal
-        ? available / resizableTotal
-        : 1;
+    // Scale resizable columns to fill the container — growing into empty space
+    // or shrinking to avoid overflow — but never below each column's minSize.
+    // Past that floor the table overflows and scrolls instead of cramming.
+    const scale = containerWidth > 0 && resizableTotal > 0 ? available / resizableTotal : 1;
+    const widthOf = (c: (typeof leafColumns)[number]) =>
+      c.getCanResize() ? Math.max(c.getSize() * scale, c.columnDef.minSize ?? 80) : c.getSize();
     const vars: Record<string, number> = {};
     for (const header of table.getFlatHeaders()) {
-      const w = header.column.getCanResize() ? header.getSize() * scale : header.getSize();
+      const w = widthOf(header.column);
       vars[`--header-${header.id}-size`] = w;
       vars[`--col-${header.column.id}-size`] = w;
     }
-    const baseWidth = fixedTotal + resizableTotal * scale;
+    const baseWidth = leafColumns.reduce((s, c) => s + widthOf(c), 0);
     return {
       columnSizeVars: vars,
       tableWidth: Math.floor(containerWidth > 0 ? Math.max(baseWidth, containerWidth) : baseWidth),

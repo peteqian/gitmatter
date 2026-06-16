@@ -43,7 +43,7 @@ export function ConfirmDialog({
         else close();
       }}
     >
-      <DialogContent showCloseButton={false} className="max-w-sm gap-4">
+      <DialogContent className="max-w-sm gap-4">
         <div className="flex flex-col gap-1.5">
           <h2 className="font-heading text-base font-medium">{title}</h2>
           {detail && <p className="text-sm text-muted-foreground">{detail}</p>}

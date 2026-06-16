@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
 import { TablePager } from "@/components/TablePager";
-import { api } from "../../lib/api";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { api, type Doc } from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
 import { useColumnSizing } from "../../lib/useColumnSizing";
 import { useWorkingMatterId } from "../../lib/matters-context";
@@ -68,10 +69,20 @@ function Documents() {
     return () => es.close();
   }, [qc]);
 
+  const [confirmDelete, setConfirmDelete] = useState<Doc | null>(null);
   const retryMutation = useMutation({
     mutationFn: (id: string) => api.retryDocument(id),
     onSuccess: () => invalidateDocs(),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Retry failed"),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteDocument(id),
+    onSuccess: () => {
+      toast.success("Document deleted");
+      void invalidateDocs();
+      setConfirmDelete(null);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Delete failed"),
   });
   const { dragging, fileRef, onDragEnter, onDragLeave, onDragOver, onDrop, onPick, uploading } =
     useDocumentUpload({
@@ -80,7 +91,15 @@ function Documents() {
       setPagination,
     });
 
-  const columns = useMemo(() => documentColumns((id) => retryMutation.mutate(id)), [retryMutation]);
+  const columns = useMemo(
+    () =>
+      documentColumns({
+        onRetry: (id) => retryMutation.mutate(id),
+        onDownload: (id) => window.open(api.documentDownloadUrl(id), "_blank"),
+        onDelete: (doc) => setConfirmDelete(doc),
+      }),
+    [retryMutation]
+  );
 
   const { columnSizing, onColumnSizingChange } = useColumnSizing("documents");
 
@@ -187,6 +206,20 @@ function Documents() {
         )
       )}
       <DocumentDrawer docId={selectedId} onClose={() => setSelectedId(null)} />
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete document?"
+        message={
+          confirmDelete
+            ? `"${confirmDelete.title}" and all its versions will be deleted.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        pending={deleteMutation.isPending}
+        onConfirm={() => confirmDelete && deleteMutation.mutate(confirmDelete.id)}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

@@ -274,6 +274,15 @@ export const api = {
     type?: "organization" | "individual";
     clientNumber?: string;
   }) => req<Client>("/api/clients", { method: "POST", body: JSON.stringify(d) }),
+  updateClient: (
+    id: string,
+    fields: {
+      name?: string;
+      type?: "organization" | "individual";
+      clientNumber?: string | null;
+      status?: "active" | "inactive";
+    }
+  ) => req<Client>(`/api/clients/${id}`, { method: "PATCH", body: JSON.stringify(fields) }),
   listMatters: () => req<MatterListItem[]>("/api/matters"),
   getMatter: (id: string) => req<Matter>(`/api/matters/${id}`),
   createMatter: (d: {

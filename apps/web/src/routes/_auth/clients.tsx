@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getCoreRowModel,
@@ -89,10 +89,11 @@ function Clients() {
   }, [selectedOverview]);
 
   const { columnSizing, onColumnSizingChange } = useColumnSizing("clients");
+  const columns = useMemo(() => clientColumns((c) => setSelected(c)), []);
 
   const table = useReactTable({
     data: clients,
-    columns: clientColumns,
+    columns,
     rowCount,
     getRowId: (row) => row.id,
     state: { sorting, pagination, rowSelection, columnSizing },

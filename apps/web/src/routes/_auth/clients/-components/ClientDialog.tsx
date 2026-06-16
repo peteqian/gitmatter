@@ -1,42 +1,136 @@
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
-  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StateCue } from "@/components/StateCue";
 import { api, type Client } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
 
-/** Click a client row → this dialog. Loads the client's work (matters, documents,
- *  contracts, reviews the caller can see) on open; rows link out to their detail. */
+/** Click a client row → this dialog. Edits the client's directory details inline
+ *  (name, type, number, status) and lists the client's work (matters, documents,
+ *  reviews the caller can see); rows link out to their detail. */
 export function ClientDialog({ client, onClose }: { client: Client | null; onClose: () => void }) {
+  const qc = useQueryClient();
   // Fetch only while a client is selected; cached per id so reopening is instant.
   const { data: overview } = useQuery({
     queryKey: queryKeys.client(client?.id ?? ""),
     queryFn: () => api.getClient(client!.id),
     enabled: !!client,
   });
+  // Prefer the freshly fetched client; fall back to the row snapshot.
+  const current = overview?.client ?? client;
+
+  const [name, setName] = useState("");
+  const [type, setType] = useState<Client["type"]>("organization");
+  const [clientNumber, setClientNumber] = useState("");
+  const [status, setStatus] = useState<Client["status"]>("active");
+
+  // Seed the form when a different client opens (or its fresh data arrives).
+  useEffect(() => {
+    if (!current) return;
+    setName(current.name);
+    setType(current.type);
+    setClientNumber(current.clientNumber ?? "");
+    setStatus(current.status);
+  }, [current]);
+
+  const dirty =
+    !!current &&
+    (name.trim() !== current.name ||
+      type !== current.type ||
+      clientNumber.trim() !== (current.clientNumber ?? "") ||
+      status !== current.status);
+
+  const save = useMutation({
+    mutationFn: () =>
+      api.updateClient(client!.id, {
+        name: name.trim(),
+        type,
+        clientNumber: clientNumber.trim() || null,
+        status,
+      }),
+    onSuccess: () => {
+      toast.success("Client updated");
+      void qc.invalidateQueries({ queryKey: queryKeys.clients });
+      void qc.invalidateQueries({ queryKey: queryKeys.client(client!.id) });
+      onClose();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Update failed"),
+  });
 
   return (
     <Dialog open={!!client} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent>
         {client && (
           <>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-3">
-                <span className="truncate">{client.name}</span>
-                {client.status === "inactive" && <StateCue tone="muted">Inactive</StateCue>}
-              </DialogTitle>
-              <DialogDescription className="capitalize">
-                {client.type}
-                {client.clientNumber && ` · No. ${client.clientNumber}`}
-              </DialogDescription>
+              <DialogTitle>Edit client</DialogTitle>
             </DialogHeader>
+
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label>Name</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label>Type</Label>
+                  <Select value={type} onValueChange={(v) => setType(v as Client["type"])}>
+                    <SelectTrigger className="capitalize">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(["organization", "individual"] as const).map((t) => (
+                        <SelectItem key={t} value={t} className="capitalize">
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Client number</Label>
+                  <Input
+                    value={clientNumber}
+                    onChange={(e) => setClientNumber(e.target.value)}
+                    placeholder="2024-001"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <Label>Status</Label>
+                <Select value={status} onValueChange={(v) => setStatus(v as Client["status"])}>
+                  <SelectTrigger className="w-32 capitalize">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(["active", "inactive"] as const).map((s) => (
+                      <SelectItem key={s} value={s} className="capitalize">
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
             {!overview ? (
               <div className="flex flex-col gap-2">
@@ -44,7 +138,7 @@ export function ClientDialog({ client, onClose }: { client: Client | null; onClo
                 <Skeleton className="h-5 w-2/3" />
               </div>
             ) : (
-              <div className="flex max-h-[70vh] flex-col gap-section overflow-y-auto">
+              <div className="flex max-h-[50vh] flex-col gap-section overflow-x-hidden overflow-y-auto border-t border-border pt-4">
                 <Section title="Matters" empty="No matters you can access.">
                   {overview.matters.map(({ matter }) => (
                     <Row
@@ -82,6 +176,16 @@ export function ClientDialog({ client, onClose }: { client: Client | null; onClo
                 </Section>
               </div>
             )}
+
+            <DialogFooter>
+              <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+              <Button
+                disabled={!dirty || !name.trim() || save.isPending}
+                onClick={() => save.mutate()}
+              >
+                {save.isPending ? "Saving…" : "Save"}
+              </Button>
+            </DialogFooter>
           </>
         )}
       </DialogContent>

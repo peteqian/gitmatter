@@ -23,6 +23,7 @@ import {
   renameFolder,
   searchUsers,
   selectClients,
+  updateClient,
   updateMatter,
   rowsToCsv,
   type ClientSelection,
@@ -35,6 +36,7 @@ import {
   conflictsCheckSchema,
   createClientSchema,
   createMatterSchema,
+  updateClientSchema,
   updateMatterSchema,
 } from "../schemas/matters.js";
 
@@ -63,6 +65,15 @@ mattersRoute.post("/api/clients", zValidator("json", createClientSchema), async 
   const user = c.get("user");
   const client = await createClient(user.id, user.tenantId, c.req.valid("json"));
   return c.json(client, 201);
+});
+
+mattersRoute.patch("/api/clients/:id", zValidator("json", updateClientSchema), async (c) => {
+  const updated = await updateClient(
+    c.get("user").tenantId,
+    c.req.param("id"),
+    c.req.valid("json")
+  );
+  return updated ? c.json(updated) : c.json({ error: "Not found" }, 404);
 });
 
 // Build a ClientSelection from a request: `all` (with the live filter) or an

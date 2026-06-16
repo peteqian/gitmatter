@@ -35,6 +35,24 @@ export async function createClient(
   return row!;
 }
 
+export async function updateClient(
+  tenantId: string,
+  id: string,
+  fields: {
+    name?: string;
+    type?: "organization" | "individual";
+    clientNumber?: string | null;
+    status?: "active" | "inactive";
+  }
+) {
+  const [row] = await db
+    .update(clients)
+    .set({ ...fields, updatedAt: new Date() })
+    .where(and(eq(clients.id, id), eq(clients.tenantId, tenantId)))
+    .returning();
+  return row ?? null;
+}
+
 export async function listClients(tenantId: string) {
   return db
     .select()

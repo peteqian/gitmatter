@@ -1,7 +1,13 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { RotateCcw } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { fileTypeLabel } from "@/lib/documentLabels";
 import { formatShortDate } from "@/lib/format";
 import type { Doc } from "@/lib/api";
@@ -9,7 +15,11 @@ import { DocumentStatusBadge } from "./DocumentStatusBadge";
 
 const columnHelper = createColumnHelper<Doc>();
 
-export function documentColumns(onRetry: (id: string) => void) {
+export function documentColumns(handlers: {
+  onRetry: (id: string) => void;
+  onDownload: (id: string) => void;
+  onDelete: (doc: Doc) => void;
+}) {
   return [
     columnHelper.display({
       id: "select",
@@ -75,24 +85,42 @@ export function documentColumns(onRetry: (id: string) => void) {
       header: "",
       size: 64,
       enableResizing: false,
-      cell: (c) =>
-        c.row.original.status === "failed" || c.row.original.status === "processing" ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            title={
-              c.row.original.extractionError ? `Retry - ${c.row.original.extractionError}` : "Retry"
-            }
-            aria-label="Retry extraction"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRetry(c.row.original.id);
-            }}
-          >
-            <RotateCcw className="size-4" />
-          </Button>
-        ) : null,
+      cell: (c) => {
+        const doc = c.row.original;
+        const canRetry = doc.status === "failed" || doc.status === "processing";
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground"
+                    title="Actions"
+                    aria-label="Row actions"
+                  />
+                }
+              >
+                <MoreHorizontal className="size-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handlers.onDownload(doc.id)}>
+                  Download
+                </DropdownMenuItem>
+                {canRetry && (
+                  <DropdownMenuItem onClick={() => handlers.onRetry(doc.id)}>
+                    Retry
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem variant="destructive" onClick={() => handlers.onDelete(doc)}>
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      },
     }),
   ];
 }

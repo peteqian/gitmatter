@@ -6,6 +6,13 @@ export const createClientSchema = z.object({
   clientNumber: z.string().optional(),
 });
 
+export const updateClientSchema = z.object({
+  name: z.string().min(1).optional(),
+  type: z.enum(["organization", "individual"]).optional(),
+  clientNumber: z.string().nullish(),
+  status: z.enum(["active", "inactive"]).optional(),
+});
+
 export const createMatterSchema = z.object({
   clientId: z.string().uuid(),
   name: z.string().min(1),

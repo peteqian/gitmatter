@@ -1,12 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+  type ColumnDef,
+  type PaginationState,
+} from "@tanstack/react-table";
 import { toast } from "sonner";
 import { Library, Plus, Search } from "lucide-react";
 import { api, type WorkflowListItem } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { PageShell } from "@/components/PageShell";
+import { TablePager } from "@/components/TablePager";
 import { ToolbarTabs } from "@/components/ToolbarTabs";
 import { DisplayWorkflowModal } from "./workflows/-components/DisplayWorkflowModal";
 import { NewWorkflowModal } from "./workflows/-components/NewWorkflowModal";
@@ -18,6 +26,10 @@ import { workflowDetailRoute } from "./workflows/-components/workflowRoutes";
 import { useWorkflowFilters } from "./workflows/-components/useWorkflowFilters";
 
 export const Route = createFileRoute("/_auth/workflows")({ component: Workflows });
+
+// The list renders WorkflowRow itself; the table is used only for client-side
+// pagination math (page slicing + the pager footer), so it needs no columns.
+const NO_COLUMNS: ColumnDef<WorkflowListItem>[] = [];
 
 function Workflows() {
   const navigate = useNavigate();
@@ -59,9 +71,24 @@ function Workflows() {
     typeFilter,
   });
 
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
+  const table = useReactTable({
+    data: filtered,
+    columns: NO_COLUMNS,
+    getRowId: (w) => w.id,
+    state: { pagination },
+    onPaginationChange: setPagination,
+    // `filtered` is a fresh array each render; reset the page ourselves on
+    // filter/search change instead (below) rather than on every render.
+    autoResetPageIndex: false,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
+
   useEffect(() => {
     setSelectedIds([]);
-  }, [tab, practiceFilter, typeFilter]);
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  }, [tab, practiceFilter, typeFilter, search]);
 
   const allSelected = filtered.length > 0 && filtered.every((w) => selectedIds.includes(w.id));
   const someSelected = !allSelected && filtered.some((w) => selectedIds.includes(w.id));
@@ -152,21 +179,26 @@ function Workflows() {
         {filtered.length === 0 ? (
           <EmptyState tab={tab} onNew={() => setNewOpen(true)} />
         ) : (
-          filtered.map((workflow) => (
-            <WorkflowRow
-              key={workflow.id}
-              workflow={workflow}
-              tab={tab}
-              selected={selectedIds.includes(workflow.id)}
-              onOpen={() => setSelected(workflow)}
-              onToggle={() => toggleOne(workflow.id)}
-              onHide={() => hideMutation.mutate(workflow.id)}
-              onUnhide={() => unhideMutation.mutate(workflow.id)}
-              onDelete={() => deleteMutation.mutate(workflow.id)}
-            />
-          ))
+          table.getRowModel().rows.map((row) => {
+            const workflow = row.original;
+            return (
+              <WorkflowRow
+                key={workflow.id}
+                workflow={workflow}
+                tab={tab}
+                selected={selectedIds.includes(workflow.id)}
+                onOpen={() => setSelected(workflow)}
+                onToggle={() => toggleOne(workflow.id)}
+                onHide={() => hideMutation.mutate(workflow.id)}
+                onUnhide={() => unhideMutation.mutate(workflow.id)}
+                onDelete={() => deleteMutation.mutate(workflow.id)}
+              />
+            );
+          })
         )}
       </div>
+
+      {filtered.length > 0 && <TablePager table={table} />}
 
       <DisplayWorkflowModal
         workflows={[...visibleBuiltins, ...custom]}
