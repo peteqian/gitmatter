@@ -59,6 +59,13 @@ function DocumentView() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
 
+  // Accept/reject every pending change at once — one new version.
+  const resolveAllMutation = useMutation({
+    mutationFn: (decision: "accept" | "reject") => api.resolveAllEdits(id, decision),
+    onSuccess: onEdited,
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
   if (!data)
     return (
       <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto pt-6 lg:grid-cols-[1fr_300px]">
@@ -137,7 +144,28 @@ function DocumentView() {
         </Card>
 
         <div className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold">Tracked changes ({pending.length} pending)</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">Tracked changes ({pending.length} pending)</h2>
+            {pending.length > 0 && (
+              <div className="flex gap-2">
+                <Button
+                  size="xs"
+                  disabled={resolveAllMutation.isPending}
+                  onClick={() => resolveAllMutation.mutate("accept")}
+                >
+                  Accept all
+                </Button>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  disabled={resolveAllMutation.isPending}
+                  onClick={() => resolveAllMutation.mutate("reject")}
+                >
+                  Reject all
+                </Button>
+              </div>
+            )}
+          </div>
           {edits.map((e) => (
             <Card key={e.id}>
               <CardContent className="flex flex-col gap-2 py-3">

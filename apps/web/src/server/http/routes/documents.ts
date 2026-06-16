@@ -18,13 +18,16 @@ import {
   getObject,
   hasMatterAccess,
   listCommits,
+  linkDocumentsToMatter,
   listDocuments,
   listDocumentsPage,
   listMatterDocuments,
   listVersions,
   proposeEdit,
   renameDocument,
+  resolveAllEdits,
   resolveEdit,
+  resolveEdits,
   retryDocument,
   uploadDocument,
 } from "@workspace/core";
@@ -33,8 +36,10 @@ import { resolveCreateMatter } from "../lib/matter.js";
 import { parsePageQuery } from "../lib/page-query.js";
 import {
   createDocumentSchema,
+  linkDocumentsSchema,
   proposeEditSchema,
   renameDocumentSchema,
+  resolveBatchSchema,
   resolveEditSchema,
 } from "../schemas/documents.js";
 
@@ -125,6 +130,16 @@ documentsRoute.post("/api/documents/upload", async (c) => {
     const message = err instanceof Error ? err.message : "upload failed";
     return c.json({ error: `Could not store file: ${message}` }, 502);
   }
+});
+
+// Link existing documents into a matter (many-to-many). Access-checked against
+// the target matter; core only links docs the caller owns within its tenant.
+documentsRoute.post("/api/documents/link", zValidator("json", linkDocumentsSchema), async (c) => {
+  const user = c.get("user");
+  const { matterId, documentIds } = c.req.valid("json");
+  if (!(await hasMatterAccess(user.id, matterId))) return c.json({ error: "Not found" }, 404);
+  const linked = await linkDocumentsToMatter(user.id, matterId, documentIds);
+  return c.json({ linked });
 });
 
 // Live extraction status (SSE). The browser opens one stream and patches its
@@ -290,11 +305,46 @@ documentsRoute.post(
       return c.json({ error: "Not found" }, 404);
     const body = c.req.valid("json");
     try {
-      await proposeEdit({ type: "user", userId: user.id }, id, {
-        find: body.find,
-        replace: body.replace,
-        reason: body.reason,
-      });
+      await proposeEdit({ type: "user", userId: user.id }, id, [
+        { find: body.find, replace: body.replace, reason: body.reason },
+      ]);
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : "failed" }, 400);
+    }
+    return c.json(await getDocumentDetail(id));
+  }
+);
+
+// Accept or reject every pending change at once, as one version. Editor access required.
+documentsRoute.post(
+  "/api/documents/:id/edits/resolve-all",
+  zValidator("json", resolveEditSchema),
+  async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!(await canAccessArtifact(user.id, "document", id, "editor")))
+      return c.json({ error: "Not found" }, 404);
+    try {
+      await resolveAllEdits({ type: "user", userId: user.id }, id, c.req.valid("json").decision);
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : "failed" }, 400);
+    }
+    return c.json(await getDocumentDetail(id));
+  }
+);
+
+// Accept or reject a specific set of changes (e.g. one chat turn's batch) as one version.
+documentsRoute.post(
+  "/api/documents/:id/edits/resolve-batch",
+  zValidator("json", resolveBatchSchema),
+  async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!(await canAccessArtifact(user.id, "document", id, "editor")))
+      return c.json({ error: "Not found" }, 404);
+    const { changeIds, decision } = c.req.valid("json");
+    try {
+      await resolveEdits({ type: "user", userId: user.id }, id, changeIds, decision);
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : "failed" }, 400);
     }

@@ -16,4 +16,14 @@ export const proposeEditSchema = z.object({
 
 export const resolveEditSchema = z.object({ decision: z.enum(["accept", "reject"]) });
 
+export const resolveBatchSchema = z.object({
+  changeIds: z.array(z.string()).min(1),
+  decision: z.enum(["accept", "reject"]),
+});
+
 export const renameDocumentSchema = z.object({ title: z.string().min(1) });
+
+export const linkDocumentsSchema = z.object({
+  matterId: z.string().uuid(),
+  documentIds: z.array(z.string().uuid()).min(1),
+});

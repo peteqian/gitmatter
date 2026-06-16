@@ -40,17 +40,20 @@ function bucket(): string {
 // Tenant-scoped object key: tenantId/userId/matterId/artifactId[.ext | /v{n}.ext].
 // Every artifact's bytes live under its tenant prefix so storage isolation mirrors
 // the database tenant boundary and keys are no longer globally guessable.
+// Keyed by tenant + user + artifact only — NOT by matter. A document can be
+// linked into many matters (see matter_documents), so the bytes must not live
+// under any single matter's prefix. Existing objects keep their old keys; the
+// absolute path is persisted per version in document_versions.storagePath.
 export function buildStoragePath(p: {
   tenantId: string;
   userId: string;
-  matterId: string;
   artifactId: string;
   ext: string;
   version?: number;
 }): string {
   const tail =
     p.version != null ? `${p.artifactId}/v${p.version}.${p.ext}` : `${p.artifactId}.${p.ext}`;
-  return `${p.tenantId}/${p.userId}/${p.matterId}/${tail}`;
+  return `${p.tenantId}/${p.userId}/${tail}`;
 }
 
 export async function putObject(key: string, body: Buffer, contentType?: string): Promise<void> {

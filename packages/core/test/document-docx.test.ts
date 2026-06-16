@@ -9,10 +9,13 @@ import { listCommits } from "../src/core/commit.js";
 import { ensureDefaultMatter } from "../src/platform/matters.js";
 import {
   getDocumentDetail,
+  getEditsByRef,
+  listVersions,
   proposeEdit,
   resolveEdit,
   uploadDocument,
 } from "../src/content/documents.js";
+import { extractDocxBodyText } from "../src/content/docx/trackedChanges.js";
 
 const userId = `test-user-${randomUUID()}`;
 const actor = { type: "user", userId } as const;
@@ -64,7 +67,7 @@ const hasS3 = !!process.env.S3_ACCESS_KEY;
   });
 
   test("propose routes through the OOXML engine and records a pending edit", async () => {
-    await proposeEdit(actor, documentId, { find: "imported", replace: "global" });
+    await proposeEdit(actor, documentId, [{ find: "imported", replace: "global" }]);
     const result = await getDocumentDetail(documentId);
     expect(result!.edits).toHaveLength(1);
     const edit = result!.edits[0]!;
@@ -82,6 +85,89 @@ const hasS3 = !!process.env.S3_ACCESS_KEY;
     expect(result!.edits[0]!.status).toBe("accepted");
     expect(result!.document.markdown).toContain("global");
     expect(result!.document.markdown).not.toContain("imported");
+  });
+
+  test("context-anchored propose lands and getEditsByRef hydrates the chat card", async () => {
+    // Fresh upload so the fixture's original "imported" token is intact.
+    const doc = await uploadDocument(userId, {
+      title: "NDA anchored",
+      fileType: "docx",
+      bytes: fixture(),
+      matterId,
+    });
+    // Upload extraction is deferred, so derive the anchor text the same way the
+    // engine flattens the body.
+    const text = await extractDocxBodyText(fixture());
+    const idx = text.indexOf("imported");
+    expect(idx).toBeGreaterThanOrEqual(0);
+
+    const changeIds = await proposeEdit(actor, doc.id, [
+      {
+        find: "imported",
+        replace: "global",
+        contextBefore: text.slice(Math.max(0, idx - 20), idx),
+        contextAfter: text.slice(idx + "imported".length, idx + "imported".length + 20),
+        reason: "consistency",
+      },
+    ]);
+    expect(changeIds).toHaveLength(1);
+    const changeId = changeIds[0]!;
+
+    const cards = await getEditsByRef([{ documentId: doc.id, changeId }]);
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({
+      documentId: doc.id,
+      changeId,
+      deletedText: "imported",
+      insertedText: "global",
+      reason: "consistency",
+      status: "pending",
+    });
+
+    // Unknown change ids are dropped, not surfaced.
+    expect(await getEditsByRef([{ documentId: doc.id, changeId: "nope" }])).toHaveLength(0);
+  });
+
+  test("a batch of edits commits as one version tagged assistant_edit", async () => {
+    const agentActor = { type: "agent", userId, agentLabel: "chat" } as const;
+    const doc = await uploadDocument(userId, {
+      title: "NDA batch",
+      fileType: "docx",
+      bytes: fixture(),
+      matterId,
+    });
+    const text = await extractDocxBodyText(fixture());
+    const words = [...new Set(text.split(/\s+/).filter((w) => /^[A-Za-z]{5,}$/.test(w)))];
+    expect(words.length).toBeGreaterThanOrEqual(2);
+    const anchored = (w: string) => {
+      const i = text.indexOf(w);
+      return {
+        find: w,
+        replace: w.toUpperCase(),
+        contextBefore: text.slice(Math.max(0, i - 15), i),
+        contextAfter: text.slice(i + w.length, i + w.length + 15),
+      };
+    };
+    const ids = await proposeEdit(agentActor, doc.id, [anchored(words[0]!), anchored(words[1]!)]);
+    expect(ids).toHaveLength(2);
+
+    // Two pending edits…
+    const detail = await getDocumentDetail(doc.id);
+    expect(detail!.edits.filter((e) => e.status === "pending")).toHaveLength(2);
+
+    // …but ONE propose commit and ONE new version (upload = v1, batch = v2).
+    const commitList = await listCommits("document", doc.id);
+    expect(commitList.filter((c) => c.op === "propose_edit")).toHaveLength(1);
+    const versions = await listVersions(doc.id);
+    expect(versions).toHaveLength(2);
+    expect(versions[0]!.versionNumber).toBe(2);
+    expect(versions[0]!.source).toBe("assistant_edit");
+
+    // Resolving produces another version tagged by the decision.
+    await resolveEdit(agentActor, doc.id, ids[0]!, "accept");
+    const after = await listVersions(doc.id);
+    expect(after[0]!.versionNumber).toBe(3);
+    expect(after[0]!.source).toBe("user_accept");
   });
 
   test("every mutation is a linear commit", async () => {

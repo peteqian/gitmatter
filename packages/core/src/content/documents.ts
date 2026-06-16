@@ -6,6 +6,7 @@ import {
   documentEdits,
   documentVersions,
   documents,
+  matterDocuments,
   matters,
   user,
   type Document,
@@ -66,31 +67,39 @@ export function listDocuments(userId: string) {
     .orderBy(desc(documents.createdAt));
 }
 
-/** Documents in a matter, optionally scoped to a folder (null folderId = root). */
+/** Documents in a matter, optionally scoped to a folder (null folderId = root).
+ * Reads through matter_documents so linked (not just origin) docs are included;
+ * folder placement is per-matter (matter_documents.folderId). */
 export function listMatterDocuments(matterId: string, folderId?: string | null) {
   const folderCond =
     folderId === undefined
       ? undefined
       : folderId === null
-        ? isNull(documents.folderId)
-        : eq(documents.folderId, folderId);
+        ? isNull(matterDocuments.folderId)
+        : eq(matterDocuments.folderId, folderId);
   return db
     .select(documentListFields)
-    .from(documents)
-    .where(and(eq(documents.matterId, matterId), folderCond, isNull(documents.deletedAt)))
+    .from(matterDocuments)
+    .innerJoin(documents, eq(documents.id, matterDocuments.documentId))
+    .where(and(eq(matterDocuments.matterId, matterId), folderCond, isNull(documents.deletedAt)))
     .orderBy(desc(documents.createdAt));
 }
 
 export async function listDocumentsPage(userId: string, params: DocumentListParams) {
   const q = params.q?.trim();
+  // Matter-scoped views read through matter_documents so linked (not just origin)
+  // docs are included, and folder placement is per-matter; user-scoped views read
+  // documents directly.
+  const byMatter = !!params.matterId;
+  const folderCol = byMatter ? matterDocuments.folderId : documents.folderId;
   const folderCond =
     params.folderId === undefined
       ? undefined
       : params.folderId === null
-        ? isNull(documents.folderId)
-        : eq(documents.folderId, params.folderId);
+        ? isNull(folderCol)
+        : eq(folderCol, params.folderId);
   const where = and(
-    params.matterId ? eq(documents.matterId, params.matterId) : eq(documents.userId, userId),
+    byMatter ? eq(matterDocuments.matterId, params.matterId!) : eq(documents.userId, userId),
     isNull(documents.deletedAt),
     folderCond,
     params.status === "processing"
@@ -110,15 +119,26 @@ export async function listDocumentsPage(userId: string, params: DocumentListPara
   const order = params.dir === "asc" ? asc(sortCol) : desc(sortCol);
   const offset = params.page * params.pageSize;
 
+  const rowsQuery = db
+    .select({
+      ...documentListFields,
+      matterId: documents.matterId,
+      matterName: matters.name,
+      versionNumber: documentVersions.versionNumber,
+    })
+    .from(documents)
+    .leftJoin(matters, eq(matters.id, documents.matterId))
+    .leftJoin(documentVersions, eq(documentVersions.id, documents.currentVersionId))
+    .$dynamic();
+  const countQuery = db.select({ count: count() }).from(documents).$dynamic();
+  if (byMatter) {
+    rowsQuery.innerJoin(matterDocuments, eq(matterDocuments.documentId, documents.id));
+    countQuery.innerJoin(matterDocuments, eq(matterDocuments.documentId, documents.id));
+  }
+
   const [rows, countRows] = await Promise.all([
-    db
-      .select(documentListFields)
-      .from(documents)
-      .where(where)
-      .orderBy(order)
-      .limit(params.pageSize)
-      .offset(offset),
-    db.select({ count: count() }).from(documents).where(where),
+    rowsQuery.where(where).orderBy(order).limit(params.pageSize).offset(offset),
+    countQuery.where(where),
   ]);
 
   return { rows, rowCount: Number(countRows[0]?.count ?? 0) };
@@ -184,7 +204,6 @@ export async function createGeneratedDocument(
   const storagePath = buildStoragePath({
     tenantId,
     userId: actor.userId,
-    matterId: input.matterId,
     artifactId: docId,
     ext: "docx",
   });
@@ -254,7 +273,6 @@ export async function uploadDocument(
   const storagePath = buildStoragePath({
     tenantId,
     userId,
-    matterId: input.matterId,
     artifactId: id,
     ext: input.fileType,
   });
@@ -283,7 +301,46 @@ export async function uploadDocument(
     sizeBytes: input.bytes.length,
     fileType: input.fileType,
   });
+  // Self-link to the origin matter so it lists there (source of truth for which
+  // matters a doc appears in).
+  await db.insert(matterDocuments).values({
+    matterId: input.matterId,
+    documentId: id,
+    folderId: input.folderId ?? null,
+  });
   return row;
+}
+
+/**
+ * Link existing documents into a matter (many-to-many). Only links docs the user
+ * owns within the matter's tenant; placement defaults to the matter root. Idempotent
+ * (re-linking is a no-op). Returns the number of new links created.
+ */
+export async function linkDocumentsToMatter(
+  userId: string,
+  matterId: string,
+  documentIds: string[]
+): Promise<number> {
+  if (documentIds.length === 0) return 0;
+  const tenantId = await matterTenant(matterId);
+  const eligible = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(
+      and(
+        inArray(documents.id, documentIds),
+        eq(documents.userId, userId),
+        eq(documents.tenantId, tenantId),
+        isNull(documents.deletedAt)
+      )
+    );
+  if (eligible.length === 0) return 0;
+  const inserted = await db
+    .insert(matterDocuments)
+    .values(eligible.map((d) => ({ matterId, documentId: d.id, folderId: null })))
+    .onConflictDoNothing()
+    .returning({ documentId: matterDocuments.documentId });
+  return inserted.length;
 }
 
 /** Storage path of a document's active version, or null (pasted-text docs have none). */
@@ -390,7 +447,6 @@ export async function addDocumentVersion(
   const storagePath = buildStoragePath({
     tenantId: doc.tenantId,
     userId: doc.userId,
-    matterId: doc.matterId,
     artifactId: doc.id,
     ext: input.fileType,
     version: versionNumber,
@@ -590,35 +646,48 @@ async function loadDocxBytes(storagePath: string): Promise<Buffer> {
   return Buffer.from(await getObject(storagePath));
 }
 
+// One find->replace substitution the model (or a user) proposes. Context anchors
+// disambiguate the match for docx; ignored for plain-text documents.
+export type EditSpec = {
+  find: string;
+  replace: string;
+  contextBefore?: string;
+  contextAfter?: string;
+  reason?: string;
+};
+
+// Provenance stamped on the version a redline mutation produces.
+type VersionSource = "assistant_edit" | "user_edit" | "user_accept" | "user_reject";
+
+// All of a turn's proposed edits land in ONE new version + ONE commit (mike
+// parity), with one document_edits row per change that actually anchored.
 async function proposeDocxEdit(
   actor: Actor,
   doc: Document,
-  input: { find: string; replace: string; reason?: string }
-) {
+  edits: EditSpec[],
+  source: VersionSource
+): Promise<string[]> {
   const v = await latestVersion(doc.id);
   if (!v?.storagePath) throw new Error("Document has no stored version");
   const result = await applyTrackedEdits(
     await loadDocxBytes(v.storagePath),
-    [
-      {
-        find: input.find,
-        replace: input.replace,
-        context_before: "",
-        context_after: "",
-        reason: input.reason,
-      },
-    ],
+    edits.map((e) => ({
+      find: e.find,
+      replace: e.replace,
+      context_before: e.contextBefore ?? "",
+      context_after: e.contextAfter ?? "",
+      reason: e.reason,
+    })),
     { author: actor.userId }
   );
-  const applied = result.changes[0];
-  if (!applied)
-    throw new Error(result.errors[0]?.reason ?? "edit could not be applied to the document");
+  const applied = result.changes;
+  if (!applied.length)
+    throw new Error(result.errors[0]?.reason ?? "no edits could be applied to the document");
 
   const versionNumber = v.versionNumber + 1;
   const storagePath = buildStoragePath({
     tenantId: doc.tenantId,
     userId: doc.userId,
-    matterId: doc.matterId,
     artifactId: doc.id,
     ext: "docx",
     version: versionNumber,
@@ -631,7 +700,10 @@ async function proposeDocxEdit(
     artifactId: doc.id,
     actor,
     op: "propose_edit",
-    message: `Proposed edit: "${input.find.slice(0, 40)}" → "${input.replace.slice(0, 40)}"`,
+    message:
+      applied.length === 1
+        ? `Proposed edit: "${applied[0]!.deletedText.slice(0, 40)}" → "${applied[0]!.insertedText.slice(0, 40)}"`
+        : `Proposed ${applied.length} edits`,
     apply: async ({ tx, commitId }) => {
       const [nv] = await tx
         .insert(documentVersions)
@@ -639,60 +711,65 @@ async function proposeDocxEdit(
           documentId: doc.id,
           versionNumber,
           storagePath,
-          source: "edit",
+          source,
           fileType: "docx",
           sizeBytes: result.bytes.length,
           lastCommitId: commitId,
         })
         .returning();
-      await tx.insert(documentEdits).values({
-        documentId: doc.id,
-        versionId: nv!.id,
-        changeId: applied.id,
-        delWId: applied.delId ?? null,
-        insWId: applied.insId ?? null,
-        deletedText: applied.deletedText,
-        insertedText: applied.insertedText,
-        contextBefore: applied.contextBefore,
-        contextAfter: applied.contextAfter,
-        reason: input.reason ?? null,
-        status: "pending",
-        createdBy: actor.userId,
-        lastCommitId: commitId,
-      });
+      await tx.insert(documentEdits).values(
+        applied.map((a) => ({
+          documentId: doc.id,
+          versionId: nv!.id,
+          changeId: a.id,
+          delWId: a.delId ?? null,
+          insWId: a.insId ?? null,
+          deletedText: a.deletedText,
+          insertedText: a.insertedText,
+          contextBefore: a.contextBefore,
+          contextAfter: a.contextAfter,
+          reason: a.reason ?? null,
+          status: "pending" as const,
+          createdBy: actor.userId,
+          lastCommitId: commitId,
+        }))
+      );
       await tx
         .update(documents)
         .set({ markdown: newMarkdown, currentVersionId: nv!.id })
         .where(eq(documents.id, doc.id));
       return {
         changes: [
-          {
-            path: `edit/${applied.id}`,
+          ...applied.map((a) => ({
+            path: `edit/${a.id}`,
             before: null,
             after: {
-              find: input.find,
-              replace: input.replace,
-              reason: input.reason ?? null,
+              find: a.deletedText,
+              replace: a.insertedText,
+              reason: a.reason ?? null,
               status: "pending",
             },
-          },
+          })),
           { path: "version", before: v.versionNumber, after: versionNumber },
         ],
       };
     },
   });
-  return applied.id;
+  return applied.map((a) => a.id);
 }
 
-async function resolveDocxEdit(
+// Accept or reject a batch of pending changes in ONE new version + ONE commit.
+async function resolveDocxEdits(
   actor: Actor,
   doc: Document,
-  edit: typeof documentEdits.$inferSelect,
+  edits: Array<typeof documentEdits.$inferSelect>,
   decision: "accept" | "reject"
 ) {
   const v = await latestVersion(doc.id);
   if (!v?.storagePath) throw new Error("Document has no stored version");
-  const wIds = [edit.delWId, edit.insWId].filter((x): x is string => !!x);
+  const wIds = edits
+    .flatMap((e) => [e.delWId, e.insWId])
+    .filter((x): x is string => !!x);
   const { bytes: newBytes } = await resolveTrackedChange(
     await loadDocxBytes(v.storagePath),
     wIds,
@@ -702,7 +779,6 @@ async function resolveDocxEdit(
   const storagePath = buildStoragePath({
     tenantId: doc.tenantId,
     userId: doc.userId,
-    matterId: doc.matterId,
     artifactId: doc.id,
     ext: "docx",
     version: versionNumber,
@@ -710,13 +786,18 @@ async function resolveDocxEdit(
   await putObject(storagePath, newBytes, DOCX_MIME);
   const newMarkdown = await extractDocxBodyText(newBytes);
   const status = decision === "accept" ? "accepted" : "rejected";
+  const source: VersionSource = decision === "accept" ? "user_accept" : "user_reject";
+  const editIds = edits.map((e) => e.id);
 
   return recordCommit({
     artifactType: "document",
     artifactId: doc.id,
     actor,
     op: "resolve_edit",
-    message: `${status} edit ${edit.changeId.slice(0, 8)}`,
+    message:
+      edits.length === 1
+        ? `${status} edit ${edits[0]!.changeId.slice(0, 8)}`
+        : `${status} ${edits.length} edits`,
     apply: async ({ tx, commitId }) => {
       const [nv] = await tx
         .insert(documentVersions)
@@ -724,7 +805,7 @@ async function resolveDocxEdit(
           documentId: doc.id,
           versionNumber,
           storagePath,
-          source: "edit",
+          source,
           fileType: "docx",
           sizeBytes: newBytes.length,
           lastCommitId: commitId,
@@ -733,15 +814,18 @@ async function resolveDocxEdit(
       await tx
         .update(documentEdits)
         .set({ status, resolvedBy: actor.userId, resolvedAt: new Date(), lastCommitId: commitId })
-        .where(eq(documentEdits.id, edit.id));
+        .where(inArray(documentEdits.id, editIds));
       await tx
         .update(documents)
         .set({ markdown: newMarkdown, currentVersionId: nv!.id })
         .where(eq(documents.id, doc.id));
       return {
         changes: [
-          { path: `edit/${edit.changeId}/status`, before: "pending", after: status },
-          { path: "markdown", before: doc.markdown, after: newMarkdown },
+          ...edits.map((e) => ({
+            path: `edit/${e.changeId}/status`,
+            before: "pending",
+            after: status,
+          })),
           { path: "version", before: v.versionNumber, after: versionNumber },
         ],
       };
@@ -749,104 +833,155 @@ async function resolveDocxEdit(
   });
 }
 
-/** Propose a tracked change (find -> replace). Stored as a pending edit. */
+/**
+ * Propose one or more tracked changes (find -> replace). The whole batch lands
+ * in ONE new version + ONE commit; the version's source reflects who proposed
+ * (chat → assistant_edit, user → user_edit). Returns a changeId per applied edit.
+ */
 export async function proposeEdit(
   actor: Actor,
   documentId: string,
-  input: { find: string; replace: string; reason?: string }
-) {
+  edits: EditSpec[]
+): Promise<string[]> {
+  if (!edits.length) throw new Error("No edits to propose");
   const doc = await getDocument(documentId);
   if (!doc) throw new Error("Document not found");
-  if (isDocxMode(doc)) return proposeDocxEdit(actor, doc, input);
+  const source: VersionSource = actor.type === "agent" ? "assistant_edit" : "user_edit";
+  if (isDocxMode(doc)) return proposeDocxEdit(actor, doc, edits, source);
   if (doc.markdown === null) throw new Error("Document has no text to edit yet");
-  if (!doc.markdown.includes(input.find)) {
-    throw new Error("`find` text not present in the document");
-  }
-  const changeId = randomUUID();
+  for (const e of edits)
+    if (!doc.markdown.includes(e.find))
+      throw new Error(`\`find\` text not present in the document: "${e.find.slice(0, 40)}"`);
+
+  const changeIds = edits.map(() => randomUUID());
   await recordCommit({
     artifactType: "document",
     artifactId: documentId,
     actor,
     op: "propose_edit",
-    message: `Proposed edit: "${input.find.slice(0, 40)}" → "${input.replace.slice(0, 40)}"`,
+    message:
+      edits.length === 1
+        ? `Proposed edit: "${edits[0]!.find.slice(0, 40)}" → "${edits[0]!.replace.slice(0, 40)}"`
+        : `Proposed ${edits.length} edits`,
     apply: async ({ tx, commitId }) => {
-      await tx.insert(documentEdits).values({
-        documentId,
-        changeId,
-        deletedText: input.find,
-        insertedText: input.replace,
-        reason: input.reason ?? null,
-        status: "pending",
-        createdBy: actor.userId,
-        lastCommitId: commitId,
-      });
+      await tx.insert(documentEdits).values(
+        edits.map((e, i) => ({
+          documentId,
+          changeId: changeIds[i]!,
+          deletedText: e.find,
+          insertedText: e.replace,
+          contextBefore: e.contextBefore ?? null,
+          contextAfter: e.contextAfter ?? null,
+          reason: e.reason ?? null,
+          status: "pending" as const,
+          createdBy: actor.userId,
+          lastCommitId: commitId,
+        }))
+      );
       return {
-        changes: [
-          {
-            path: `edit/${changeId}`,
-            before: null,
-            after: {
-              find: input.find,
-              replace: input.replace,
-              reason: input.reason ?? null,
-              status: "pending",
-            },
-          },
-        ],
+        changes: edits.map((e, i) => ({
+          path: `edit/${changeIds[i]}`,
+          before: null,
+          after: { find: e.find, replace: e.replace, reason: e.reason ?? null, status: "pending" },
+        })),
       };
     },
   });
-  return changeId;
+  return changeIds;
 }
 
-/** Accept (apply find->replace to markdown) or reject a tracked change. */
+/**
+ * Accept or reject one or more pending changes in ONE new version + ONE commit.
+ * Non-pending change ids are ignored; throws if none remain to resolve.
+ */
+export async function resolveEdits(
+  actor: Actor,
+  documentId: string,
+  changeIds: string[],
+  decision: "accept" | "reject"
+) {
+  if (!changeIds.length) throw new Error("No edits to resolve");
+  const edits = await db
+    .select()
+    .from(documentEdits)
+    .where(
+      and(
+        eq(documentEdits.documentId, documentId),
+        inArray(documentEdits.changeId, changeIds)
+      )
+    );
+  const pending = edits.filter((e) => e.status === "pending");
+  if (!pending.length) throw new Error("No pending edits to resolve");
+
+  const doc = await getDocument(documentId);
+  if (!doc) throw new Error("Document not found");
+
+  if (isDocxMode(doc)) return resolveDocxEdits(actor, doc, pending, decision);
+
+  const status = decision === "accept" ? "accepted" : "rejected";
+  const editIds = pending.map((e) => e.id);
+  return recordCommit({
+    artifactType: "document",
+    artifactId: documentId,
+    actor,
+    op: "resolve_edit",
+    message:
+      pending.length === 1
+        ? `${status} edit ${pending[0]!.changeId.slice(0, 8)}`
+        : `${status} ${pending.length} edits`,
+    apply: async ({ tx, commitId }) => {
+      await tx
+        .update(documentEdits)
+        .set({ status, resolvedBy: actor.userId, resolvedAt: new Date(), lastCommitId: commitId })
+        .where(inArray(documentEdits.id, editIds));
+
+      const changes: Array<{ path: string; before: unknown; after: unknown }> = pending.map((e) => ({
+        path: `edit/${e.changeId}/status`,
+        before: "pending",
+        after: status,
+      }));
+
+      if (decision === "accept" && doc.markdown !== null) {
+        let md = doc.markdown;
+        for (const e of pending)
+          if (e.deletedText !== null) md = md.replace(e.deletedText, e.insertedText ?? "");
+        if (md !== doc.markdown) {
+          await tx.update(documents).set({ markdown: md }).where(eq(documents.id, documentId));
+          changes.push({ path: "markdown", before: doc.markdown, after: md });
+        }
+      }
+      return { changes };
+    },
+  });
+}
+
+/** Accept or reject a single tracked change (one version/commit). */
 export async function resolveEdit(
   actor: Actor,
   documentId: string,
   changeId: string,
   decision: "accept" | "reject"
 ) {
-  const [edit] = await db
-    .select()
+  return resolveEdits(actor, documentId, [changeId], decision);
+}
+
+/** Accept or reject EVERY pending change on a document in one version/commit. */
+export async function resolveAllEdits(
+  actor: Actor,
+  documentId: string,
+  decision: "accept" | "reject"
+) {
+  const pending = await db
+    .select({ changeId: documentEdits.changeId })
     .from(documentEdits)
-    .where(and(eq(documentEdits.documentId, documentId), eq(documentEdits.changeId, changeId)));
-  if (!edit) throw new Error("Edit not found");
-  if (edit.status !== "pending") throw new Error("Edit already resolved");
-
-  const doc = await getDocument(documentId);
-  if (!doc) throw new Error("Document not found");
-
-  if (isDocxMode(doc)) return resolveDocxEdit(actor, doc, edit, decision);
-
-  const status = decision === "accept" ? "accepted" : "rejected";
-
-  return recordCommit({
-    artifactType: "document",
-    artifactId: documentId,
+    .where(and(eq(documentEdits.documentId, documentId), eq(documentEdits.status, "pending")));
+  if (!pending.length) throw new Error("No pending edits to resolve");
+  return resolveEdits(
     actor,
-    op: "resolve_edit",
-    message: `${status} edit ${changeId.slice(0, 8)}`,
-    apply: async ({ tx, commitId }) => {
-      await tx
-        .update(documentEdits)
-        .set({ status, resolvedBy: actor.userId, resolvedAt: new Date(), lastCommitId: commitId })
-        .where(eq(documentEdits.id, edit.id));
-
-      const changes: Array<{ path: string; before: unknown; after: unknown }> = [
-        { path: `edit/${changeId}/status`, before: "pending", after: status },
-      ];
-
-      if (decision === "accept" && edit.deletedText !== null && doc.markdown !== null) {
-        const newMarkdown = doc.markdown.replace(edit.deletedText, edit.insertedText ?? "");
-        await tx
-          .update(documents)
-          .set({ markdown: newMarkdown })
-          .where(eq(documents.id, documentId));
-        changes.push({ path: "markdown", before: doc.markdown, after: newMarkdown });
-      }
-      return { changes };
-    },
-  });
+    documentId,
+    pending.map((p) => p.changeId),
+    decision
+  );
 }
 
 /** Document with its tracked edits and per-edit blame (commit that last touched each). */
@@ -878,4 +1013,50 @@ export async function getDocumentDetail(documentId: string) {
       blame: e.lastCommitId ? (blameById.get(e.lastCommitId) ?? null) : null,
     })),
   };
+}
+
+// A tracked change touched by an assistant turn, flat enough to render as a chat
+// card (find/replace preview + Accept/Reject/View). `documentId` lets the card
+// call the resolve API; no blame here (chat cards stay compact).
+export type ChatEdit = {
+  documentId: string;
+  changeId: string;
+  deletedText: string | null;
+  insertedText: string | null;
+  reason: string | null;
+  status: "pending" | "accepted" | "rejected";
+};
+
+/**
+ * Hydrate the edits referenced by an assistant turn into chat-card rows, in the
+ * order they were first proposed/resolved (deduped). Used to surface tracked
+ * changes inline in the conversation.
+ */
+export async function getEditsByRef(
+  refs: Array<{ documentId: string; changeId: string }>
+): Promise<ChatEdit[]> {
+  if (!refs.length) return [];
+  const changeIds = [...new Set(refs.map((r) => r.changeId))];
+  const rows = await db
+    .select()
+    .from(documentEdits)
+    .where(inArray(documentEdits.changeId, changeIds));
+  const byChange = new Map(rows.map((r) => [r.changeId, r]));
+  const seen = new Set<string>();
+  const out: ChatEdit[] = [];
+  for (const r of refs) {
+    if (seen.has(r.changeId)) continue;
+    const row = byChange.get(r.changeId);
+    if (!row) continue;
+    seen.add(r.changeId);
+    out.push({
+      documentId: row.documentId,
+      changeId: row.changeId,
+      deletedText: row.deletedText,
+      insertedText: row.insertedText,
+      reason: row.reason,
+      status: row.status,
+    });
+  }
+  return out;
 }

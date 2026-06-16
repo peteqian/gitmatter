@@ -128,9 +128,20 @@ function Documents() {
       <PageHeader
         title="Documents"
         action={
-          <Button disabled={uploading} onClick={() => fileRef.current?.click()}>
-            <Upload className="size-4" />
-            {uploading ? "Uploading…" : "Upload"}
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="rounded-full"
+            disabled={uploading}
+            title={uploading ? "Uploading…" : "Upload"}
+            aria-label={uploading ? "Uploading…" : "Upload"}
+            onClick={() => fileRef.current?.click()}
+          >
+            {uploading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Upload className="size-4" />
+            )}
           </Button>
         }
       />

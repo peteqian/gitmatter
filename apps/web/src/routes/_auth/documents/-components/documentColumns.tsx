@@ -43,6 +43,23 @@ export function documentColumns(onRetry: (id: string) => void) {
         <span className="text-muted-foreground uppercase">{fileTypeLabel(c.getValue())}</span>
       ),
     }),
+    columnHelper.accessor("matterName", {
+      header: "Matter",
+      size: 180,
+      enableSorting: false,
+      cell: (c) => (
+        <span className="block truncate text-muted-foreground">{c.getValue() ?? "—"}</span>
+      ),
+    }),
+    columnHelper.accessor("versionNumber", {
+      header: "Version",
+      size: 80,
+      enableSorting: false,
+      cell: (c) => {
+        const v = c.getValue();
+        return <span className="text-muted-foreground">{v != null ? `v${v}` : "—"}</span>;
+      },
+    }),
     columnHelper.accessor("status", {
       header: "Status",
       size: 110,
