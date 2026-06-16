@@ -98,6 +98,11 @@ export async function queryCell(params: {
   format?: string;
   tags?: string[];
   apiKey?: string | null;
+  // Cache the document (it's in the system prefix) so the next column over the
+  // same document reuses it instead of re-billing the full text. `cacheKey`
+  // routes OpenAI to the same prompt cache for that document.
+  cache?: boolean;
+  cacheKey?: string;
 }): Promise<CellResult> {
   const { system, user } = buildCellPrompt(params);
   const raw = await completeText({
@@ -109,6 +114,8 @@ export async function queryCell(params: {
     // Deterministic, schema-constrained extraction so cell values are reproducible.
     temperature: 0,
     jsonSchema: CELL_SCHEMA as unknown as Record<string, unknown>,
+    cache: params.cache,
+    cacheKey: params.cacheKey,
   });
   try {
     const parsed = JSON.parse(stripJsonFence(raw)) as {
@@ -254,6 +261,72 @@ export async function createReview(
   return reviewId;
 }
 
+/** Upsert one extracted cell as a commit on the audit spine. Shared by the
+ *  single-cell run and the streaming run so they persist + blame identically. */
+function commitCell(
+  actor: Actor,
+  p: {
+    reviewId: string;
+    documentId: string;
+    columnIndex: number;
+    columnName: string;
+    docTitle: string;
+    model: string;
+    content: CellContent;
+    citations: CellCitation[];
+  }
+) {
+  return recordCommit({
+    artifactType: "tabular_review",
+    artifactId: p.reviewId,
+    actor,
+    op: "run_cell",
+    // Record the model so blame answers "with what" — the model that produced the cell.
+    message: `Ran "${p.columnName}" on ${p.docTitle} with ${p.model}`,
+    apply: async ({ tx, commitId }) => {
+      const [old] = await tx
+        .select()
+        .from(tabularCells)
+        .where(
+          and(
+            eq(tabularCells.reviewId, p.reviewId),
+            eq(tabularCells.documentId, p.documentId),
+            eq(tabularCells.columnIndex, p.columnIndex)
+          )
+        );
+      const set = {
+        content: p.content,
+        citations: p.citations,
+        status: "done" as const,
+        createdBy: actor.userId,
+        lastCommitId: commitId,
+        updatedAt: new Date(),
+      };
+      await tx
+        .insert(tabularCells)
+        .values({
+          reviewId: p.reviewId,
+          documentId: p.documentId,
+          columnIndex: p.columnIndex,
+          ...set,
+        })
+        .onConflictDoUpdate({
+          target: [tabularCells.reviewId, tabularCells.documentId, tabularCells.columnIndex],
+          set,
+        });
+      return {
+        changes: [
+          {
+            path: `cell/${p.documentId}/${p.columnIndex}`,
+            before: old?.content ?? null,
+            after: p.content,
+          },
+        ],
+      };
+    },
+  });
+}
+
 /**
  * Run (or re-run) one cell: extract with the chosen model, then commit. The
  * model picks the provider; the key is the user's own or the server fallback.
@@ -292,58 +365,15 @@ export async function runCell(
     apiKey: key,
   });
 
-  return recordCommit({
-    artifactType: "tabular_review",
-    artifactId: params.reviewId,
-    actor,
-    op: "run_cell",
-    // Record the model so blame answers "with what" — the model that produced the cell.
-    message: `Ran "${col.name}" on ${doc.title} with ${model}`,
-    apply: async ({ tx, commitId }) => {
-      const [old] = await tx
-        .select()
-        .from(tabularCells)
-        .where(
-          and(
-            eq(tabularCells.reviewId, params.reviewId),
-            eq(tabularCells.documentId, params.documentId),
-            eq(tabularCells.columnIndex, params.columnIndex)
-          )
-        );
-      await tx
-        .insert(tabularCells)
-        .values({
-          reviewId: params.reviewId,
-          documentId: params.documentId,
-          columnIndex: params.columnIndex,
-          content,
-          citations,
-          status: "done",
-          createdBy: actor.userId,
-          lastCommitId: commitId,
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [tabularCells.reviewId, tabularCells.documentId, tabularCells.columnIndex],
-          set: {
-            content,
-            citations,
-            status: "done",
-            createdBy: actor.userId,
-            lastCommitId: commitId,
-            updatedAt: new Date(),
-          },
-        });
-      return {
-        changes: [
-          {
-            path: `cell/${params.documentId}/${params.columnIndex}`,
-            before: old?.content ?? null,
-            after: content,
-          },
-        ],
-      };
-    },
+  return commitCell(actor, {
+    reviewId: params.reviewId,
+    documentId: params.documentId,
+    columnIndex: params.columnIndex,
+    columnName: col.name,
+    docTitle: doc.title,
+    model,
+    content,
+    citations,
   });
 }
 
@@ -430,6 +460,116 @@ export async function runDocument(
       return { changes };
     },
   });
+}
+
+export type StreamedCell = {
+  documentId: string;
+  columnIndex: number;
+  content: CellContent | null;
+  citations: CellCitation[] | null;
+  status: "pending" | "generating" | "done" | "error";
+};
+
+/**
+ * Run every cell of a review with progress callbacks — the streaming "Run all".
+ * Granularity is per cell: each column is its own query, so cells fill in one by
+ * one. Documents run through a small concurrency pool (parallel); within a
+ * document its columns run sequentially so the FIRST column primes the document
+ * cache (the doc sits in the cacheable system prefix) and the rest reuse it —
+ * cheap repeats instead of re-billing the full text per column.
+ */
+export async function runReviewStreaming(
+  actor: Actor,
+  params: { reviewId: string; model?: string; concurrency?: number },
+  handlers: {
+    onCellStart: (documentId: string, columnIndex: number) => void;
+    onCell: (documentId: string, columnIndex: number, cell: StreamedCell) => void;
+    onError: (documentId: string, columnIndex: number, message: string) => void;
+  }
+) {
+  const [review] = await db
+    .select()
+    .from(tabularReviews)
+    .where(eq(tabularReviews.id, params.reviewId));
+  if (!review) throw new Error("Review not found");
+  const columns = review.columnsConfig;
+  if (!columns.length) throw new Error("Review has no columns");
+
+  const docIds = review.documentIds;
+  const model = params.model ?? DEFAULT_MODEL;
+  const concurrency = Math.max(1, Math.min(params.concurrency ?? 4, 8));
+  const { key } = await resolveLlmKey(actor.userId, providerForModel(model));
+  if (!key) throw new Error(`No API key for ${providerForModel(model)}`);
+
+  const markStatus = (documentId: string, columnIndex: number, status: "generating" | "error") =>
+    db
+      .update(tabularCells)
+      .set({ status, updatedAt: new Date() })
+      .where(
+        and(
+          eq(tabularCells.reviewId, params.reviewId),
+          eq(tabularCells.documentId, documentId),
+          eq(tabularCells.columnIndex, columnIndex)
+        )
+      );
+
+  const runDoc = async (documentId: string) => {
+    const [doc] = await db.select().from(documents).where(eq(documents.id, documentId));
+    if (!doc) {
+      for (const col of columns) handlers.onError(documentId, col.index, "Document not found");
+      return;
+    }
+    // Same key for every column of this document → the doc's cached prefix is hit.
+    const cacheKey = `review:${params.reviewId}:doc:${documentId}`;
+    for (const col of columns) {
+      handlers.onCellStart(documentId, col.index);
+      await markStatus(documentId, col.index, "generating");
+      try {
+        const { content, citations } = await queryCell({
+          model,
+          filename: doc.title,
+          documentText: doc.markdown ?? "",
+          columnPrompt: col.prompt,
+          format: col.format,
+          tags: col.tags,
+          apiKey: key,
+          cache: true,
+          cacheKey,
+        });
+        await commitCell(actor, {
+          reviewId: params.reviewId,
+          documentId,
+          columnIndex: col.index,
+          columnName: col.name,
+          docTitle: doc.title,
+          model,
+          content,
+          citations,
+        });
+        handlers.onCell(documentId, col.index, {
+          documentId,
+          columnIndex: col.index,
+          content,
+          citations,
+          status: "done",
+        });
+      } catch (e) {
+        await markStatus(documentId, col.index, "error");
+        handlers.onError(documentId, col.index, e instanceof Error ? e.message : "run failed");
+      }
+    }
+  };
+
+  // Bounded pool: `concurrency` workers pull from the document list.
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, docIds.length) }, async () => {
+      while (next < docIds.length) {
+        const documentId = docIds[next++];
+        if (documentId) await runDoc(documentId);
+      }
+    })
+  );
 }
 
 /**

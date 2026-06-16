@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -11,7 +11,13 @@ import { CommitHistory } from "@/components/CommitHistory";
 import { DataTable } from "@/components/DataTable";
 import { ModelPicker } from "@/components/ModelPicker";
 import { PageHeader } from "@/components/PageHeader";
-import { api, type Blame, type Cell } from "../../lib/api";
+import {
+  api,
+  type Blame,
+  type Cell,
+  type ReviewDetail,
+  type ReviewStreamCell,
+} from "../../lib/api";
 import { queryKeys } from "../../lib/queries";
 import { useColumnSizing } from "../../lib/useColumnSizing";
 import { useSelectedModel } from "../../lib/useSelectedModel";
@@ -39,6 +45,9 @@ function ReviewView() {
     queryFn: () => api.history(id),
   });
   const [running, setRunning] = useState<Set<string>>(new Set());
+  const [runningAll, setRunningAll] = useState(false);
+  const runAllAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => runAllAbort.current?.abort(), []);
   const [model, setModel] = useSelectedModel();
 
   const runMutation = useMutation({
@@ -72,12 +81,55 @@ function ReviewView() {
     }
   }
 
+  // Patch cells of the cached review in place (by document + column) so the grid
+  // fills as the stream lands, without a refetch per document.
+  const patchCells = (match: (c: Cell) => boolean, apply: (c: Cell) => Cell) =>
+    qc.setQueryData<ReviewDetail>(reviewKey, (prev) =>
+      prev ? { ...prev, cells: prev.cells.map((c) => (match(c) ? apply(c) : c)) } : prev
+    );
+
   async function runAll() {
-    if (!review) return;
-    for (const docId of review.documentIds) {
-      for (const col of review.columnsConfig) {
-        await run(docId, col.index);
-      }
+    if (!review || runningAll) return;
+    setRunningAll(true);
+    const controller = new AbortController();
+    runAllAbort.current = controller;
+    try {
+      await api.runReviewStream(
+        id,
+        { model: model || undefined },
+        {
+          // A cell flips to "generating" the moment its column query starts…
+          onCellStart: (documentId, columnIndex) =>
+            patchCells(
+              (c) => c.documentId === documentId && c.columnIndex === columnIndex,
+              (c) => ({ ...c, status: "generating" })
+            ),
+          // …then fills in when that column's result lands.
+          onCell: (documentId, columnIndex, sc: ReviewStreamCell) =>
+            patchCells(
+              (c) => c.documentId === documentId && c.columnIndex === columnIndex,
+              (c) => ({ ...c, content: sc.content, citations: sc.citations, status: sc.status })
+            ),
+          onError: (documentId, columnIndex, message) => {
+            toast.error(message);
+            if (documentId != null && columnIndex != null)
+              patchCells(
+                (c) => c.documentId === documentId && c.columnIndex === columnIndex,
+                (c) => ({ ...c, status: "error" })
+              );
+          },
+        },
+        controller.signal
+      );
+    } catch (e) {
+      if ((e as Error)?.name !== "AbortError")
+        toast.error(e instanceof Error ? e.message : "Run failed");
+    } finally {
+      if (runAllAbort.current === controller) runAllAbort.current = null;
+      setRunningAll(false);
+      // Reconcile blame + final state from the server.
+      void qc.invalidateQueries({ queryKey: reviewKey });
+      void qc.invalidateQueries({ queryKey: ["review-history", id] });
     }
   }
 
@@ -165,8 +217,8 @@ function ReviewView() {
                     XLSX
                   </Button>
                 </a>
-                <Button size="sm" onClick={runAll}>
-                  Run all cells
+                <Button size="sm" onClick={runAll} disabled={runningAll}>
+                  {runningAll ? "Running…" : "Run all cells"}
                 </Button>
               </div>
             }
@@ -202,10 +254,12 @@ type ReviewMeta = {
 // or a Run button. Citation chips and the reasoning open in popovers (mike's
 // cell overlay, condensed).
 function ReviewCell({ cell, busy, onRun }: { cell?: Cell; busy: boolean; onRun: () => void }) {
+  // A streaming "Run all" marks the cell "generating" before content lands.
+  const isBusy = busy || cell?.status === "generating";
   if (!cell?.content)
     return (
-      <Button size="xs" variant="outline" disabled={busy} onClick={onRun}>
-        {busy ? "Running…" : "Run"}
+      <Button size="xs" variant="outline" disabled={isBusy} onClick={onRun}>
+        {isBusy ? "Running…" : "Run"}
       </Button>
     );
   const citations = cell.citations ?? [];
@@ -252,8 +306,8 @@ function ReviewCell({ cell, busy, onRun }: { cell?: Cell; busy: boolean; onRun: 
           </Popover>
         )}
         {cell.blame && <BlamePopover blame={cell.blame} />}
-        <Button size="xs" variant="ghost" disabled={busy} onClick={onRun}>
-          {busy ? "…" : "Re-run"}
+        <Button size="xs" variant="ghost" disabled={isBusy} onClick={onRun}>
+          {isBusy ? "…" : "Re-run"}
         </Button>
       </div>
     </div>

@@ -145,7 +145,11 @@ export function DataTable<T>({
       <Table
         className="table-fixed"
         containerClassName="overflow-x-visible"
-        style={{ ...columnSizeVars, width: tableWidth }}
+        // minWidth keeps the table from ever rendering narrower than its
+        // container (e.g. before the width is measured) — otherwise a row's
+        // background would stop short of the right edge. table-fixed spreads
+        // the slack across the columns.
+        style={{ ...columnSizeVars, width: tableWidth, minWidth: "100%" }}
       >
         <TableHeader className="sticky top-0 z-10 bg-card">
           {table.getHeaderGroups().map((hg) => (

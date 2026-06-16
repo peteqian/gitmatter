@@ -25,7 +25,7 @@ export function ToolbarTabs<T extends string>({
             type="button"
             onClick={() => onChange(tab.id)}
             className={cn(
-              "relative h-10 text-sm transition-colors",
+              "relative h-10 shrink-0 text-sm whitespace-nowrap transition-colors",
               active === tab.id
                 ? "font-medium text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-foreground"
                 : "font-normal text-muted-foreground hover:text-foreground"
@@ -35,7 +35,7 @@ export function ToolbarTabs<T extends string>({
           </button>
         ))}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>
   );
 }

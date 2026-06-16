@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import { zValidator } from "@hono/zod-validator";
 import {
   type MatterRole,
@@ -15,6 +16,7 @@ import {
   listReviewsPage,
   runCell,
   runDocument,
+  runReviewStreaming,
 } from "@workspace/core";
 import { type AuthEnv } from "../middleware/auth.js";
 import { resolveCreateMatter } from "../lib/matter.js";
@@ -22,6 +24,7 @@ import { parsePageQuery } from "../lib/page-query.js";
 import {
   createReviewSchema,
   promptSchema,
+  runAllSchema,
   runCellSchema,
   runDocSchema,
 } from "../schemas/tabular.js";
@@ -103,6 +106,52 @@ tabularRoute.post(
       return c.json({ error: msg }, msg.startsWith("No API key") ? 400 : 500);
     }
     return c.json(await getReview(reviewId));
+  }
+);
+
+// Run every cell of the review, streaming progress. Documents run in parallel
+// (bounded pool), columns sequentially within a document (so its cached prefix
+// is reused). Each cell emits `cell-start` then `cell` (its result) or `error`.
+// `done` closes the stream. The client refetches afterwards for blame/history.
+tabularRoute.post(
+  "/api/tabular/reviews/:id/run-all",
+  zValidator("json", runAllSchema),
+  async (c) => {
+    const user = c.get("user");
+    const reviewId = c.req.param("id");
+    if (!(await access(user.id, reviewId, "editor"))) return c.json({ error: "Not found" }, 404);
+    const body = c.req.valid("json");
+    return streamSSE(c, async (stream) => {
+      try {
+        await runReviewStreaming(
+          { type: "user", userId: user.id },
+          { reviewId, model: body.model },
+          {
+            onCellStart: (documentId, columnIndex) =>
+              void stream.writeSSE({
+                event: "cell-start",
+                data: JSON.stringify({ documentId, columnIndex }),
+              }),
+            onCell: (documentId, columnIndex, cell) =>
+              void stream.writeSSE({
+                event: "cell",
+                data: JSON.stringify({ documentId, columnIndex, cell }),
+              }),
+            onError: (documentId, columnIndex, message) =>
+              void stream.writeSSE({
+                event: "error",
+                data: JSON.stringify({ documentId, columnIndex, message }),
+              }),
+          }
+        );
+        await stream.writeSSE({ event: "done", data: "{}" });
+      } catch (e) {
+        await stream.writeSSE({
+          event: "error",
+          data: JSON.stringify({ message: e instanceof Error ? e.message : "run failed" }),
+        });
+      }
+    });
   }
 );
 

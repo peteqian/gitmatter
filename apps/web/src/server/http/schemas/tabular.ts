@@ -26,6 +26,10 @@ export const runDocSchema = z.object({
   model: z.string().optional(),
 });
 
+export const runAllSchema = z.object({
+  model: z.string().optional(),
+});
+
 export const promptSchema = z.object({
   title: z.string().min(1),
   format: z.string().optional(),

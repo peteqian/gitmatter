@@ -61,7 +61,13 @@ The "summary" holds the extracted value (markdown allowed, escape newlines as \\
 Flags: green = standard/favorable, yellow = needs attention, red = problematic/unfavorable, grey = neutral/not found.
 "citations": the verbatim quotes from the document that ground the summary, each a short excerpt (≤ 25 words) with its page number if known. Use [] when nothing was found.`;
 
-/** Build the system + user messages for a single tabular cell extraction. */
+/**
+ * Build the system + user messages for a single tabular cell extraction. The
+ * document goes in the SYSTEM block (with the analyst instructions) so it sits
+ * in the cacheable prefix — every column of the same document then reuses the
+ * cached document instead of re-billing it. Only the per-column instruction
+ * varies, in the user message.
+ */
 export function buildCellPrompt(params: {
   filename: string;
   documentText: string;
@@ -71,8 +77,8 @@ export function buildCellPrompt(params: {
 }): { system: string; user: string } {
   const instruction = `${params.columnPrompt}${formatSuffix(params.format, params.tags)} If not found, state "Not Found". Put all reasoning in the "reasoning" field only.`;
   return {
-    system: EXTRACTION_SYSTEM,
-    user: `Document: ${params.filename}\n\n${params.documentText.slice(0, 120_000)}\n\n---\nInstruction: ${instruction}`,
+    system: `${EXTRACTION_SYSTEM}\n\n--- Document: ${params.filename} ---\n${params.documentText.slice(0, 120_000)}`,
+    user: `Instruction: ${instruction}`,
   };
 }
 
