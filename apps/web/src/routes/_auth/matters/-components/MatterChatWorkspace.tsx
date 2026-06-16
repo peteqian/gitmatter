@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { ChevronRight, MessageSquarePlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import {
@@ -98,6 +98,7 @@ export function MatterChatWorkspace({
   const [explorerWidth, setExplorerWidth] = useState(260);
   const [chatWidth, setChatWidth] = useState(400);
   const [explorerCollapsed, setExplorerCollapsed] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
 
   // Open document tabs live in a matter-keyed store (not component state) so they
   // survive the remount when the first message navigates /assistant →
@@ -217,13 +218,35 @@ export function MatterChatWorkspace({
           onClose={closeTab}
         />
 
-        <Divider onDrag={(dx) => setChatWidth((w) => Math.max(CHAT_MIN, w - dx))} />
-
-        {/* RIGHT — Assistant */}
-        <div style={{ width: chatWidth }} className="flex shrink-0 flex-col">
-          <div className="flex h-10 shrink-0 items-center border-b border-border px-4">
-            <span className="text-xs text-muted-foreground">Matter Assistant</span>
+        {/* RIGHT — Assistant (collapsible like the Explorer) */}
+        {chatCollapsed ? (
+          <div className="flex shrink-0 flex-col border-s border-border">
+            <div className="flex h-10 items-center justify-center px-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                tooltip="Expand assistant"
+                onClick={() => setChatCollapsed(false)}
+              >
+                <ChevronLeft className="size-3.5" />
+              </Button>
+            </div>
           </div>
+        ) : (
+          <>
+            <Divider onDrag={(dx) => setChatWidth((w) => Math.max(CHAT_MIN, w - dx))} />
+            <div style={{ width: chatWidth }} className="flex shrink-0 flex-col">
+              <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-4">
+                <span className="text-xs text-muted-foreground">Matter Assistant</span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  tooltip="Collapse assistant"
+                  onClick={() => setChatCollapsed(true)}
+                >
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
           {s.turns.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center px-4">
               <h1 className="flex items-center gap-2.5 font-heading text-2xl font-light tracking-tight">
@@ -241,8 +264,10 @@ export function MatterChatWorkspace({
               <ConversationScrollButton />
             </Conversation>
           )}
-          <div className="shrink-0 px-4 pb-4">{composer}</div>
-        </div>
+              <div className="shrink-0 px-4 pb-4">{composer}</div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
