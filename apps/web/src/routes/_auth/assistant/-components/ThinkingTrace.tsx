@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Brain, Check, ChevronDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type ToolRun = { name: string; done: boolean };
+export type ToolRun = { name: string; done: boolean; input?: unknown };
 
 /**
  * Collapsible reasoning trace. Auto-expands while the model thinks, then collapses

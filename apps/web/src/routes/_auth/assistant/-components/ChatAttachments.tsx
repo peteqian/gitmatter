@@ -88,7 +88,7 @@ export function AttachControls({
   return (
     <>
       {/* Wide: each source inline. */}
-      <div className="hidden items-center gap-0.5 md:flex">
+      <div className="hidden items-center gap-0.5 @sm/composer:flex">
         {SOURCES.map((s) => (
           <AttachSourceButton
             key={s.kind}
@@ -99,7 +99,7 @@ export function AttachControls({
         ))}
       </div>
       {/* Narrow: collapsed behind "+". */}
-      <div className="md:hidden">
+      <div className="@sm/composer:hidden">
         <AttachMenu attachments={attachments} onAdd={onAdd} />
       </div>
     </>
@@ -173,7 +173,6 @@ export function AttachMenu({
         className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <Plus className="size-4 shrink-0" />
-        <span className="hidden md:inline">Attach</span>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 gap-0 overflow-hidden p-0">
         {source ? (

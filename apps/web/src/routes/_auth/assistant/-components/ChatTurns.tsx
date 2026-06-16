@@ -1,10 +1,10 @@
 import { FileDown, FileText } from "lucide-react";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
-import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning";
-import { Tool, ToolHeader } from "@/components/ai-elements/tool";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { api, type Citation } from "../../../../lib/api";
+import { ChatEditCards } from "./ChatEditCards";
+import { StepsTimeline } from "./StepsTimeline";
 import { type Turn } from "./useChatSession";
 
 function citationHref(cit: Citation): string {
@@ -49,27 +49,10 @@ export function ChatTurns({
               {busy &&
                 i === turns.length - 1 &&
                 !t.text &&
-                !t.reasoning &&
-                !(t.tools && t.tools.length) && <Shimmer duration={1}>Thinking…</Shimmer>}
-              {(t.reasoning || t.reasoningStreaming) && (
-                <Reasoning
-                  isStreaming={Boolean(t.reasoningStreaming)}
-                  duration={t.reasoningMs ? Math.round(t.reasoningMs / 1000) : undefined}
-                >
-                  <ReasoningTrigger />
-                  <ReasoningContent>{t.reasoning ?? ""}</ReasoningContent>
-                </Reasoning>
-              )}
-              {t.tools?.map((run, ti) => (
-                <Tool key={`${run.name}-${ti}`}>
-                  <ToolHeader
-                    type="dynamic-tool"
-                    toolName={run.name.replace(/_/g, " ")}
-                    state={run.done ? "output-available" : "input-available"}
-                  />
-                </Tool>
-              ))}
+                !(t.steps && t.steps.length) && <Shimmer duration={1}>Thinking…</Shimmer>}
+              {t.steps && t.steps.length > 0 && <StepsTimeline steps={t.steps} />}
               {t.text && <MessageResponse>{t.text}</MessageResponse>}
+              {t.edits && t.edits.length > 0 && <ChatEditCards edits={t.edits} />}
               {t.citations && t.citations.length > 0 && (
                 <Sources>
                   <SourcesTrigger count={t.citations.length} />

@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ModelPicker } from "@/components/ModelPicker";
@@ -19,6 +19,7 @@ export function Composer({
   onRemove,
   busy,
   onSend,
+  onStop,
 }: {
   input: string;
   setInput: (v: string) => void;
@@ -31,6 +32,7 @@ export function Composer({
   onRemove: (a: ChatAttachment) => void;
   busy: boolean;
   onSend: () => void;
+  onStop?: () => void;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card shadow-xs focus-within:border-ring/60">
@@ -48,23 +50,35 @@ export function Composer({
           }
         }}
       />
-      <div className="flex items-center justify-between gap-2 px-3 pb-3">
+      <div className="@container/composer flex items-center justify-between gap-2 px-3 pb-3">
         <div className="flex min-w-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
           <ModelPicker value={model} onChange={setModel} />
           <ReasoningPicker model={model} value={reasoning} onChange={setReasoning} />
           <span className="mx-1 h-4 w-px shrink-0 bg-border" />
           <AttachControls attachments={attachments} onAdd={onAdd} />
         </div>
-        <Button
-          size="icon"
-          onClick={onSend}
-          disabled={busy || !input.trim()}
-          title="Send"
-          aria-label="Send"
-          className="shrink-0 rounded-full"
-        >
-          <ArrowRight className="size-4" />
-        </Button>
+        {busy && onStop ? (
+          <Button
+            size="icon"
+            onClick={onStop}
+            title="Stop"
+            aria-label="Stop"
+            className="shrink-0 rounded-full"
+          >
+            <Square className="size-3.5 fill-current" />
+          </Button>
+        ) : (
+          <Button
+            size="icon"
+            onClick={onSend}
+            disabled={busy || !input.trim()}
+            title="Send"
+            aria-label="Send"
+            className="shrink-0 rounded-full"
+          >
+            <ArrowRight className="size-4" />
+          </Button>
+        )}
       </div>
     </div>
   );

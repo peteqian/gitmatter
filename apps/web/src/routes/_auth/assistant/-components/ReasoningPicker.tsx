@@ -48,7 +48,7 @@ export function ReasoningPicker({
         className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <Brain className="size-3.5 shrink-0" />
-        <span className="hidden md:inline">{current.label}</span>
+        <span className="hidden @xs/composer:inline">{current.label}</span>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-44 p-1">
         {LEVELS.map((l) => {

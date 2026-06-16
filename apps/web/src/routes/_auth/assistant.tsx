@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Conversation,
@@ -21,17 +21,28 @@ export const Route = createFileRoute("/_auth/assistant")({
 export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
   const { data: session } = useSession();
   const navigate = useNavigate();
+
+  // Multi-step workflow run: prompts still queued to send (after the current one)
+  // and the new chat id to navigate to once the last step is sent. Navigation is
+  // held until then — navigating mid-run would unmount this view and drop the queue.
+  const stepsRef = useRef<string[]>([]);
+  const navIdRef = useRef<string | null>(null);
+
   const s = useChatSession({
     loaded,
-    onFirstChat: (id) => void navigate({ to: "/assistant/$id", params: { id }, replace: true }),
+    onFirstChat: (id) => {
+      if (stepsRef.current.length > 0) navIdRef.current = id;
+      else void navigate({ to: "/assistant/$id", params: { id }, replace: true });
+    },
   });
 
   const firstName =
     session?.user.name?.split(" ")[0] || session?.user.email?.split("@")[0] || "there";
   const empty = s.turns.length === 0;
 
-  // A workflow "Use" launch stashes a seed (prompt + document attachments) then
-  // navigates here; consume it once on a fresh chat and auto-send.
+  // A workflow "Use" launch stashes a seed (ordered prompt steps + document
+  // attachments) then navigates here; consume it once on a fresh chat. The first
+  // step auto-sends; the rest are queued and sent one-by-one as each completes.
   const [pendingAutoSend, setPendingAutoSend] = useState(false);
   useEffect(() => {
     if (loaded) return;
@@ -39,9 +50,12 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
     if (!raw) return;
     sessionStorage.removeItem("workflowChatSeed");
     try {
-      const seed = JSON.parse(raw) as { input: string; attachments: ChatAttachment[] };
-      s.setInput(seed.input);
+      const seed = JSON.parse(raw) as { steps?: string[]; attachments?: ChatAttachment[] };
+      const steps = seed.steps ?? [];
+      if (!steps.length) return;
+      s.setInput(steps[0]);
       s.setAttachments(seed.attachments ?? []);
+      stepsRef.current = steps.slice(1);
       setPendingAutoSend(true);
     } catch {
       /* ignore malformed seed */
@@ -55,6 +69,23 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingAutoSend, s.input, s.busy]);
+  // After a step finishes, send the next queued step into the same chat (context
+  // carries via chatId). Once the queue is empty, run the deferred navigation.
+  useEffect(() => {
+    if (s.busy || pendingAutoSend) return;
+    if (stepsRef.current.length > 0 && s.chatId) {
+      const next = stepsRef.current.shift()!;
+      s.setInput(next);
+      setPendingAutoSend(true);
+      return;
+    }
+    if (stepsRef.current.length === 0 && navIdRef.current) {
+      const id = navIdRef.current;
+      navIdRef.current = null;
+      void navigate({ to: "/assistant/$id", params: { id }, replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.busy, pendingAutoSend, s.chatId]);
 
   const composer = (
     <Composer
@@ -69,6 +100,7 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
       onRemove={s.removeAttachment}
       busy={s.busy}
       onSend={s.send}
+      onStop={s.stop}
     />
   );
 
