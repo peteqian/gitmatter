@@ -1,4 +1,14 @@
-import { index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { user } from "./auth.js";
 import { matters } from "./matters.js";
 import { tenants } from "./tenants.js";
@@ -19,6 +29,7 @@ export const chats = pgTable(
     artifactType: text("artifact_type").$type<ArtifactType>(),
     artifactId: uuid("artifact_id"),
     title: text("title"),
+    pinned: boolean("pinned").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

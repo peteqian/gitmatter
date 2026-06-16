@@ -14,6 +14,9 @@ import { matters } from "./matters.js";
 import { tenants } from "./tenants.js";
 import type { TabularColumn } from "./tabular.js";
 
+// One step of a multi-step assistant workflow.
+export type WorkflowStep = { title?: string; promptMd: string };
+
 export const workflows = pgTable(
   "workflows",
   {
@@ -27,6 +30,10 @@ export const workflows = pgTable(
     title: text("title").notNull(),
     type: text("type").$type<"assistant" | "tabular">().notNull(),
     promptMd: text("prompt_md").notNull(),
+    // Ordered prompt steps for assistant workflows. Each runs as its own chat
+    // turn in sequence, so a later step sees earlier steps' answers. Null/empty
+    // means the workflow is a single prompt (promptMd) — the legacy shape.
+    steps: jsonb("steps").$type<WorkflowStep[]>(),
     columnsConfig: jsonb("columns_config").$type<TabularColumn[]>(),
     practice: text("practice"),
     isSystem: boolean("is_system").default(false).notNull(),

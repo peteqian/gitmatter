@@ -3,6 +3,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -51,9 +52,10 @@ export const documents = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
-    matterId: uuid("matter_id")
-      .notNull()
-      .references(() => matters.id, { onDelete: "cascade" }),
+    // Origin/home matter (a hint). A document can be linked into many matters via
+    // matter_documents, so its lifecycle is NOT tied to this one: deleting the
+    // origin matter nulls this out rather than destroying the doc.
+    matterId: uuid("matter_id").references(() => matters.id, { onDelete: "set null" }),
     // Folder within the matter; null = matter root.
     folderId: uuid("folder_id").references(() => documentFolders.id, { onDelete: "set null" }),
     title: text("title").notNull(),
@@ -90,6 +92,30 @@ export const documents = pgTable(
   ]
 );
 
+// Associates a document with the matters it appears in (many-to-many). A
+// document's `matterId` is its origin/home matter; this table is the source of
+// truth for *which* matters list it. Every doc keeps a self-link to its origin,
+// and linking the same document into another matter adds a row here. `folderId`
+// is the placement within THAT matter (null = matter root); linked docs default
+// to root.
+export const matterDocuments = pgTable(
+  "matter_documents",
+  {
+    matterId: uuid("matter_id")
+      .notNull()
+      .references(() => matters.id, { onDelete: "cascade" }),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => documents.id, { onDelete: "cascade" }),
+    folderId: uuid("folder_id").references(() => documentFolders.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.matterId, t.documentId] }),
+    index("matter_documents_doc_idx").on(t.documentId),
+  ]
+);
+
 // Immutable file snapshots. Every upload/edit/replace adds a row; the version
 // create AND tombstone are recorded as commits on the document artifact, so the
 // chain stays append-only (no in-place soft-delete flag). storagePath is nulled
@@ -103,7 +129,18 @@ export const documentVersions = pgTable(
       .references(() => documents.id, { onDelete: "cascade" }),
     versionNumber: integer("version_number").notNull(),
     storagePath: text("storage_path"),
-    source: text("source").$type<"upload" | "generated" | "edit" | "replace">().notNull(),
+    source: text("source")
+      .$type<
+        | "upload"
+        | "generated"
+        | "edit"
+        | "replace"
+        | "assistant_edit"
+        | "user_edit"
+        | "user_accept"
+        | "user_reject"
+      >()
+      .notNull(),
     sizeBytes: integer("size_bytes"),
     fileType: text("file_type").notNull(),
     deletedAt: timestamp("deleted_at"),
@@ -142,5 +179,6 @@ export const documentEdits = pgTable("document_edits", {
 
 export type DocumentFolder = typeof documentFolders.$inferSelect;
 export type Document = typeof documents.$inferSelect;
+export type MatterDocument = typeof matterDocuments.$inferSelect;
 export type DocumentVersion = typeof documentVersions.$inferSelect;
 export type DocumentEdit = typeof documentEdits.$inferSelect;

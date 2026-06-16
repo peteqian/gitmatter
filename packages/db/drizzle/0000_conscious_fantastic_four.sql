@@ -107,8 +107,8 @@ CREATE TABLE "matters" (
 	"tenant_id" uuid NOT NULL,
 	"client_id" uuid NOT NULL,
 	"name" text NOT NULL,
-	"matter_number" text,
 	"practice_area" text,
+	"jurisdiction" text,
 	"status" text DEFAULT 'open' NOT NULL,
 	"lead_attorney" text,
 	"adverse_parties" jsonb,
@@ -118,8 +118,7 @@ CREATE TABLE "matters" (
 	"opened_at" timestamp DEFAULT now() NOT NULL,
 	"closed_at" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "matters_matter_number_unique" UNIQUE("matter_number")
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "commits" (
@@ -195,20 +194,31 @@ CREATE TABLE "documents" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" text NOT NULL,
 	"tenant_id" uuid NOT NULL,
-	"matter_id" uuid NOT NULL,
+	"matter_id" uuid,
 	"folder_id" uuid,
 	"title" text NOT NULL,
 	"file_type" text NOT NULL,
 	"jurisdiction" text,
 	"markdown" text,
 	"size_bytes" integer,
+	"page_count" integer,
 	"status" text DEFAULT 'ready' NOT NULL,
 	"extraction_error" text,
 	"attempts" integer DEFAULT 0 NOT NULL,
 	"claimed_at" timestamp,
 	"current_version_id" uuid,
 	"head_commit_id" uuid,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"deleted_at" timestamp,
+	"deleted_by" text
+);
+--> statement-breakpoint
+CREATE TABLE "matter_documents" (
+	"matter_id" uuid NOT NULL,
+	"document_id" uuid NOT NULL,
+	"folder_id" uuid,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "matter_documents_matter_id_document_id_pk" PRIMARY KEY("matter_id","document_id")
 );
 --> statement-breakpoint
 CREATE TABLE "tabular_cells" (
@@ -242,6 +252,23 @@ CREATE TABLE "tabular_reviews" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "hidden_workflows" (
+	"user_id" text NOT NULL,
+	"workflow_id" uuid NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "hidden_workflows_user_id_workflow_id_pk" PRIMARY KEY("user_id","workflow_id")
+);
+--> statement-breakpoint
+CREATE TABLE "workflow_shares" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"workflow_id" uuid NOT NULL,
+	"shared_with_email" text NOT NULL,
+	"allow_edit" boolean DEFAULT false NOT NULL,
+	"created_by" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "workflow_share_unique" UNIQUE("workflow_id","shared_with_email")
+);
+--> statement-breakpoint
 CREATE TABLE "workflows" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" text,
@@ -251,6 +278,7 @@ CREATE TABLE "workflows" (
 	"title" text NOT NULL,
 	"type" text NOT NULL,
 	"prompt_md" text NOT NULL,
+	"steps" jsonb,
 	"columns_config" jsonb,
 	"practice" text,
 	"is_system" boolean DEFAULT false NOT NULL,
@@ -281,6 +309,7 @@ CREATE TABLE "chats" (
 	"artifact_type" text,
 	"artifact_id" uuid,
 	"title" text,
+	"pinned" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -393,14 +422,22 @@ ALTER TABLE "document_versions" ADD CONSTRAINT "document_versions_document_id_do
 ALTER TABLE "document_versions" ADD CONSTRAINT "document_versions_deleted_by_user_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "documents" ADD CONSTRAINT "documents_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "documents" ADD CONSTRAINT "documents_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "documents" ADD CONSTRAINT "documents_matter_id_matters_id_fk" FOREIGN KEY ("matter_id") REFERENCES "public"."matters"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "documents" ADD CONSTRAINT "documents_matter_id_matters_id_fk" FOREIGN KEY ("matter_id") REFERENCES "public"."matters"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "documents" ADD CONSTRAINT "documents_folder_id_document_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."document_folders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "documents" ADD CONSTRAINT "documents_deleted_by_user_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "matter_documents" ADD CONSTRAINT "matter_documents_matter_id_matters_id_fk" FOREIGN KEY ("matter_id") REFERENCES "public"."matters"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "matter_documents" ADD CONSTRAINT "matter_documents_document_id_documents_id_fk" FOREIGN KEY ("document_id") REFERENCES "public"."documents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "matter_documents" ADD CONSTRAINT "matter_documents_folder_id_document_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."document_folders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tabular_cells" ADD CONSTRAINT "tabular_cells_review_id_tabular_reviews_id_fk" FOREIGN KEY ("review_id") REFERENCES "public"."tabular_reviews"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tabular_cells" ADD CONSTRAINT "tabular_cells_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tabular_reviews" ADD CONSTRAINT "tabular_reviews_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tabular_reviews" ADD CONSTRAINT "tabular_reviews_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tabular_reviews" ADD CONSTRAINT "tabular_reviews_matter_id_matters_id_fk" FOREIGN KEY ("matter_id") REFERENCES "public"."matters"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tabular_reviews" ADD CONSTRAINT "tabular_reviews_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "hidden_workflows" ADD CONSTRAINT "hidden_workflows_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "hidden_workflows" ADD CONSTRAINT "hidden_workflows_workflow_id_workflows_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflows"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_shares" ADD CONSTRAINT "workflow_shares_workflow_id_workflows_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflows"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_shares" ADD CONSTRAINT "workflow_shares_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflows" ADD CONSTRAINT "workflows_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflows" ADD CONSTRAINT "workflows_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflows" ADD CONSTRAINT "workflows_matter_id_matters_id_fk" FOREIGN KEY ("matter_id") REFERENCES "public"."matters"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -428,6 +465,8 @@ CREATE INDEX "field_changes_path_idx" ON "field_changes" USING btree ("path");--
 CREATE INDEX "document_folders_matter_idx" ON "document_folders" USING btree ("matter_id");--> statement-breakpoint
 CREATE INDEX "documents_matter_idx" ON "documents" USING btree ("matter_id");--> statement-breakpoint
 CREATE INDEX "documents_tenant_idx" ON "documents" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "matter_documents_doc_idx" ON "matter_documents" USING btree ("document_id");--> statement-breakpoint
 CREATE INDEX "tabular_reviews_tenant_idx" ON "tabular_reviews" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "workflow_shares_email_idx" ON "workflow_shares" USING btree ("shared_with_email");--> statement-breakpoint
 CREATE INDEX "workflows_tenant_idx" ON "workflows" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "chats_tenant_idx" ON "chats" USING btree ("tenant_id");

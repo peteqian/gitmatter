@@ -1,5 +1,5 @@
 {
-  "id": "4f51bb76-2112-40d5-ad14-e723b042ce9b",
+  "id": "038ba7a2-7072-475e-85a9-b0662206ade0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -796,14 +796,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "matter_number": {
-          "name": "matter_number",
+        "practice_area": {
+          "name": "practice_area",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "practice_area": {
-          "name": "practice_area",
+        "jurisdiction": {
+          "name": "jurisdiction",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -947,13 +947,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "matters_matter_number_unique": {
-          "name": "matters_matter_number_unique",
-          "nullsNotDistinct": false,
-          "columns": ["matter_number"]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1568,7 +1562,7 @@
           "name": "matter_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "folder_id": {
           "name": "folder_id",
@@ -1602,6 +1596,12 @@
         },
         "size_bytes": {
           "name": "size_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "page_count": {
+          "name": "page_count",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -1650,6 +1650,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_by": {
+          "name": "deleted_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -1710,7 +1722,7 @@
           "tableTo": "matters",
           "columnsFrom": ["matter_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "documents_folder_id_document_folders_id_fk": {
@@ -1721,9 +1733,106 @@
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
+        },
+        "documents_deleted_by_user_id_fk": {
+          "name": "documents_deleted_by_user_id_fk",
+          "tableFrom": "documents",
+          "tableTo": "user",
+          "schemaTo": "auth",
+          "columnsFrom": ["deleted_by"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.matter_documents": {
+      "name": "matter_documents",
+      "schema": "",
+      "columns": {
+        "matter_id": {
+          "name": "matter_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "folder_id": {
+          "name": "folder_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "matter_documents_doc_idx": {
+          "name": "matter_documents_doc_idx",
+          "columns": [
+            {
+              "expression": "document_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "matter_documents_matter_id_matters_id_fk": {
+          "name": "matter_documents_matter_id_matters_id_fk",
+          "tableFrom": "matter_documents",
+          "tableTo": "matters",
+          "columnsFrom": ["matter_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "matter_documents_document_id_documents_id_fk": {
+          "name": "matter_documents_document_id_documents_id_fk",
+          "tableFrom": "matter_documents",
+          "tableTo": "documents",
+          "columnsFrom": ["document_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "matter_documents_folder_id_document_folders_id_fk": {
+          "name": "matter_documents_folder_id_document_folders_id_fk",
+          "tableFrom": "matter_documents",
+          "tableTo": "document_folders",
+          "columnsFrom": ["folder_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "matter_documents_matter_id_document_id_pk": {
+          "name": "matter_documents_matter_id_document_id_pk",
+          "columns": ["matter_id", "document_id"]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -1987,6 +2096,157 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.hidden_workflows": {
+      "name": "hidden_workflows",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workflow_id": {
+          "name": "workflow_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "hidden_workflows_user_id_user_id_fk": {
+          "name": "hidden_workflows_user_id_user_id_fk",
+          "tableFrom": "hidden_workflows",
+          "tableTo": "user",
+          "schemaTo": "auth",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "hidden_workflows_workflow_id_workflows_id_fk": {
+          "name": "hidden_workflows_workflow_id_workflows_id_fk",
+          "tableFrom": "hidden_workflows",
+          "tableTo": "workflows",
+          "columnsFrom": ["workflow_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "hidden_workflows_user_id_workflow_id_pk": {
+          "name": "hidden_workflows_user_id_workflow_id_pk",
+          "columns": ["user_id", "workflow_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workflow_shares": {
+      "name": "workflow_shares",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "workflow_id": {
+          "name": "workflow_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shared_with_email": {
+          "name": "shared_with_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "allow_edit": {
+          "name": "allow_edit",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "workflow_shares_email_idx": {
+          "name": "workflow_shares_email_idx",
+          "columns": [
+            {
+              "expression": "shared_with_email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workflow_shares_workflow_id_workflows_id_fk": {
+          "name": "workflow_shares_workflow_id_workflows_id_fk",
+          "tableFrom": "workflow_shares",
+          "tableTo": "workflows",
+          "columnsFrom": ["workflow_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workflow_shares_created_by_user_id_fk": {
+          "name": "workflow_shares_created_by_user_id_fk",
+          "tableFrom": "workflow_shares",
+          "tableTo": "user",
+          "schemaTo": "auth",
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "workflow_share_unique": {
+          "name": "workflow_share_unique",
+          "nullsNotDistinct": false,
+          "columns": ["workflow_id", "shared_with_email"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.workflows": {
       "name": "workflows",
       "schema": "",
@@ -2039,6 +2299,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "steps": {
+          "name": "steps",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         },
         "columns_config": {
           "name": "columns_config",
@@ -2280,6 +2546,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "pinned": {
+          "name": "pinned",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
