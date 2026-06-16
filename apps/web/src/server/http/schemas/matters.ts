@@ -18,6 +18,9 @@ export const updateMatterSchema = z.object({
   name: z.string().min(1).optional(),
   practiceArea: z.string().nullish(),
   jurisdiction: z.string().nullish(),
+  status: z.enum(["open", "closed"]).optional(),
+  conflictCleared: z.boolean().optional(),
+  conflictNotes: z.string().nullish(),
 });
 
 export const conflictsCheckSchema = z.object({

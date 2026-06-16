@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useStore } from "@tanstack/react-store";
 import { ChevronRight, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
@@ -13,9 +14,18 @@ import { Composer } from "../../assistant/-components/Composer";
 import { ChatTurns } from "../../assistant/-components/ChatTurns";
 import { useChatSession } from "../../assistant/-components/useChatSession";
 import { MatterExplorer } from "./MatterExplorer";
-import { DocViewerTabs, type DocTab } from "./DocViewerTabs";
+import { DocViewerTabs } from "./DocViewerTabs";
 import { api, type ChatDetail, type Doc } from "../../../../lib/api";
 import { useSession } from "../../../../lib/auth-client";
+import {
+  closeDocTab,
+  openDocTab,
+  setActiveDocTab,
+  viewerStore,
+  type ViewerState,
+} from "../../../../lib/viewer-store";
+
+const EMPTY_VIEW = { tabs: [], activeTabId: null } as const;
 
 const EXPLORER_MIN = 180;
 const CHAT_MIN = 320;
@@ -89,20 +99,13 @@ export function MatterChatWorkspace({
   const [chatWidth, setChatWidth] = useState(400);
   const [explorerCollapsed, setExplorerCollapsed] = useState(false);
 
-  // Open document tabs in the center viewer.
-  const [tabs, setTabs] = useState<DocTab[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
-
-  const openDoc = (docId: string, title: string) => {
-    setTabs((prev) => (prev.some((t) => t.docId === docId) ? prev : [...prev, { docId, title }]));
-    setActiveTabId(docId);
-  };
-  const closeTab = (docId: string) =>
-    setTabs((prev) => {
-      const next = prev.filter((t) => t.docId !== docId);
-      if (activeTabId === docId) setActiveTabId(next[next.length - 1]?.docId ?? null);
-      return next;
-    });
+  // Open document tabs live in a matter-keyed store (not component state) so they
+  // survive the remount when the first message navigates /assistant →
+  // /assistant/$chatId — otherwise the open document would unselect.
+  const { tabs, activeTabId } =
+    useStore(viewerStore, (st: ViewerState) => st[matterId]) ?? EMPTY_VIEW;
+  const openDoc = (docId: string, title: string) => openDocTab(matterId, docId, title);
+  const closeTab = (docId: string) => closeDocTab(matterId, docId);
 
   const s = useChatSession({
     loaded,
@@ -148,6 +151,7 @@ export function MatterChatWorkspace({
       onRemove={s.removeAttachment}
       busy={s.busy}
       onSend={s.send}
+      onStop={s.stop}
     />
   );
 
@@ -209,7 +213,7 @@ export function MatterChatWorkspace({
         <DocViewerTabs
           tabs={tabs}
           activeId={activeTabId}
-          onSwitch={setActiveTabId}
+          onSwitch={(docId) => setActiveDocTab(matterId, docId)}
           onClose={closeTab}
         />
 

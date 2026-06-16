@@ -255,11 +255,18 @@ export async function updateMatter(
     name?: string;
     practiceArea?: string | null;
     jurisdiction?: string | null;
+    status?: "open" | "closed";
+    conflictCleared?: boolean;
+    conflictNotes?: string | null;
   }
 ) {
+  // Keep closedAt in step with status; drop conflict notes when un-clearing.
+  const closedAt =
+    fields.status === "closed" ? new Date() : fields.status === "open" ? null : undefined;
+  const conflictNotes = fields.conflictCleared === false ? null : fields.conflictNotes;
   const [row] = await db
     .update(matters)
-    .set({ ...fields, updatedAt: new Date() })
+    .set({ ...fields, conflictNotes, closedAt, updatedAt: new Date() })
     .where(eq(matters.id, id))
     .returning();
   return row ?? null;

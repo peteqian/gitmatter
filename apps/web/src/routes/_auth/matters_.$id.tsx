@@ -8,6 +8,7 @@ import {
   MessageSquarePlus,
   MoreHorizontal,
   Pencil,
+  Plus,
   RotateCcw,
   Search,
   TableProperties,
@@ -17,7 +18,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
@@ -40,6 +40,7 @@ import { ToolbarTabs } from "@/components/ToolbarTabs";
 import { VersionChip } from "./matters/-components/VersionChip";
 import { PeopleModal } from "./matters/-components/PeopleModal";
 import { EditMatterModal } from "./matters/-components/EditMatterModal";
+import { AddDocumentsModal } from "./matters/-components/AddDocumentsModal";
 import { DocumentDrawer } from "./documents/-components/DocumentDrawer";
 import { api, type Doc, type Folder } from "../../lib/api";
 import { useChats } from "../../lib/queries";
@@ -60,11 +61,6 @@ function MatterWorkspace() {
   const [tab, setTab] = useState<Tab>("documents");
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  // Documents toolbar lives in the tab row (parent-owned so it can sit beside the
-  // tabs); the doc list/folder nav reads these via props.
-  const [docSearch, setDocSearch] = useState("");
-  const [docFolderId, setDocFolderId] = useState<string | null>(null);
-  const docFileRef = useRef<HTMLInputElement>(null);
 
   // New Review files under this matter — set it working, then route out.
   const openInMatter = (to: "/reviews") => {
@@ -87,24 +83,6 @@ function MatterWorkspace() {
     void qc.invalidateQueries({ queryKey: ["matter", id] });
     refreshMatters();
   };
-
-  const uploadDoc = useMutation({
-    mutationFn: (file: File) => api.uploadDocument(file, undefined, id, docFolderId),
-    onSuccess: () => {
-      toast.success("Uploaded");
-      void qc.invalidateQueries({ queryKey: ["matter-docs", id, docFolderId] });
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Upload failed"),
-  });
-
-  const addFolderMut = useMutation({
-    mutationFn: (name: string) => api.createFolder(id, name, docFolderId),
-    onSuccess: () => {
-      toast.success("Folder added");
-      void qc.invalidateQueries({ queryKey: ["folders", id] });
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
-  });
 
   if (notFound)
     return (
@@ -172,17 +150,6 @@ function MatterWorkspace() {
         />
       }
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className="capitalize">
-          {matter.status}
-        </Badge>
-        {matter.conflictCleared ? (
-          <StateCue tone="muted">Conflicts cleared</StateCue>
-        ) : (
-          <StateCue tone="bronze">Conflicts pending</StateCue>
-        )}
-      </div>
-
       <ToolbarTabs
         tabs={[
           { id: "documents" as const, label: "Documents" },
@@ -191,60 +158,9 @@ function MatterWorkspace() {
         ]}
         active={tab}
         onChange={setTab}
-        actions={
-          tab === "documents" ? (
-            <>
-              <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-2.5">
-                <Search className="size-4 text-muted-foreground" />
-                <input
-                  value={docSearch}
-                  onChange={(e) => setDocSearch(e.target.value)}
-                  placeholder="Search"
-                  className="h-8 w-40 bg-transparent text-sm outline-none"
-                />
-              </div>
-              {myRole !== "viewer" && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const name = window.prompt("Folder name");
-                      if (name?.trim()) addFolderMut.mutate(name.trim());
-                    }}
-                  >
-                    <FolderPlus className="size-4" /> Add Subfolder
-                  </Button>
-                  <Button size="sm" onClick={() => docFileRef.current?.click()}>
-                    <Upload className="size-4" /> Add Documents
-                  </Button>
-                  <input
-                    ref={docFileRef}
-                    type="file"
-                    accept=".pdf,.docx,.doc"
-                    hidden
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) uploadDoc.mutate(f);
-                      e.target.value = "";
-                    }}
-                  />
-                </>
-              )}
-            </>
-          ) : undefined
-        }
       />
 
-      {tab === "documents" && (
-        <DocumentsTab
-          matterId={id}
-          canEdit={myRole !== "viewer"}
-          folderId={docFolderId}
-          setFolderId={setDocFolderId}
-          search={docSearch}
-        />
-      )}
+      {tab === "documents" && <DocumentsTab matterId={id} canEdit={myRole !== "viewer"} />}
       {tab === "chats" && <ChatsTab matterId={id} />}
       {tab === "reviews" && <ReviewsTab matterId={id} />}
 
@@ -267,22 +183,14 @@ function MatterWorkspace() {
   );
 }
 
-function DocumentsTab({
-  matterId,
-  canEdit,
-  folderId,
-  setFolderId,
-  search,
-}: {
-  matterId: string;
-  canEdit: boolean;
-  folderId: string | null;
-  setFolderId: (id: string | null) => void;
-  search: string;
-}) {
+function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolean }) {
   const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [folderId, setFolderId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   // Upload-new-version targets a specific document; one hidden input, target id
   // captured when the menu item is clicked.
   const versionInputRef = useRef<HTMLInputElement>(null);
@@ -303,6 +211,24 @@ function DocumentsTab({
 
   const invalidateDocs = () =>
     qc.invalidateQueries({ queryKey: ["matter-docs", matterId, folderId] });
+
+  const uploadDoc = useMutation({
+    mutationFn: (file: File) => api.uploadDocument(file, undefined, matterId, folderId),
+    onSuccess: () => {
+      toast.success("Uploaded");
+      void invalidateDocs();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Upload failed"),
+  });
+
+  const addFolderMut = useMutation({
+    mutationFn: (name: string) => api.createFolder(matterId, name, folderId),
+    onSuccess: () => {
+      toast.success("Folder added");
+      void qc.invalidateQueries({ queryKey: ["folders", matterId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
 
   const renameDoc = useMutation({
     mutationFn: (v: { id: string; title: string }) => api.renameDocument(v.id, v.title),
@@ -344,8 +270,63 @@ function DocumentsTab({
   const filtered = docs.filter((d: Doc) => d.title.toLowerCase().includes(search.toLowerCase()));
   const current = folders.find((f) => f.id === folderId) ?? null;
 
+  const totalRows = rootFolders.length + filtered.length;
+
   return (
-    <div className="flex flex-col gap-stack">
+    <div className="flex flex-col gap-stack p-2">
+      {/* Table toolbar (shadcn data-table pattern): filter on the left,
+          document-table-specific actions on the right. */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-2.5">
+          <Search className="size-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter documents…"
+            className="h-9 w-64 bg-transparent text-sm outline-none"
+          />
+        </div>
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon-sm"
+              title="Add subfolder"
+              aria-label="Add subfolder"
+              onClick={() => {
+                const name = window.prompt("Folder name");
+                if (name?.trim()) addFolderMut.mutate(name.trim());
+              }}
+            >
+              <FolderPlus className="size-4" />
+            </Button>
+            <Button size="sm" onClick={() => setAddOpen(true)}>
+              <Plus className="size-4" /> Add
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.docx,.doc"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadDoc.mutate(f);
+                e.target.value = "";
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      <AddDocumentsModal
+        matterId={matterId}
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        existingIds={docs.map((d) => d.id)}
+        onLinked={invalidateDocs}
+        onUploadNew={() => fileRef.current?.click()}
+      />
+
       {/* Folder breadcrumb only when inside a subfolder (root needs no chrome). */}
       {current && (
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -535,6 +516,11 @@ function DocumentsTab({
         </Table>
       </div>
 
+      {/* Selection footer (shadcn data-table pattern). */}
+      <div className="text-sm text-muted-foreground">
+        {selected.size} of {totalRows} row(s) selected.
+      </div>
+
       <DocumentDrawer docId={previewId} onClose={() => setPreviewId(null)} />
     </div>
   );
@@ -550,33 +536,67 @@ function DocStatusCue({ status }: { status: Doc["status"] }) {
 function ChatsTab({ matterId }: { matterId: string }) {
   const navigate = useNavigate();
   const { data: chats = [] } = useChats(matterId);
+  const [search, setSearch] = useState("");
 
   const startChat = () => void navigate({ to: "/matters/$id/assistant", params: { id: matterId } });
 
+  const filtered = chats.filter((ch) =>
+    (ch.title || "Untitled chat").toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div className="flex flex-col gap-stack">
-      <div className="flex justify-end">
+    <div className="flex flex-col gap-stack p-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-2.5">
+          <Search className="size-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter chats…"
+            className="h-9 w-64 bg-transparent text-sm outline-none"
+          />
+        </div>
         <Button size="sm" onClick={startChat}>
           <MessageSquarePlus className="size-4" /> New Chat
         </Button>
       </div>
-      <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
-        {chats.map((ch) => (
-          <li key={ch.id}>
-            <Link
-              to="/matters/$id/assistant/$chatId"
-              params={{ id: matterId, chatId: ch.id }}
-              className="flex items-center justify-between px-4 py-2.5 text-sm hover:bg-muted/40"
-            >
-              <span className="truncate">{ch.title || "Untitled chat"}</span>
-              <span className="text-xs text-muted-foreground">{formatShortDate(ch.updatedAt)}</span>
-            </Link>
-          </li>
-        ))}
-        {!chats.length && (
-          <li className="px-4 py-12 text-center text-muted-foreground">No chats yet.</li>
-        )}
-      </ul>
+
+      <div className="overflow-hidden rounded-lg border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Title</TableHead>
+              <TableHead className="w-40">Updated</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((ch) => (
+              <TableRow
+                key={ch.id}
+                className="cursor-pointer"
+                onClick={() =>
+                  navigate({
+                    to: "/matters/$id/assistant/$chatId",
+                    params: { id: matterId, chatId: ch.id },
+                  })
+                }
+              >
+                <TableCell className="font-medium">{ch.title || "Untitled chat"}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {formatShortDate(ch.updatedAt)}
+                </TableCell>
+              </TableRow>
+            ))}
+            {!filtered.length && (
+              <TableRow>
+                <TableCell colSpan={2} className="py-12 text-center text-muted-foreground">
+                  No chats yet.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
@@ -589,35 +609,65 @@ function ReviewsTab({ matterId }: { matterId: string }) {
     queryFn: () => api.listReviews(),
   });
 
+  const [search, setSearch] = useState("");
+
   const newReview = () => {
     setCurrent(matterId);
     void navigate({ to: "/reviews" });
   };
 
+  const filtered = reviews.filter((r) =>
+    (r.title || "Untitled review").toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div className="flex flex-col gap-stack">
-      <div className="flex justify-end">
+    <div className="flex flex-col gap-stack p-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-2.5">
+          <Search className="size-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter reviews…"
+            className="h-9 w-64 bg-transparent text-sm outline-none"
+          />
+        </div>
         <Button size="sm" onClick={newReview}>
           <TableProperties className="size-4" /> New Review
         </Button>
       </div>
-      <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
-        {reviews.map((r) => (
-          <li key={r.id}>
-            <Link
-              to="/reviews/$id"
-              params={{ id: r.id }}
-              className="flex items-center justify-between px-4 py-2.5 text-sm hover:bg-muted/40"
-            >
-              <span className="truncate">{r.title || "Untitled review"}</span>
-              <span className="text-xs text-muted-foreground">{formatShortDate(r.createdAt)}</span>
-            </Link>
-          </li>
-        ))}
-        {!reviews.length && (
-          <li className="px-4 py-12 text-center text-muted-foreground">No reviews yet.</li>
-        )}
-      </ul>
+
+      <div className="overflow-hidden rounded-lg border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Title</TableHead>
+              <TableHead className="w-40">Created</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((r) => (
+              <TableRow
+                key={r.id}
+                className="cursor-pointer"
+                onClick={() => navigate({ to: "/reviews/$id", params: { id: r.id } })}
+              >
+                <TableCell className="font-medium">{r.title || "Untitled review"}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {formatShortDate(r.createdAt)}
+                </TableCell>
+              </TableRow>
+            ))}
+            {!filtered.length && (
+              <TableRow>
+                <TableCell colSpan={2} className="py-12 text-center text-muted-foreground">
+                  No reviews yet.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

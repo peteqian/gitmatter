@@ -6,6 +6,15 @@ import { JURISDICTIONS } from "@workspace/registry";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogClose,
@@ -115,6 +124,9 @@ export function EditMatterModal({
   const [name, setName] = useState(matter.name);
   const [practiceArea, setPracticeArea] = useState(matter.practiceArea ?? "");
   const [jurisdiction, setJurisdiction] = useState(matter.jurisdiction ?? "");
+  const [status, setStatus] = useState(matter.status);
+  const [conflictCleared, setConflictCleared] = useState(matter.conflictCleared);
+  const [conflictNotes, setConflictNotes] = useState(matter.conflictNotes ?? "");
 
   // Seed the picker's display name for the matter's current client.
   const { data: currentClient } = useQuery({
@@ -131,6 +143,9 @@ export function EditMatterModal({
     setName(matter.name);
     setPracticeArea(matter.practiceArea ?? "");
     setJurisdiction(matter.jurisdiction ?? "");
+    setStatus(matter.status);
+    setConflictCleared(matter.conflictCleared);
+    setConflictNotes(matter.conflictNotes ?? "");
   }, [open, matter, currentClient]);
 
   const save = useMutation({
@@ -140,6 +155,12 @@ export function EditMatterModal({
         name: name.trim(),
         practiceArea: practiceArea.trim() || null,
         jurisdiction: jurisdiction || null,
+        // Status + conflict clearance are owner-only.
+        ...(canClose && {
+          status,
+          conflictCleared,
+          conflictNotes: conflictCleared ? conflictNotes.trim() || null : null,
+        }),
       }),
     onSuccess: () => {
       toast.success("Matter updated");
@@ -147,16 +168,6 @@ export function EditMatterModal({
       onOpenChange(false);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Update failed"),
-  });
-
-  const close = useMutation({
-    mutationFn: () => api.closeMatter(matter.id),
-    onSuccess: () => {
-      toast.success("Matter closed");
-      onSaved();
-      onOpenChange(false);
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
 
   return (
@@ -201,30 +212,54 @@ export function EditMatterModal({
               ))}
             </select>
           </div>
+
+          {canClose && (
+            <div className="flex flex-col gap-3 border-t border-border pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <Label>Status</Label>
+                <Select value={status} onValueChange={(v) => setStatus(v as Matter["status"])}>
+                  <SelectTrigger className="w-32 capitalize">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(["open", "closed"] as const).map((s) => (
+                      <SelectItem key={s} value={s} className="capitalize">
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="conflict-cleared">Conflicts cleared</Label>
+                <Switch
+                  id="conflict-cleared"
+                  checked={conflictCleared}
+                  onCheckedChange={setConflictCleared}
+                />
+              </div>
+              {conflictCleared && (
+                <div className="flex flex-col gap-1.5">
+                  <Label>Conflict notes</Label>
+                  <Textarea
+                    value={conflictNotes}
+                    onChange={(e) => setConflictNotes(e.target.value)}
+                    placeholder="What was reviewed to clear conflicts…"
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <DialogFooter className="sm:justify-between">
-          {canClose && matter.status === "active" ? (
-            <Button
-              variant="outline"
-              className="text-destructive"
-              disabled={close.isPending}
-              onClick={() => close.mutate()}
-            >
-              Close matter
-            </Button>
-          ) : (
-            <span />
-          )}
-          <div className="flex gap-2">
-            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-            <Button
-              disabled={!name.trim() || !clientId || save.isPending}
-              onClick={() => save.mutate()}
-            >
-              {save.isPending ? "Saving…" : "Save"}
-            </Button>
-          </div>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+          <Button
+            disabled={!name.trim() || !clientId || save.isPending}
+            onClick={() => save.mutate()}
+          >
+            {save.isPending ? "Saving…" : "Save"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
