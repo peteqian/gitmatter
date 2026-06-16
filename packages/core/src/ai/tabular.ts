@@ -520,7 +520,8 @@ export async function runReviewStreaming(
       return;
     }
     // Same key for every column of this document → the doc's cached prefix is hit.
-    const cacheKey = `review:${params.reviewId}:doc:${documentId}`;
+    // documentId alone is unique; prompt_cache_key max length is 64 chars.
+    const cacheKey = `doc:${documentId}`;
     for (const col of columns) {
       handlers.onCellStart(documentId, col.index);
       await markStatus(documentId, col.index, "generating");
