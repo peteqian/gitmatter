@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Info, Pencil, Plus, Trash2, Users, X } from "lucide-react";
-import { api, type Column } from "@/lib/api";
+import { api, type Column, type WorkflowStep } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { PageShell } from "@/components/PageShell";
@@ -13,7 +13,7 @@ import { ShareWorkflowModal } from "./ShareWorkflowModal";
 import { WFColumnViewModal } from "./WFColumnViewModal";
 import { WFEditColumnModal } from "./WFEditColumnModal";
 import { WorkflowDetailsModal } from "./WorkflowDetailsModal";
-import { WorkflowPromptEditor } from "./WorkflowPromptEditor";
+import { WorkflowStepsEditor } from "./WorkflowStepsEditor";
 
 type SaveStatus = "idle" | "saving" | "saved";
 
@@ -30,7 +30,7 @@ export function WorkflowDetailPage({ id }: { id: string }) {
   const readOnly = !workflow || workflow.isSystem || workflow.allowEdit === false;
   const canShare = !!workflow && !workflow.isSystem && workflow.isOwner;
 
-  const [promptMd, setPromptMd] = useState("");
+  const [steps, setSteps] = useState<WorkflowStep[]>([]);
   const [columns, setColumns] = useState<Column[]>([]);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -45,18 +45,23 @@ export function WorkflowDetailPage({ id }: { id: string }) {
 
   useEffect(() => {
     if (!workflow) return;
-    setPromptMd(workflow.promptMd ?? "");
+    setSteps(workflow.steps?.length ? workflow.steps : [{ promptMd: workflow.promptMd ?? "" }]);
     setColumns((workflow.columnsConfig ?? []).slice().sort((a, b) => a.index - b.index));
   }, [workflow]);
 
   const save = useCallback(
-    (newPromptMd: string) => {
+    (nextSteps: WorkflowStep[]) => {
       if (readOnly) return;
       if (debounceRef.current) clearTimeout(debounceRef.current);
       setSaveStatus("saving");
       debounceRef.current = setTimeout(async () => {
         try {
-          await api.updateWorkflow(id, { promptMd: newPromptMd });
+          // Keep promptMd in sync with the first step so single-prompt consumers
+          // (preview, legacy reads) still work.
+          await api.updateWorkflow(id, {
+            steps: nextSteps,
+            promptMd: nextSteps[0]?.promptMd ?? "",
+          });
           void qc.invalidateQueries({ queryKey: ["workflows"] });
           setSaveStatus("saved");
           setTimeout(() => setSaveStatus("idle"), 2000);
@@ -82,9 +87,9 @@ export function WorkflowDetailPage({ id }: { id: string }) {
     }
   }
 
-  function handlePromptChange(val: string) {
-    setPromptMd(val);
-    save(val);
+  function handleStepsChange(next: WorkflowStep[]) {
+    setSteps(next);
+    save(next);
   }
 
   function reindex(list: Column[]): Column[] {
@@ -197,13 +202,11 @@ export function WorkflowDetailPage({ id }: { id: string }) {
           {isLoading ? "Loading…" : "Workflow not found."}
         </p>
       ) : workflow.type === "assistant" ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <WorkflowPromptEditor
-            value={promptMd}
-            onChange={readOnly ? undefined : handlePromptChange}
-            readOnly={readOnly}
-          />
-        </div>
+        <WorkflowStepsEditor
+          value={steps}
+          onChange={readOnly ? undefined : handleStepsChange}
+          readOnly={readOnly}
+        />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           <div className="flex h-8 shrink-0 items-center justify-between">

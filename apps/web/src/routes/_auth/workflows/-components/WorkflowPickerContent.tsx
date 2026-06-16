@@ -184,6 +184,22 @@ function WorkflowPreview({
       </div>
       {resolvedMode === "columns" ? (
         <WorkflowColumnPreview columns={workflow.columnsConfig ?? []} />
+      ) : workflow.steps && workflow.steps.length > 1 ? (
+        <div className="flex-1 space-y-2 overflow-y-auto rounded-md border border-border bg-muted/40 p-3">
+          {workflow.steps.map((step, i) => (
+            <div key={i} className="rounded-md border border-border bg-background px-3 py-2">
+              <p className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                <span className="grid size-4 place-items-center rounded bg-foreground text-[9px] text-background">
+                  {i + 1}
+                </span>
+                {step.title || `Step ${i + 1}`}
+              </p>
+              <div className="text-sm leading-relaxed text-foreground/80">
+                <Streamdown>{step.promptMd || "_No prompt defined._"}</Streamdown>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="flex-1 overflow-y-auto rounded-md border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-foreground/80">
           <Streamdown>{workflow.promptMd || "_No prompt defined._"}</Streamdown>

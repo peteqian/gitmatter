@@ -111,14 +111,21 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
   }
 
   function handleStartChat() {
-    const message = [wf.promptMd, assistantMessage.trim()]
-      .filter((s) => s && s.trim())
-      .join("\n\n");
-    if (!message.trim()) return;
+    // A multi-step workflow becomes one chat turn per step (run in order); a
+    // single-prompt one is just one step. The optional message is appended to
+    // the last step.
+    const stepPrompts = wf.steps?.length ? wf.steps.map((s) => s.promptMd) : [wf.promptMd];
+    const steps = stepPrompts.map((s) => s.trim()).filter(Boolean);
+    const extra = assistantMessage.trim();
+    if (extra) {
+      if (steps.length) steps[steps.length - 1] = `${steps[steps.length - 1]}\n\n${extra}`;
+      else steps.push(extra);
+    }
+    if (!steps.length) return;
     const attachments: ChatAttachment[] = sourceDocs
       .filter((d) => selectedDocIds.has(d.id))
       .map((d) => ({ kind: "document", id: d.id, label: d.title }));
-    sessionStorage.setItem("workflowChatSeed", JSON.stringify({ input: message, attachments }));
+    sessionStorage.setItem("workflowChatSeed", JSON.stringify({ steps, attachments }));
     handleClose();
     void navigate({ to: "/assistant" });
   }

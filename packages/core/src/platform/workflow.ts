@@ -9,7 +9,7 @@ import {
   workflowShares,
   workflows,
 } from "@workspace/db/schema";
-import type { TabularColumn, Workflow, WorkflowShare } from "@workspace/db/schema";
+import type { TabularColumn, Workflow, WorkflowShare, WorkflowStep } from "@workspace/db/schema";
 import { type Actor, recordCommit } from "../core/commit.js";
 import { canAccessArtifact } from "../core/access.js";
 
@@ -17,6 +17,7 @@ type WorkflowInput = {
   title: string;
   type: "assistant" | "tabular";
   promptMd: string;
+  steps?: WorkflowStep[] | null;
   columnsConfig?: TabularColumn[];
   practice?: string | null;
 };
@@ -49,6 +50,7 @@ export async function createWorkflow(actor: Actor, input: WorkflowInput & { matt
         "field/title": commitId,
         "field/type": commitId,
         "field/prompt_md": commitId,
+        "field/steps": commitId,
         "field/columns_config": commitId,
         "field/practice": commitId,
       };
@@ -61,6 +63,7 @@ export async function createWorkflow(actor: Actor, input: WorkflowInput & { matt
         title: input.title,
         type: input.type,
         promptMd: input.promptMd,
+        steps: input.steps ?? null,
         columnsConfig: input.columnsConfig ?? null,
         practice: input.practice ?? null,
         fieldCommits,
@@ -70,6 +73,7 @@ export async function createWorkflow(actor: Actor, input: WorkflowInput & { matt
           { path: "field/title", before: null, after: input.title },
           { path: "field/type", before: null, after: input.type },
           { path: "field/prompt_md", before: null, after: input.promptMd },
+          { path: "field/steps", before: null, after: input.steps ?? null },
           { path: "field/columns_config", before: null, after: input.columnsConfig ?? null },
           { path: "field/practice", before: null, after: input.practice ?? null },
         ],
@@ -98,6 +102,13 @@ export async function updateWorkflow(
       col: "promptMd",
       before: wf.promptMd,
       after: patch.promptMd,
+    });
+  if (patch.steps !== undefined)
+    fields.push({
+      key: "field/steps",
+      col: "steps",
+      before: wf.steps,
+      after: patch.steps,
     });
   if (patch.columnsConfig !== undefined)
     fields.push({
