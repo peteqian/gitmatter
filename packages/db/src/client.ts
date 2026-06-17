@@ -7,9 +7,30 @@ if (!url) {
   throw new Error("DATABASE_URL is not set");
 }
 
-// Single shared connection pool. `prepare: false` keeps things simple for the
-// transaction-heavy commit path and is friendly to connection poolers.
-export const sql = postgres(url, { max: 10 });
+// Single shared connection pool, reused across dev HMR reloads via a global.
+// Without the guard, every server-module reload would build a NEW postgres()
+// pool and leak the previous one's open connections (idle_timeout defaults to 0
+// = never closed), eventually exhausting Postgres `max_connections`.
+//
+// Pool tuning (postgres.js): cap connections, reclaim idle ones, recycle aged
+// connections, and fail fast when the DB is unreachable. `application_name`
+// makes gitcounsel's connections visible in pg_stat_activity.
+//
+// Note: behind a transaction-mode pooler (pgBouncer/Hyperdrive) also set
+// `prepare: false` — prepared statements don't survive transaction pooling. On a
+// direct Postgres connection (self-host) the default (prepared) is faster.
+type PgClient = ReturnType<typeof postgres>;
+const POOL = Symbol.for("gitcounsel.pgPool");
+const g = globalThis as Record<symbol, PgClient | undefined>;
+export const sql: PgClient =
+  g[POOL] ??
+  (g[POOL] = postgres(url, {
+    max: 20,
+    idle_timeout: 20,
+    max_lifetime: 60 * 30,
+    connect_timeout: 10,
+    connection: { application_name: "gitcounsel" },
+  }));
 export const db = drizzle(sql, { schema });
 
 export type DB = typeof db;

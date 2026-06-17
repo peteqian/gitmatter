@@ -34,51 +34,61 @@ export async function persistChat(
   chatId?: string,
   matterId?: string
 ): Promise<string> {
-  let id = chatId;
-  if (!id) {
-    const [chat] = await db
-      .insert(chats)
-      .values({
-        userId,
-        tenantId: await userTenant(userId),
-        matterId: matterId ?? null,
-        title: turn.message.slice(0, 60),
-      })
-      .returning();
-    id = chat!.id;
-  }
+  // Resolve the tenant outside the transaction (a read; no need to hold the tx
+  // connection for it) only when creating a new chat.
+  const tenantId = chatId ? null : await userTenant(userId);
 
-  // Next sequence number after whatever's already in this chat.
-  const [row] = await db
-    .select({ max: sql<number>`coalesce(max(${chatMessages.seq}), 0)` })
-    .from(chatMessages)
-    .where(eq(chatMessages.chatId, id));
-  const base = Number(row?.max ?? 0);
+  // One transaction per turn: create-chat (if new) + the seq read + both message
+  // inserts + the updatedAt bump commit together. Atomic (no half-written turn)
+  // and the max(seq) read is consistent with the insert. The transaction wraps
+  // only DB writes — the LLM call already finished before persistChat is called,
+  // so the connection is held for milliseconds, never across slow IO.
+  return db.transaction(async (tx) => {
+    let id = chatId;
+    if (!id) {
+      const [chat] = await tx
+        .insert(chats)
+        .values({
+          userId,
+          tenantId: tenantId!,
+          matterId: matterId ?? null,
+          title: turn.message.slice(0, 60),
+        })
+        .returning();
+      id = chat!.id;
+    }
 
-  await db.insert(chatMessages).values([
-    {
-      chatId: id,
-      seq: base + 1,
-      actorType: "user",
-      actorId: userId,
-      role: "user",
-      content: { text: turn.message },
-    },
-    {
-      chatId: id,
-      seq: base + 2,
-      actorType: "agent",
-      role: "assistant",
-      content: {
-        text: turn.finalText,
-        toolCalls: turn.toolCalls,
-        ...(turn.edits?.length ? { edits: turn.edits } : {}),
+    const [row] = await tx
+      .select({ max: sql<number>`coalesce(max(${chatMessages.seq}), 0)` })
+      .from(chatMessages)
+      .where(eq(chatMessages.chatId, id));
+    const base = Number(row?.max ?? 0);
+
+    await tx.insert(chatMessages).values([
+      {
+        chatId: id,
+        seq: base + 1,
+        actorType: "user",
+        actorId: userId,
+        role: "user",
+        content: { text: turn.message },
       },
-      annotations: turn.citations?.length ? { citations: turn.citations } : null,
-    },
-  ]);
-  await db.update(chats).set({ updatedAt: new Date() }).where(eq(chats.id, id));
-  return id;
+      {
+        chatId: id,
+        seq: base + 2,
+        actorType: "agent",
+        role: "assistant",
+        content: {
+          text: turn.finalText,
+          toolCalls: turn.toolCalls,
+          ...(turn.edits?.length ? { edits: turn.edits } : {}),
+        },
+        annotations: turn.citations?.length ? { citations: turn.citations } : null,
+      },
+    ]);
+    await tx.update(chats).set({ updatedAt: new Date() }).where(eq(chats.id, id));
+    return id;
+  });
 }
 
 /**
