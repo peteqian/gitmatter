@@ -15,6 +15,7 @@ import {
 import { recordAudit } from "../platform/audit.js";
 import { shareCountByArtifact, sharedArtifactIds } from "../platform/shares.js";
 import { type Actor, recordCommit } from "../core/commit.js";
+import { logEvent } from "../core/log.js";
 import { extractMarkdown, type SupportedFileType } from "./extract.js";
 import { emitDocStatus } from "./extractionEvents.js";
 import { generateDocx, type DocxSpec } from "./docx/generate.js";
@@ -658,9 +659,11 @@ export async function processDocument(doc: Document): Promise<void> {
   // Flip to `processing` first: drives the UI badge and leaves a recoverable
   // (stale) row if the server dies mid-extract. Emit every transition so the
   // SSE stream can push it to the browser.
-  console.log(
-    `[extract] document ${doc.id} start (type=${doc.fileType}, attempt=${doc.attempts + 1})`
-  );
+  logEvent("info", "extract.start", {
+    documentId: doc.id,
+    fileType: doc.fileType,
+    attempt: doc.attempts + 1,
+  });
   await db
     .update(documents)
     .set({ status: "processing", claimedAt: new Date(), attempts: doc.attempts + 1 })
@@ -670,10 +673,13 @@ export async function processDocument(doc: Document): Promise<void> {
   const fail = async (message: string, err?: unknown) => {
     // Log with context so a failed extraction is debuggable from server logs,
     // not just the truncated message stored on the row.
-    console.error(
-      `[extract] document ${doc.id} failed (type=${doc.fileType}, attempt=${doc.attempts + 1}): ${message}`,
-      err instanceof Error ? err.stack : err
-    );
+    logEvent("error", "extract.failed", {
+      documentId: doc.id,
+      fileType: doc.fileType,
+      attempt: doc.attempts + 1,
+      error: message,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     await db
       .update(documents)
       .set({ status: "failed", extractionError: message, claimedAt: null })
@@ -705,7 +711,7 @@ export async function processDocument(doc: Document): Promise<void> {
         return { changes: [{ path: "markdown", before: null, after: markdown }] };
       },
     });
-    console.log(`[extract] document ${doc.id} ready (pageCount=${pageCount ?? "?"})`);
+    logEvent("info", "extract.ready", { documentId: doc.id, pageCount: pageCount ?? null });
     emitDocStatus({ userId: doc.userId, id: doc.id, status: "ready", extractionError: null });
   } catch (err) {
     await fail(err instanceof Error ? err.message : "extraction failed", err);

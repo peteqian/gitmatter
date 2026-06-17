@@ -23,10 +23,22 @@ services:
       retries: 10
 
   # Docling document parser as a sidecar. No auth -> internal network only.
+  # Pinned (not :latest) so a restart can't silently pull a different version;
+  # override DOCLING_IMAGE to bump.
   docling:
-    image: quay.io/docling-project/docling-serve-cpu:latest
+    image: ${DOCLING_IMAGE:-quay.io/docling-project/docling-serve-cpu:v1.24.0}
     expose:
       - "5001"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python3 -c "import urllib.request; urllib.request.urlopen(''http://localhost:5001/health'')"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
   # One-shot schema migration. Runs to completion before web starts; keeps the
   # serving container immutable (no schema mutation at app boot).
@@ -51,6 +63,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      docling:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgres://gitcounsel:gitcounsel@postgres:5432/gitcounsel
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set in .env}

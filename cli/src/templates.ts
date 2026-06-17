@@ -18,27 +18,34 @@ services:
       - web
 
   # Docling document parser as a sidecar. No auth -> internal network only.
+  # Pinned (not :latest); override DOCLING_IMAGE to bump.
   docling:
-    image: quay.io/docling-project/docling-serve-cpu:latest
+    image: \${DOCLING_IMAGE:-quay.io/docling-project/docling-serve-cpu:v1.24.0}
     restart: unless-stopped
     expose:
       - "5001"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \\"import urllib.request; urllib.request.urlopen('http://localhost:5001/health')\\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
   # One-shot schema migration. Runs to completion before web starts; keeps the
   # serving container immutable (no schema mutation at app boot).
   migrate:
-    image: \${GITCOUNSEL_IMAGE:-ghcr.io/gitcounsel/gitcounsel:latest}
+    image: \${GITCOUNSEL_IMAGE:-ghcr.io/peteqian/gitcounsel:latest}
     restart: "no"
     environment:
       DATABASE_URL: \${DATABASE_URL}
     command: ["sh", "-c", "cd /app/packages/db && bun run migrate"]
 
   web:
-    image: \${GITCOUNSEL_IMAGE:-ghcr.io/gitcounsel/gitcounsel:latest}
+    image: \${GITCOUNSEL_IMAGE:-ghcr.io/peteqian/gitcounsel:latest}
     restart: unless-stopped
     depends_on:
       docling:
-        condition: service_started
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     environment:

@@ -4,6 +4,7 @@ import { StreamableHTTPTransport } from "@hono/mcp";
 import { auth } from "./lib/auth.js";
 import {
   getUserJurisdiction,
+  logEvent,
   probeEnvProviders,
   purgeExpiredDocuments,
   purgeExpiredTokens,
@@ -25,9 +26,11 @@ import { tokensRoute } from "./routes/tokens.js";
 import { workflowRoute } from "./routes/workflow.js";
 import { authenticateMcp } from "../mcp/auth.js";
 import { buildMcpServer } from "../mcp/server.js";
+import { checkReadiness } from "./lib/health.js";
 import { serverOrigin } from "./lib/origin.js";
 import { clientMeta } from "./lib/request-meta.js";
 import { type AuthEnv, requireUser } from "./middleware/auth.js";
+import { requestLog } from "./middleware/request-log.js";
 
 // Probe which AI providers have a server env key at boot, so the model catalog
 // can mark unavailable ones. Logs the result for ops visibility.
@@ -36,11 +39,7 @@ import { type AuthEnv, requireUser } from "./middleware/auth.js";
   const available = Object.entries(status)
     .filter(([, ok]) => ok)
     .map(([p]) => p);
-  console.log(
-    available.length
-      ? `[ai] providers available from env: ${available.join(", ")}`
-      : "[ai] no provider env keys set — models depend on per-user keys"
-  );
+  logEvent("info", "ai.providers", { available });
 }
 
 // Seed system workflows + consumed-MCP connections once on boot (idempotent).
@@ -68,7 +67,18 @@ if (!g[SWEPT]) {
 // TanStack Start catch-all route (src/routes/api/$.ts).
 export const app = new Hono<AuthEnv>();
 
+// Structured request logging first, so every request (incl. health) is logged.
+app.use("*", requestLog);
+
+// Liveness: is the process up? Cheap, no dependencies — for restart probes.
 app.get("/api/health", (c) => c.json({ ok: true }));
+
+// Readiness: can we actually serve? (DB required → 503 on failure; docling
+// reported but not required.) See lib/health.ts.
+app.get("/api/health/ready", async (c) => {
+  const report = await checkReadiness();
+  return c.json(report, report.ok ? 200 : 503);
+});
 
 // Allow cross-origin browser requests to the OAuth discovery docs, token/register
 // endpoints, and the MCP endpoint (some clients fetch these from the browser).
@@ -124,7 +134,7 @@ app.use("/api/*", (c, next) => {
   // Public: health, better-auth, the MCP endpoint (bearer/OAuth), and the OAuth
   // authorization-server endpoints (which do their own per-endpoint auth).
   if (
-    p === "/api/health" ||
+    p.startsWith("/api/health") ||
     p.startsWith("/api/auth/") ||
     p === "/api/mcp" ||
     p.startsWith("/api/oauth/")
