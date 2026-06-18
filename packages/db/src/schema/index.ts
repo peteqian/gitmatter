@@ -4,6 +4,7 @@ export * from "./clients.js";
 export * from "./matters.js";
 export * from "./commits.js";
 export * from "./audit.js";
+export * from "./usage.js";
 export * from "./shares.js";
 export * from "./documents.js";
 export * from "./tabular.js";

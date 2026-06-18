@@ -15,6 +15,7 @@ import {
   getLlmClient,
   getMatter,
   getUserJurisdiction,
+  getUserTenant,
   hasMatterAccess,
   listAllChats,
   listChats,
@@ -23,6 +24,7 @@ import {
   parseCitations,
   persistChat,
   providerForModel,
+  recordLlmUsage,
   resolveLlmKey,
   setChatPinned,
   streamComplete,
@@ -148,6 +150,9 @@ async function runAssistant(
   // Jurisdiction: request override > user default > system default.
   const jurisdiction = resolveJurisdiction(body.jurisdiction, await getUserJurisdiction(user.id));
 
+  // Resolved once for usage metering across the tool loop's completions.
+  const tenantId = await getUserTenant(user.id);
+
   // Shared gitcounsel tools — the same catalog the MCP server exposes.
   const actor: Actor = { type: "agent", userId: user.id, agentLabel: "chat" };
   const catalog = buildToolCatalog(actor, { jurisdiction, defaultMatterLabel: user.name });
@@ -216,6 +221,16 @@ async function runAssistant(
         { onText: handlers.onText, onReasoning: handlers.onReasoning }
       );
       finalText = res.text;
+      // Meter this completion's token spend (log-only; never blocks the turn).
+      if (res.usage)
+        void recordLlmUsage({
+          userId: user.id,
+          tenantId,
+          provider,
+          model,
+          inputTokens: res.usage.inputTokens,
+          outputTokens: res.usage.outputTokens,
+        });
       messages.push({
         role: "assistant",
         content: res.text,

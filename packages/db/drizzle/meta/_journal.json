@@ -29,6 +29,13 @@
       "when": 1781685367344,
       "tag": "0003_rich_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781726962328,
+      "tag": "0004_sweet_fat_cobra",
+      "breakpoints": true
     }
   ]
 }

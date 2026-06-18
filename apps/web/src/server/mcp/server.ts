@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { type Actor, buildToolCatalog } from "@workspace/core";
+import { type Actor, buildToolCatalog, recordToolCall } from "@workspace/core";
 
 function json(value: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
@@ -12,7 +12,13 @@ function json(value: unknown) {
  * come from the shared catalog (server/tools/catalog.ts) — the same definitions
  * the in-app assistant uses, so MCP and chat never drift.
  */
-export function buildMcpServer(account: { userId: string; label: string; jurisdiction: string }) {
+export function buildMcpServer(account: {
+  userId: string;
+  label: string;
+  jurisdiction: string;
+  tokenId?: string;
+  tenantId?: string | null;
+}) {
   const actor: Actor = {
     type: "agent",
     userId: account.userId,
@@ -28,7 +34,16 @@ export function buildMcpServer(account: { userId: string; label: string; jurisdi
     server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.schema },
-      async (input: Record<string, unknown>) => json(await tool.handler(input))
+      async (input: Record<string, unknown>) => {
+        // Meter the call against the token's budget (log-only; never blocks).
+        void recordToolCall({
+          tokenId: account.tokenId,
+          userId: account.userId,
+          tenantId: account.tenantId,
+          tool: tool.name,
+        });
+        return json(await tool.handler(input));
+      }
     );
   }
 

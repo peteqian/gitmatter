@@ -23,3 +23,16 @@ export function requireEnv(name: string): string {
   if (!v) throw new Error(`${name} is not set`);
   return v;
 }
+
+/**
+ * Read a positive numeric limit from env, falling back to `fallback` when unset,
+ * empty, or not a finite number > 0. The pattern for tunable budgets/timeouts: an
+ * unset or `0` value should disable a feature via an explicit `<= 0` guard at the
+ * call site, never silently become the fallback.
+ */
+export function getEnvNumber(name: string, fallback: number): number {
+  const v = getEnv(name);
+  if (v === undefined || v === "") return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}

@@ -1,4 +1,5 @@
 import type { Document } from "@workspace/db/schema";
+import { recordExtraction } from "../platform/usage.js";
 import { processDocument } from "./documents.js";
 
 // Per-user extraction queue. Runs one extraction at a time per user: extra
@@ -9,6 +10,8 @@ import { processDocument } from "./documents.js";
 const chains = new Map<string, Promise<void>>();
 
 export function enqueueExtraction(doc: Document): void {
+  // Meter the job against the per-user extraction budget (log-only).
+  void recordExtraction({ userId: doc.userId, tenantId: doc.tenantId });
   const prev = chains.get(doc.userId) ?? Promise.resolve();
   // Swallow the previous job's failure so one bad doc doesn't stall the chain.
   const next = prev.catch(() => {}).then(() => processDocument(doc));

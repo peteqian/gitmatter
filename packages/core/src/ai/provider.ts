@@ -238,6 +238,9 @@ export type CompleteResult = {
   toolCalls: ToolCall[];
   stop: "end" | "tool_use";
   reasoning?: unknown[];
+  // Token usage as reported by the provider, when it exposes it. Optional —
+  // absent providers leave it undefined; metering treats that as zero.
+  usage?: { inputTokens: number; outputTokens: number };
 };
 
 // Live callbacks for streaming. onText fires per answer-token delta; onReasoning
@@ -406,7 +409,9 @@ class AnthropicClient implements LlmClient {
       ...(llmTimeoutMs() ? { timeout: llmTimeoutMs() } : {}),
     });
     const res = await anthropic.messages.create(this.buildParams(req));
-    return this.finalize(req, res.content, res.stop_reason);
+    const out = this.finalize(req, res.content, res.stop_reason);
+    out.usage = { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens };
+    return out;
   }
 
   async stream(req: CompleteRequest, handlers: StreamHandlers): Promise<CompleteResult> {
@@ -418,7 +423,9 @@ class AnthropicClient implements LlmClient {
     if (handlers.onText) s.on("text", (delta) => handlers.onText!(delta));
     if (handlers.onReasoning) s.on("thinking", (delta) => handlers.onReasoning!(delta));
     const msg = await s.finalMessage();
-    return this.finalize(req, msg.content, msg.stop_reason);
+    const out = this.finalize(req, msg.content, msg.stop_reason);
+    out.usage = { inputTokens: msg.usage.input_tokens, outputTokens: msg.usage.output_tokens };
+    return out;
   }
 }
 
@@ -510,6 +517,9 @@ class OpenAIResponsesClient implements LlmClient {
       toolCalls,
       stop: toolCalls.length ? "tool_use" : "end",
       reasoning: reasoning.length ? reasoning : undefined,
+      usage: res.usage
+        ? { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens }
+        : undefined,
     };
   }
 
@@ -653,7 +663,9 @@ class GeminiClient implements LlmClient {
       ...(llmTimeoutMs() ? { httpOptions: { timeout: llmTimeoutMs() } } : {}),
     });
     const res = await ai.models.generateContent(this.buildRequest(req));
-    return this.finalize(res.candidates?.[0]?.content?.parts ?? []);
+    const out = this.finalize(res.candidates?.[0]?.content?.parts ?? []);
+    out.usage = geminiUsage(res.usageMetadata);
+    return out;
   }
 
   async stream(req: CompleteRequest, handlers: StreamHandlers): Promise<CompleteResult> {
@@ -663,14 +675,26 @@ class GeminiClient implements LlmClient {
     });
     const gen = await ai.models.generateContentStream(this.buildRequest(req));
     const parts: Part[] = [];
+    let usageMeta: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined;
     for await (const chunk of gen) {
       for (const p of chunk.candidates?.[0]?.content?.parts ?? []) {
         if (p.text) (p.thought ? handlers.onReasoning : handlers.onText)?.(p.text);
         parts.push(p);
       }
+      if (chunk.usageMetadata) usageMeta = chunk.usageMetadata; // last chunk carries the totals
     }
-    return this.finalize(parts);
+    const out = this.finalize(parts);
+    out.usage = geminiUsage(usageMeta);
+    return out;
   }
+}
+
+// Gemini reports cumulative counts on usageMetadata; map to our shape (null-safe).
+function geminiUsage(
+  m: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined
+): { inputTokens: number; outputTokens: number } | undefined {
+  if (!m) return undefined;
+  return { inputTokens: m.promptTokenCount ?? 0, outputTokens: m.candidatesTokenCount ?? 0 };
 }
 
 function tryJson(s: string): unknown {
@@ -759,6 +783,7 @@ class OpenRouterClient implements LlmClient {
       text: typeof choice?.message.content === "string" ? choice.message.content : "",
       toolCalls,
       stop: choice?.finishReason === "tool_calls" ? "tool_use" : "end",
+      usage: openrouterUsage(res.usage),
     };
   }
 
@@ -771,6 +796,7 @@ class OpenRouterClient implements LlmClient {
 
     let text = "";
     let finishReason: string | null = null;
+    let usage: { inputTokens: number; outputTokens: number } | undefined;
     // Tool-call fragments arrive split across chunks; merge by their position index.
     const acc = new Map<number, { id?: string; name?: string; args: string }>();
 
@@ -791,6 +817,7 @@ class OpenRouterClient implements LlmClient {
         acc.set(idx, cur);
       }
       if (choice?.finishReason) finishReason = choice.finishReason;
+      if (chunk.usage) usage = openrouterUsage(chunk.usage); // last chunk carries usage
     }
 
     const toolCalls = [...acc.values()]
@@ -800,8 +827,19 @@ class OpenRouterClient implements LlmClient {
       text,
       toolCalls,
       stop: finishReason === "tool_calls" || toolCalls.length ? "tool_use" : "end",
+      usage,
     };
   }
+}
+
+// OpenRouter usage comes back snake- or camel-cased depending on path; read both.
+function openrouterUsage(u: unknown): { inputTokens: number; outputTokens: number } | undefined {
+  if (!u || typeof u !== "object") return undefined;
+  const o = u as Record<string, number | undefined>;
+  const input = o.promptTokens ?? o.prompt_tokens;
+  const output = o.completionTokens ?? o.completion_tokens;
+  if (input === undefined && output === undefined) return undefined;
+  return { inputTokens: input ?? 0, outputTokens: output ?? 0 };
 }
 
 /** Build a client for a provider with an explicit key. */

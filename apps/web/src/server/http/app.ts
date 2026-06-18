@@ -4,6 +4,7 @@ import { StreamableHTTPTransport } from "@hono/mcp";
 import { auth } from "./lib/auth.js";
 import {
   getUserJurisdiction,
+  getUserTenant,
   logEvent,
   probeEnvProviders,
   purgeExpiredDocuments,
@@ -167,7 +168,8 @@ app.all("/api/mcp", async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
   const jurisdiction = resolveJurisdiction(null, await getUserJurisdiction(account.userId));
-  const server = buildMcpServer({ ...account, jurisdiction });
+  const tenantId = await getUserTenant(account.userId);
+  const server = buildMcpServer({ ...account, jurisdiction, tenantId });
   const transport = new StreamableHTTPTransport({ sessionIdGenerator: undefined });
   await server.connect(transport);
   return transport.handleRequest(c);

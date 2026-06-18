@@ -32,6 +32,7 @@ import {
   listClients,
   listMattersForUser,
   listWorkflows,
+  recordCourtListenerCall,
   searchCaseLaw,
   updateWorkflow,
   verifyCitations,
@@ -598,6 +599,7 @@ export function buildToolCatalog(
           limit: z.number().optional(),
         },
         handler: async (args) => {
+          void recordCourtListenerCall({ userId: actor.userId });
           try {
             return await searchCaseLaw(args as { query: string });
           } catch (e) {
@@ -611,6 +613,7 @@ export function buildToolCatalog(
           "Verify/normalize US reporter citations (e.g. '467 U.S. 837') against CourtListener.",
         schema: { citations: z.array(z.string()) },
         handler: async ({ citations }) => {
+          void recordCourtListenerCall({ userId: actor.userId });
           try {
             return await verifyCitations(citations as string[]);
           } catch (e) {

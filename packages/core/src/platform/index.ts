@@ -5,6 +5,7 @@ export * from "./tenants.js";
 export * from "./workflow.js";
 export * from "./mcp-tokens.js";
 export * from "./audit.js";
+export * from "./usage.js";
 export * from "./email.js";
 export * from "./retention.js";
 export * from "./export.js";
