@@ -15,7 +15,7 @@ function buildCsp(): string {
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
-    "frame-ancestors 'none'",
+    "frame-ancestors 'self'",
     "form-action 'self'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
@@ -34,7 +34,7 @@ const securityHeaders = createMiddleware().server(async ({ next }) => {
   h.set("Content-Security-Policy", CSP);
   h.set("X-Content-Type-Options", "nosniff");
   h.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  h.set("X-Frame-Options", "DENY");
+  h.set("X-Frame-Options", "SAMEORIGIN");
   h.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   // Browsers honor HSTS only over HTTPS, so it is inert on local http dev.
   h.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
