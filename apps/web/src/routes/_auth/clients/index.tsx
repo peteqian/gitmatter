@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type PaginationState, type SortingState } from "@tanstack/react-table";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,6 +12,7 @@ import { api, type Client, type ClientSelection } from "@/lib/data/api";
 import { queryKeys } from "@/lib/data/queries";
 import { useDataTable } from "@/lib/hooks/table/useDataTable";
 import { useTablePageParams } from "@/lib/hooks/table/useTablePageParams";
+import { useTableState } from "@/lib/hooks/table/useTableState";
 import { ClientDialog } from "./-components/ClientDialog";
 import { ClientSelectionBar } from "./-components/ClientSelectionBar";
 import { CreateClient } from "./-components/CreateClient";
@@ -38,8 +38,9 @@ function Clients() {
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Client | null>(null);
-  const [sorting, setSorting] = useState<SortingState>([{ id: "name", desc: false }]);
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
+  const { sorting, setSorting, pagination, setPagination, ready } = useTableState("clients", {
+    defaultSorting: [{ id: "name", desc: false }],
+  });
   const [rowSelection, setRowSelection] = useState({});
   // "Select all matching" spans every row in the DB for the current filter, not
   // just the loaded page — so it's a flag, not an enumerated id set.
@@ -65,6 +66,7 @@ function Clients() {
     queryKey: queryKeys.clientsPage(pageParams),
     queryFn: () => api.listClientsPage(pageParams),
     placeholderData: keepPreviousData,
+    enabled: ready,
   });
   const clients = data?.rows ?? [];
   const rowCount = data?.rowCount ?? 0;

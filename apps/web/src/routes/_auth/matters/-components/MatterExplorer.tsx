@@ -1,9 +1,12 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ChevronDown,
   ChevronLeft,
+  ChevronRight,
   FileText,
   Folder as FolderIcon,
+  FolderOpen,
   FolderPlus,
   Loader2,
   Upload,
@@ -14,10 +17,17 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { api, type Doc, type Folder } from "../../../../lib/data/api";
 
+type ContextMenuState = {
+  x: number;
+  y: number;
+  parentId: string | null; // folder to create inside (null = root)
+};
+
 /**
  * Left pane of the matter workspace — a navigable file explorer over the
- * matter's folders and documents. Clicking a document opens it in the center
- * viewer; uploads and new folders land in the current folder.
+ * matter's folders and documents. Folders nest in a recursive expand/collapse
+ * tree; clicking a document opens it in the center viewer. Uploads and new
+ * folders land in the currently selected folder (or the root when none is).
  */
 export function MatterExplorer({
   matterId,
@@ -33,40 +43,192 @@ export function MatterExplorer({
   onCollapse: () => void;
 }) {
   const qc = useQueryClient();
-  const [folderId, setFolderId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [creatingIn, setCreatingIn] = useState<string | null | undefined>(undefined);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const { data: folders = [] } = useQuery({
     queryKey: ["folders", matterId],
     queryFn: () => api.listFolders(matterId),
   });
   const { data: docs = [] } = useQuery({
-    queryKey: ["matter-docs", matterId, folderId],
-    queryFn: () => api.listMatterDocuments(matterId, folderId),
+    queryKey: ["matter-docs", matterId, "all"],
+    queryFn: () => api.listMatterDocuments(matterId),
     refetchInterval: (q) =>
       q.state.data?.some((d) => d.status === "pending" || d.status === "processing") ? 2000 : false,
   });
 
+  // Close the context menu on any outside click.
+  useEffect(() => {
+    if (!contextMenu) return;
+    function handle(e: MouseEvent) {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [contextMenu]);
+
   const upload = useMutation({
-    mutationFn: (file: File) => api.uploadDocument(file, undefined, matterId, folderId),
+    mutationFn: (file: File) => api.uploadDocument(file, undefined, matterId, selectedFolderId),
     onSuccess: () => {
       toast.success("Uploaded — extracting…");
-      void qc.invalidateQueries({ queryKey: ["matter-docs", matterId, folderId] });
+      void qc.invalidateQueries({ queryKey: ["matter-docs", matterId, "all"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Upload failed"),
   });
 
+  // Optimistic folder creation: the new folder shows in the tree immediately
+  // (temp id), its parent auto-expands, then the server row replaces it.
   const addFolder = useMutation({
-    mutationFn: (name: string) => api.createFolder(matterId, name, folderId),
-    onSuccess: () => {
-      toast.success("Folder added");
-      void qc.invalidateQueries({ queryKey: ["folders", matterId] });
+    mutationFn: ({ parentId, name }: { parentId: string | null; name: string }) =>
+      api.createFolder(matterId, name, parentId),
+    onMutate: async ({ parentId, name }) => {
+      await qc.cancelQueries({ queryKey: ["folders", matterId] });
+      const prev = qc.getQueryData<Folder[]>(["folders", matterId]) ?? [];
+      const optimistic: Folder = {
+        id: `temp-${crypto.randomUUID()}`,
+        matterId,
+        parentFolderId: parentId,
+        name,
+        createdAt: new Date().toISOString(),
+      };
+      qc.setQueryData<Folder[]>(["folders", matterId], [...prev, optimistic]);
+      if (parentId) setExpandedIds((s) => new Set([...s, parentId]));
+      return { prev };
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+    onError: (e, _vars, ctx) => {
+      if (ctx) qc.setQueryData(["folders", matterId], ctx.prev);
+      toast.error(e instanceof Error ? e.message : "Failed to add folder");
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["folders", matterId] }),
   });
 
-  const subfolders = folders.filter((f: Folder) => f.parentFolderId === (folderId ?? null));
-  const current = folders.find((f) => f.id === folderId) ?? null;
+  function toggleFolder(id: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function commitNewFolder(parentId: string | null) {
+    const name = newFolderName.trim();
+    // Empty name → leave the input mounted; users dismiss with Escape. Guards
+    // against a StrictMode blur firing on the freshly-mounted input.
+    if (!name) return;
+    setCreatingIn(undefined);
+    setNewFolderName("");
+    addFolder.mutate({ parentId, name });
+  }
+
+  function startCreating(parentId: string | null) {
+    if (parentId) setExpandedIds((s) => new Set([...s, parentId]));
+    setCreatingIn(parentId);
+    setNewFolderName("");
+  }
+
+  function renderLevel(parentId: string | null, depth: number): React.ReactNode {
+    const basePadding = 12 + (depth - 1) * 16;
+    const childFolders = folders
+      .filter((f) => f.parentFolderId === parentId)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const childDocs = docs.filter((d) => d.folderId === parentId);
+
+    return (
+      <>
+        {creatingIn === parentId && (
+          <div
+            className="flex items-center gap-1.5 py-1.5 pe-2"
+            style={{ paddingInlineStart: basePadding }}
+          >
+            <ChevronRight className="size-3 shrink-0 text-muted-foreground/50" />
+            <FolderPlus className="size-3.5 shrink-0 text-bronze" />
+            <input
+              autoFocus
+              className="min-w-0 flex-1 border-b border-border bg-transparent text-sm outline-none"
+              placeholder="Folder name"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitNewFolder(parentId);
+                if (e.key === "Escape") {
+                  setCreatingIn(undefined);
+                  setNewFolderName("");
+                }
+              }}
+              onBlur={() => commitNewFolder(parentId)}
+            />
+          </div>
+        )}
+
+        {childFolders.map((f) => {
+          const isExpanded = expandedIds.has(f.id);
+          return (
+            <div key={f.id}>
+              <button
+                onClick={() => {
+                  setSelectedFolderId(f.id);
+                  toggleFolder(f.id);
+                }}
+                onContextMenu={(e) => {
+                  if (!canEdit) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setContextMenu({ x: e.clientX, y: e.clientY, parentId: f.id });
+                }}
+                className={cn(
+                  "flex w-full items-center gap-1.5 py-1.5 pe-2 text-left text-sm hover:bg-muted/50",
+                  selectedFolderId === f.id && "bg-muted/60"
+                )}
+                style={{ paddingInlineStart: basePadding }}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+                )}
+                {isExpanded ? (
+                  <FolderOpen className="size-4 shrink-0 text-bronze" />
+                ) : (
+                  <FolderIcon className="size-4 shrink-0 text-bronze" />
+                )}
+                <span className="truncate">{f.name}</span>
+              </button>
+              {isExpanded && renderLevel(f.id, depth + 1)}
+            </div>
+          );
+        })}
+
+        {childDocs.map((d) => (
+          <button
+            key={d.id}
+            onClick={() => onOpenDoc(d)}
+            className={cn(
+              "flex w-full items-center gap-2 py-1.5 pe-3 text-left text-sm hover:bg-muted/50",
+              selectedDocId === d.id && "bg-muted"
+            )}
+            style={{ paddingInlineStart: basePadding + 18 }}
+          >
+            <FileText className="size-4 shrink-0 text-destructive" />
+            <span className="min-w-0 flex-1 truncate">{d.title}</span>
+            {(d.status === "pending" || d.status === "processing") && (
+              <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
+            )}
+          </button>
+        ))}
+      </>
+    );
+  }
+
+  const empty = !folders.length && !docs.length && creatingIn === undefined;
 
   return (
     <div className="flex h-full flex-col">
@@ -91,10 +253,7 @@ export function MatterExplorer({
                 variant="ghost"
                 size="icon-sm"
                 tooltip="Add subfolder"
-                onClick={() => {
-                  const name = window.prompt("Folder name");
-                  if (name?.trim()) addFolder.mutate(name.trim());
-                }}
+                onClick={() => startCreating(selectedFolderId)}
               >
                 <FolderPlus className="size-3.5" />
               </Button>
@@ -119,50 +278,42 @@ export function MatterExplorer({
         </div>
       </div>
 
-      {/* Breadcrumb when inside a subfolder */}
-      {current && (
-        <div className="flex shrink-0 items-center gap-1.5 border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
-          <button onClick={() => setFolderId(null)} className="hover:text-foreground">
-            All
-          </button>
-          <span className="text-border">›</span>
-          <span className="truncate text-foreground">{current.name}</span>
-        </div>
-      )}
-
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col py-1">
-          {subfolders.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFolderId(f.id)}
-              className="flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted/50"
-            >
-              <FolderIcon className="size-4 shrink-0 text-bronze" />
-              <span className="truncate">{f.name}</span>
-            </button>
-          ))}
-          {docs.map((d: Doc) => (
-            <button
-              key={d.id}
-              onClick={() => onOpenDoc(d)}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted/50",
-                selectedDocId === d.id && "bg-muted"
-              )}
-            >
-              <FileText className="size-4 shrink-0 text-destructive" />
-              <span className="min-w-0 flex-1 truncate">{d.title}</span>
-              {(d.status === "pending" || d.status === "processing") && (
-                <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
-              )}
-            </button>
-          ))}
-          {!subfolders.length && !docs.length && (
+        <div
+          className="flex flex-col py-1"
+          onContextMenu={(e) => {
+            if (!canEdit) return;
+            e.preventDefault();
+            setContextMenu({ x: e.clientX, y: e.clientY, parentId: null });
+          }}
+        >
+          {renderLevel(null, 1)}
+          {empty && (
             <p className="px-3 py-8 text-center text-xs text-muted-foreground">No documents yet.</p>
           )}
         </div>
       </ScrollArea>
+
+      {/* Right-click context menu */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="fixed z-50 w-44 overflow-hidden rounded-md border border-border bg-popover py-1 text-sm shadow-md"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+          <button
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50"
+            onClick={() => {
+              const parentId = contextMenu.parentId;
+              setContextMenu(null);
+              startCreating(parentId);
+            }}
+          >
+            <FolderPlus className="size-3.5 text-muted-foreground" />
+            New subfolder
+          </button>
+        </div>
+      )}
     </div>
   );
 }

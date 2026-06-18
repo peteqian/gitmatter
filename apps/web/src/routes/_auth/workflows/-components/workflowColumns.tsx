@@ -56,6 +56,7 @@ export function workflowColumns(handlers: {
     columnHelper.accessor("practice", {
       header: "Practice",
       size: 160,
+      enableSorting: false,
       cell: (c) =>
         c.getValue() ? (
           <span className="text-xs font-medium text-muted-foreground">{c.getValue()}</span>

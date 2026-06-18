@@ -1,7 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { createColumnHelper, type PaginationState, type SortingState } from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,6 +19,7 @@ import { queryKeys } from "@/lib/data/queries";
 import { useDataTable } from "@/lib/hooks/table/useDataTable";
 import { formatShortDate } from "@/lib/format/format";
 import { useTablePageParams } from "@/lib/hooks/table/useTablePageParams";
+import { useTableState } from "@/lib/hooks/table/useTableState";
 
 export const Route = createFileRoute("/_auth/reviews/")({ component: Reviews });
 
@@ -90,8 +91,9 @@ function Reviews() {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
-  const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
+  const { sorting, setSorting, pagination, setPagination, ready } = useTableState("reviews", {
+    defaultSorting: [{ id: "createdAt", desc: true }],
+  });
   const [rowSelection, setRowSelection] = useState({});
   const [shareFor, setShareFor] = useState<ReviewListItem | null>(null);
   const [scope, setScope] = useState<"all" | "mine" | "shared">("all");
@@ -108,6 +110,7 @@ function Reviews() {
     queryKey: queryKeys.reviewsPage(pageParams),
     queryFn: () => api.listReviewsPage(pageParams),
     placeholderData: keepPreviousData,
+    enabled: ready,
   });
   const reviews = data?.rows ?? [];
   const rowCount = data?.rowCount ?? 0;

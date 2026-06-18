@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type PaginationState, type SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { Library, Plus } from "lucide-react";
 import { api, type WorkflowListItem } from "@/lib/data/api";
@@ -15,6 +14,7 @@ import { ToolbarTabs } from "@/components/ToolbarTabs";
 import { queryKeys } from "@/lib/data/queries";
 import { useDataTable } from "@/lib/hooks/table/useDataTable";
 import { useTablePageParams } from "@/lib/hooks/table/useTablePageParams";
+import { useTableState } from "@/lib/hooks/table/useTableState";
 import { DisplayWorkflowModal } from "./-components/DisplayWorkflowModal";
 import { NewWorkflowModal } from "./-components/NewWorkflowModal";
 import { WorkflowToolbarActions } from "./-components/WorkflowToolbarActions";
@@ -35,8 +35,9 @@ function Workflows() {
   const [search, setSearch] = useState("");
   const [practiceFilter, setPracticeFilter] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<WorkflowListItem["type"] | null>(null);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
+  const { sorting, setSorting, pagination, setPagination, ready } = useTableState("workflows", {
+    defaultSorting: [],
+  });
   const [rowSelection, setRowSelection] = useState({});
   const [selected, setSelected] = useState<WorkflowListItem | null>(null);
   const [newOpen, setNewOpen] = useState(false);
@@ -72,6 +73,7 @@ function Workflows() {
     queryKey: queryKeys.workflowsPage(pageParams),
     queryFn: () => api.listWorkflowsPage(pageParams),
     placeholderData: keepPreviousData,
+    enabled: ready,
   });
   const rows = data?.rows ?? [];
   const rowCount = data?.rowCount ?? 0;
@@ -101,7 +103,6 @@ function Workflows() {
     columns,
     data: rows,
     getRowId: (w) => w.id,
-    enableSorting: false,
     rowCount,
     sorting,
     onSortingChange: setSorting,

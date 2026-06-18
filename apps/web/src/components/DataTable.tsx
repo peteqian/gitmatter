@@ -183,7 +183,7 @@ export function DataTable<T>({
                         <Icon
                           className={cn(
                             "size-3.5",
-                            dir ? "text-foreground" : "text-muted-foreground/50"
+                            dir ? "text-foreground" : "text-muted-foreground"
                           )}
                         />
                       </button>

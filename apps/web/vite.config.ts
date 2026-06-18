@@ -18,6 +18,42 @@ const port = Number(process.env.PORT) || 4280;
 // constant so the cloud-only marketing chunk tree-shakes out of local builds.
 const deployment = process.env.DEPLOYMENT === "cloud" ? "cloud" : "local";
 
+// Public, session-free pages safe to render to static HTML at build time (then
+// served from the edge / CF cache). Cloud only: in a local build the marketing
+// chunk is tree-shaken out and these paths redirect to /login, so there is
+// nothing to prerender. Everything under _auth/* is per-session and must NOT be
+// listed here.
+const PUBLIC_PRERENDER_PATHS = [
+  "/", // marketing home
+  "/about",
+  "/privacy",
+  "/security",
+  "/terms",
+  "/login",
+  "/signup",
+];
+
+// Lock prerender to the explicit whitelist: discovery and link-crawling are off
+// so the prerenderer can never wander into the authenticated app shell (which
+// would render session-less or fail). `filter` is a second guard on top of the
+// explicit `pages` list.
+const prerenderOptions =
+  deployment === "cloud"
+    ? {
+        prerender: {
+          enabled: true,
+          autoStaticPathsDiscovery: false,
+          crawlLinks: false,
+          failOnError: true,
+          filter: ({ path }: { path: string }) => PUBLIC_PRERENDER_PATHS.includes(path),
+        },
+        pages: PUBLIC_PRERENDER_PATHS.map((path) => ({
+          path,
+          prerender: { enabled: true },
+        })),
+      }
+    : undefined;
+
 const config = defineConfig({
   define: {
     "import.meta.env.VITE_DEPLOYMENT": JSON.stringify(deployment),
@@ -32,7 +68,7 @@ const config = defineConfig({
   plugins: [
     devtools(),
     tailwindcss(),
-    tanstackStart(),
+    tanstackStart(prerenderOptions),
     viteReact(),
     // React Compiler: plugin-react v6 dropped inline Babel, so run it via
     // @rolldown/plugin-babel. Must come after viteReact().

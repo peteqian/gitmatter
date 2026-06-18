@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type PaginationState, type SortingState } from "@tanstack/react-table";
 import { Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,7 @@ import { queryKeys } from "@/lib/data/queries";
 import { useDataTable } from "@/lib/hooks/table/useDataTable";
 import { useWorkingMatterId } from "@/lib/context/matters-context";
 import { useTablePageParams } from "@/lib/hooks/table/useTablePageParams";
+import { useTableState } from "@/lib/hooks/table/useTableState";
 import { DocumentDrawer } from "./-components/DocumentDrawer";
 import { documentColumns } from "./-components/documentColumns";
 import { useDocumentUpload } from "./-hooks/useDocumentUpload";
@@ -40,8 +40,9 @@ function Documents() {
   const { view = "all" } = Route.useSearch();
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<"all" | "mine" | "shared">("all");
-  const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
+  const { sorting, setSorting, pagination, setPagination, ready } = useTableState("documents", {
+    defaultSorting: [{ id: "createdAt", desc: true }],
+  });
   const [rowSelection, setRowSelection] = useState({});
   const pageParams = useTablePageParams({
     query,
@@ -56,6 +57,7 @@ function Documents() {
     queryKey: queryKeys.documentsPage(pageParams),
     queryFn: () => api.listDocumentsPage(pageParams),
     placeholderData: keepPreviousData,
+    enabled: ready,
   });
   const docs = data?.rows ?? [];
   const rowCount = data?.rowCount ?? 0;

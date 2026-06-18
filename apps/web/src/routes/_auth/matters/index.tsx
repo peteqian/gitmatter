@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type PaginationState, type SortingState } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -18,6 +17,7 @@ import { api, type MatterListItem } from "@/lib/data/api";
 import { queryKeys } from "@/lib/data/queries";
 import { useDataTable } from "@/lib/hooks/table/useDataTable";
 import { useTablePageParams } from "@/lib/hooks/table/useTablePageParams";
+import { useTableState } from "@/lib/hooks/table/useTableState";
 import { useMatters } from "@/lib/context/matters-context";
 import { matterColumns } from "./-components/matterColumns";
 import { EditMatterModal } from "./-components/EditMatterModal";
@@ -44,8 +44,9 @@ function Matters() {
   const [creating, setCreating] = useState(false);
   const [scope, setScope] = useState<Scope>("all");
   const [query, setQuery] = useState("");
-  const [sorting, setSorting] = useState<SortingState>([{ id: "updatedAt", desc: true }]);
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
+  const { sorting, setSorting, pagination, setPagination, ready } = useTableState("matters", {
+    defaultSorting: [{ id: "updatedAt", desc: true }],
+  });
   const [rowSelection, setRowSelection] = useState({});
   const [editing, setEditing] = useState<MatterListItem | null>(null);
   const [peopleFor, setPeopleFor] = useState<MatterListItem | null>(null);
@@ -63,6 +64,7 @@ function Matters() {
     queryKey: queryKeys.mattersPage(pageParams),
     queryFn: () => api.listMattersPage(pageParams),
     placeholderData: keepPreviousData,
+    enabled: ready,
   });
   const shown = data?.rows ?? [];
   const rowCount = data?.rowCount ?? 0;

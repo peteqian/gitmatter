@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createColumnHelper } from "@tanstack/react-table";
+import { createColumnHelper, type SortingState } from "@tanstack/react-table";
 import { FolderPlus, MessageSquarePlus, Pencil, Plus, TableProperties, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { DocumentDrawer } from "@/routes/_auth/documents/-components/DocumentDra
 import { api, type ChatSummary, type Doc, type Folder } from "@/lib/data/api";
 import { useChats } from "@/lib/data/queries";
 import { useDataTable } from "@/lib/hooks/table/useDataTable";
+import { useTableState } from "@/lib/hooks/table/useTableState";
 import { useSession } from "@/lib/auth/auth-client";
 import { useMatters } from "@/lib/context/matters-context";
 import { formatShortDate } from "@/lib/format/format";
@@ -162,6 +163,39 @@ function MatterWorkspace() {
   );
 }
 
+// Sort value for a folder/doc row in the matter Documents tab. Folders and docs
+// interleave in one flat list, so each column maps both kinds to a comparable
+// value (folders have no type/size/status, so they collapse to a low value).
+// The new-folder input row is pinned separately and never reaches here.
+function rowSortValue(r: DocRow, id: string): string | number {
+  if (r.kind === "folder") {
+    if (id === "created") return r.folder.createdAt;
+    if (id === "name") return r.folder.name;
+    if (id === "type") return "Folder"; // matches the Type cell's displayed label
+    return 0; // size/status: folders sort first ascending
+  }
+  if (r.kind === "doc") {
+    if (id === "name") return r.doc.title;
+    if (id === "type") return r.doc.fileType;
+    if (id === "size") return r.doc.sizeBytes ?? 0;
+    if (id === "created") return r.doc.createdAt;
+    if (id === "status") return r.doc.status;
+  }
+  return "";
+}
+
+// Sort folders + docs together; no sort keeps the incoming order (folders first).
+function sortRows(rows: DocRow[], sort: SortingState[number] | undefined): DocRow[] {
+  if (!sort) return rows;
+  const dir = sort.desc ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    const av = rowSortValue(a, sort.id);
+    const bv = rowSortValue(b, sort.id);
+    if (typeof av === "number" && typeof bv === "number") return dir * (av - bv);
+    return dir * String(av).localeCompare(String(bv));
+  });
+}
+
 function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolean }) {
   // See Documents/Reviews: React Compiler can't track the stable TanStack table's
   // in-place data changes, so it skips the re-render that fills the table. Opt out.
@@ -172,6 +206,10 @@ function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolea
   const [rowSelection, setRowSelection] = useState({});
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  // Inline folder create: the button adds a transient input row to the table
+  // (like MatterExplorer's tree), not a native window.prompt.
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const { sorting, setSorting } = useTableState("matter-documents", { defaultSorting: [] });
   const fileRef = useRef<HTMLInputElement>(null);
   // Upload-new-version targets a specific document; one hidden input, target id
   // captured when the menu item is clicked.
@@ -252,10 +290,21 @@ function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolea
   const filtered = docs.filter((d: Doc) => d.title.toLowerCase().includes(search.toLowerCase()));
   const current = folders.find((f) => f.id === folderId) ?? null;
 
-  // Folders first, then docs — one combined data-table row model.
+  // Folders and docs interleave in one sorted list (macOS Finder behavior). The
+  // transient create-folder input is pinned on top and excluded from the sort.
+  const sorted = sortRows(
+    [
+      ...rootFolders.map(
+        (folder): DocRow => ({ kind: "folder", id: `folder:${folder.id}`, folder })
+      ),
+      ...filtered.map((doc): DocRow => ({ kind: "doc", id: `doc:${doc.id}`, doc })),
+    ],
+    sorting[0]
+  );
+
   const rows: DocRow[] = [
-    ...rootFolders.map((folder): DocRow => ({ kind: "folder", id: `folder:${folder.id}`, folder })),
-    ...filtered.map((doc): DocRow => ({ kind: "doc", id: `doc:${doc.id}`, doc })),
+    ...(creatingFolder ? [{ kind: "new-folder", id: "new-folder" } as DocRow] : []),
+    ...sorted,
   ];
 
   const columns = useMemo(
@@ -279,8 +328,13 @@ function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolea
           if (window.confirm(`Delete "${doc.title}"? This can be undone within 30 days.`))
             deleteDoc.mutate(doc.id);
         },
+        onCreateFolderCommit: (name) => {
+          addFolderMut.mutate(name);
+          setCreatingFolder(false);
+        },
+        onCreateFolderCancel: () => setCreatingFolder(false),
       }),
-    [canEdit, retryExtract, renameDoc, deleteDoc]
+    [canEdit, retryExtract, renameDoc, deleteDoc, addFolderMut]
   );
 
   const { table } = useDataTable({
@@ -288,7 +342,8 @@ function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolea
     columns,
     data: rows,
     getRowId: (row) => row.id,
-    enableSorting: false,
+    sorting,
+    onSortingChange: setSorting,
     rowSelection,
     onRowSelectionChange: setRowSelection,
   });
@@ -307,10 +362,7 @@ function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolea
               size="icon-sm"
               title="Add subfolder"
               aria-label="Add subfolder"
-              onClick={() => {
-                const name = window.prompt("Folder name");
-                if (name?.trim()) addFolderMut.mutate(name.trim());
-              }}
+              onClick={() => setCreatingFolder(true)}
             >
               <FolderPlus className="size-4" />
             </Button>
@@ -369,9 +421,10 @@ function DocumentsTab({ matterId, canEdit }: { matterId: string; canEdit: boolea
       <DataTable
         table={table}
         empty={`No documents yet.${canEdit ? " Add documents to get started." : ""}`}
-        onRowClick={(r) =>
-          r.kind === "folder" ? setFolderId(r.folder.id) : setPreviewId(r.doc.id)
-        }
+        onRowClick={(r) => {
+          if (r.kind === "folder") setFolderId(r.folder.id);
+          else if (r.kind === "doc") setPreviewId(r.doc.id);
+        }}
       />
 
       {/* Selection footer (shadcn data-table pattern). */}
@@ -406,6 +459,9 @@ function ChatsTab({ matterId }: { matterId: string }) {
   const navigate = useNavigate();
   const { data: chats = [] } = useChats(matterId);
   const [search, setSearch] = useState("");
+  const { sorting, setSorting } = useTableState("matter-chats", {
+    defaultSorting: [{ id: "updatedAt", desc: true }],
+  });
 
   const startChat = () => void navigate({ to: "/matters/$id/assistant", params: { id: matterId } });
 
@@ -418,7 +474,8 @@ function ChatsTab({ matterId }: { matterId: string }) {
     columns: chatColumns,
     data: filtered,
     getRowId: (row) => row.id,
-    defaultSorting: [{ id: "updatedAt", desc: true }],
+    sorting,
+    onSortingChange: setSorting,
   });
 
   return (
@@ -472,6 +529,9 @@ function ReviewsTab({ matterId }: { matterId: string }) {
   });
 
   const [search, setSearch] = useState("");
+  const { sorting, setSorting } = useTableState("matter-reviews", {
+    defaultSorting: [{ id: "createdAt", desc: true }],
+  });
 
   const newReview = () => {
     setCurrent(matterId);
@@ -487,7 +547,8 @@ function ReviewsTab({ matterId }: { matterId: string }) {
     columns: reviewColumns,
     data: filtered,
     getRowId: (row) => row.id,
-    defaultSorting: [{ id: "createdAt", desc: true }],
+    sorting,
+    onSortingChange: setSorting,
   });
 
   return (
