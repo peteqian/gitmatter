@@ -1,30 +1,65 @@
-name: Release image
+name: Release
 
-# Build the web image and publish versioned tags to GHCR. Triggered by pushing a
-# git tag like v1.2.3 (or manually). The CLI/self-host compose pulls
-# ghcr.io/<owner>/gitcounsel — pin to a version tag in production.
+# master branch → production release. Every merge to master verifies, cuts a
+# date-based version tag (vYYYY.MM.DD, .N for same-day repeats), builds+pushes the
+# public (local) and cloud images to GHCR, then deploys the production VPS via its
+# redeploy webhook.
+#
+# The CLI/self-host compose pulls ghcr.io/<owner>/gitcounsel — pin to a version tag
+# in production.
 on:
   push:
-    tags:
-      - "v*"
+    branches: [master]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Image tag to publish (e.g. v1.2.3)"
-        required: true
 
 permissions:
-  contents: read
-  packages: write
+  contents: write # push the version tag
+  packages: write # push images to GHCR
 
-# One publish at a time per ref, so two quick tags can't race the same image.
+# One release at a time, so two quick merges can't race the same version/deploy.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  version:
+    needs: ci
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.calver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute CalVer tag and push it
+        id: calver
+        run: |
+          git fetch --tags --quiet
+          DATE=$(date -u +v%Y.%m.%d)
+          N=$(git tag -l "${DATE}*" | wc -l | tr -d ' ')
+          if [ "$N" -eq 0 ]; then VERSION="$DATE"; else VERSION="${DATE}.${N}"; fi
+          echo "Release version: $VERSION"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: version
+    runs-on: ubuntu-latest
+    strategy:
+      # Two flavors of the same source: `local` (self-host, login-first) keeps the
+      # plain tags (latest, vDATE); `cloud` (marketing + prerender) gets a -cloud
+      # suffix. DEPLOYMENT is baked at build time, so one image can't be both.
+      matrix:
+        include:
+          - deployment: local
+            suffix: ""
+          - deployment: cloud
+            suffix: "-cloud"
     steps:
       - uses: actions/checkout@v4
 
@@ -43,13 +78,13 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
-          # Tag-push (v1.2.3) → version + major.minor + latest. Manual dispatch →
-          # only the literal input tag (no git-tag context for semver/latest).
+          # Cloud flavor appends -cloud to every tag (vDATE-cloud, latest-cloud);
+          # local keeps the bare tags (vDATE, latest).
+          flavor: |
+            latest=true
+            suffix=${{ matrix.suffix }},onlatest=true
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=${{ needs.version.outputs.version }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -57,7 +92,29 @@ jobs:
           context: .
           file: infrastructure/Dockerfile.web
           push: true
+          build-args: |
+            DEPLOYMENT=${{ matrix.deployment }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Separate cache scope per flavor so the two builds don't clobber each
+          # other's layers.
+          cache-from: type=gha,scope=${{ matrix.deployment }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.deployment }}
+
+  # Auto-deploy the freshly pushed -cloud image to the production VPS by pinging
+  # its Coolify/Dokploy redeploy webhook. The platform pulls + restarts; CI only
+  # fires the hook. Skips cleanly when the webhook secret is unset (e.g. forks).
+  deploy-prod:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger production redeploy
+        env:
+          WEBHOOK: ${{ secrets.PROD_WEBHOOK_URL }}
+          TOKEN: ${{ secrets.PROD_WEBHOOK_TOKEN }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "PROD_WEBHOOK_URL unset — skipping deploy."
+            exit 0
+          fi
+          curl -fsSL -X POST "$WEBHOOK" ${TOKEN:+-H "Authorization: Bearer $TOKEN"}
