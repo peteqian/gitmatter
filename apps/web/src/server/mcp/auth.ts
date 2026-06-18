@@ -5,7 +5,7 @@ import { mcpResourceUri } from "../http/lib/origin.js";
 /** Resolve the gitcounsel user behind a `Authorization: Bearer <token>` header. */
 export async function authenticateMcp(
   c: Context
-): Promise<{ userId: string; label: string } | null> {
+): Promise<{ userId: string; label: string; tokenId?: string } | null> {
   const header = c.req.header("authorization") ?? "";
   const match = header.match(/^Bearer\s+(.+)$/i);
   if (!match) return null;

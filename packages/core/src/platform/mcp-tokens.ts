@@ -49,10 +49,11 @@ export async function revokeMcpToken(userId: string, id: string) {
   void recordAudit({ eventType: "mcp_token.revoke", actorId: userId, target: id });
 }
 
-/** Resolve a bearer token to the gitcounsel user it was minted by. */
+/** Resolve a bearer token to the gitcounsel user it was minted by. `tokenId` is
+ *  the token's row id, so per-token metering can attribute usage to it. */
 export async function resolveMcpToken(
   token: string
-): Promise<{ userId: string; label: string } | null> {
+): Promise<{ tokenId: string; userId: string; label: string } | null> {
   const [row] = await db
     .select()
     .from(mcpAccessTokens)
@@ -73,5 +74,5 @@ export async function resolveMcpToken(
       metadata: { label: row.label },
     });
   }
-  return { userId: row.userId, label: row.label };
+  return { tokenId: row.id, userId: row.userId, label: row.label };
 }
