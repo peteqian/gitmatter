@@ -1,5 +1,8 @@
 # Data Retention
 
+> 📖 A reader-friendly version is published at **/docs/admin/data-retention**.
+> This file is the source it was derived from.
+
 gitcounsel purges aged data on a rolling basis. Purges run on every app boot (no
 external scheduler), so a long-running deployment sweeps continuously; a restarted
 one sweeps on startup. Every window is configured by an environment variable and

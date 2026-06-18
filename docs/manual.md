@@ -1,5 +1,9 @@
 # gitcounsel — Build & Run Manual
 
+> 📖 A reader-friendly version of this is published at **/docs/admin/self-hosting**
+> (and the agent-connection part at **/docs/ai-agents/connect-an-agent**). This file
+> is the source it was derived from.
+
 How to set up, develop, and run gitcounsel, and how to connect an AI agent over MCP. For what the
 product is, see the [README](../README.md).
 

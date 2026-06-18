@@ -1,5 +1,8 @@
 # AI Data Handling
 
+> 📖 A reader-friendly version is published at **/docs/admin/ai-data-handling**.
+> This file is the source it was derived from.
+
 Law-firm documents are privileged. This page describes which content leaves
 gitcounsel, where it goes, and how to configure the most retention-averse posture
 each provider allows. Verify provider policies before relying on them — they move.

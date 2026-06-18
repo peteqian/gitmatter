@@ -1,5 +1,8 @@
 # Backup & Restore
 
+> 📖 A reader-friendly version is published at **/docs/admin/backup-restore**.
+> This file is the source it was derived from.
+
 gitcounsel state lives in two places: **Postgres** (accounts, matters, documents
 metadata, audit log, tokens) and **object storage** (the document file bytes).
 Back up both; a database restored without its objects has dangling document

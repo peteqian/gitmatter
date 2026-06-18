@@ -1,5 +1,8 @@
 # Spending Controls
 
+> 📖 A reader-friendly version is published at **/docs/admin/spending-controls**.
+> This file is the source it was derived from.
+
 gitcounsel meters cost-bearing actions — LLM completions, MCP tool calls,
 CourtListener lookups, and document extractions — into the `usage_events` table.
 Budgets are evaluated by summing usage over a rolling window.
