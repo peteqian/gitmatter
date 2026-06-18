@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 import {
+  BookOpen,
   Briefcase,
   Building2,
   Check,
@@ -256,6 +257,12 @@ function UserMenu({ session, open }: { session: NonNullable<ServerSession>; open
         <DropdownMenuItem render={<Link to="/settings" />}>
           <SettingsIcon className="size-4" />
           Settings
+        </DropdownMenuItem>
+        {/* Plain anchor: /docs is served by the separate docs app (reverse-proxied),
+            not a route in this app, so it must be a full navigation. */}
+        <DropdownMenuItem render={<a href="/docs" />}>
+          <BookOpen className="size-4" />
+          Documentation
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuSub>

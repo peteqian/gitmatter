@@ -17,6 +17,12 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           >
             About
           </Link>
+          <a
+            href="/docs"
+            className="rounded-md px-3 py-2 text-muted-foreground hover:text-foreground"
+          >
+            Docs
+          </a>
           <Link to="/login" className="rounded-md px-3 py-2 hover:text-foreground">
             Log in
           </Link>
@@ -30,6 +36,9 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
 
       <footer className="flex flex-col items-center gap-2 px-6 py-8 text-center text-sm text-muted-foreground">
         <nav className="flex items-center gap-4">
+          <a href="/docs" className="hover:text-foreground">
+            Docs
+          </a>
           <Link to="/privacy" className="hover:text-foreground">
             Privacy
           </Link>
