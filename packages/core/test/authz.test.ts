@@ -112,8 +112,8 @@ describe("artifact access is tenant- and role-scoped", () => {
 
 describe("tenant-scoped list isolation", () => {
   test("listClients returns only the caller tenant's clients", async () => {
-    const aClients = await listClients(tenantA);
-    const bClients = await listClients(tenantB);
+    const aClients = await listClients(ownerId);
+    const bClients = await listClients(outsiderId);
     expect(aClients.some((c) => c.id === clientBId)).toBe(false);
     expect(bClients.some((c) => c.id === clientBId)).toBe(true);
     expect(bClients.every((c) => c.tenantId === tenantB)).toBe(true);
