@@ -1,4 +1,4 @@
-import { createMiddleware, createStart } from "@tanstack/react-start";
+import { createCsrfMiddleware, createMiddleware, createStart } from "@tanstack/react-start";
 
 // Security headers applied to every response — SSR documents, server routes,
 // and the /api/* Hono surface. Registered as global requestMiddleware below.
@@ -41,8 +41,16 @@ const securityHeaders = createMiddleware().server(async ({ next }) => {
   return result;
 });
 
+// Reject cross-site requests to server functions. Validates same-origin via
+// Sec-Fetch-Site / Origin / Referer. Required because we use cookie-based
+// (better-auth) sessions, which are otherwise CSRF-vulnerable; server functions
+// bypass the Hono /api/* auth + rate-limit layer, so this is their guard.
+const csrfMiddleware = createCsrfMiddleware({
+  filter: (ctx) => ctx.handlerType === "serverFn",
+});
+
 export const startInstance = createStart(() => {
   return {
-    requestMiddleware: [securityHeaders],
+    requestMiddleware: [securityHeaders, csrfMiddleware],
   };
 });
