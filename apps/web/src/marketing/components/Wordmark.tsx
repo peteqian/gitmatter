@@ -1,9 +1,11 @@
-// Brand wordmark: a bronze commit node leading the serif name. The dot is the
-// git/audit signature — a commit in the history.
+import BrandMark from "@/components/BrandMark";
+
+// Brand wordmark: the bronze commit-node mark (matching the favicon) leading the
+// serif name. The node is the git/audit signature — a commit in the history.
 export default function Wordmark({ className = "" }: { className?: string }) {
   return (
-    <span className={`inline-flex items-baseline gap-2 ${className}`}>
-      <span className="size-2 translate-y-[-1px] rounded-full bg-bronze" />
+    <span className={`inline-flex items-center gap-2 ${className}`}>
+      <BrandMark className="size-4 text-bronze" />
       <span className="font-heading text-xl font-semibold tracking-tight">gitmatter</span>
     </span>
   );

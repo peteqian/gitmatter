@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { ChevronLeft, ChevronRight, MessageSquarePlus } from "lucide-react";
+import BrandMark from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import {
@@ -267,8 +268,8 @@ export function MatterChatWorkspace({
               {s.turns.length === 0 ? (
                 <div className="flex flex-1 flex-col items-center justify-center px-4">
                   <h1 className="flex items-center gap-2.5 font-heading text-2xl font-light tracking-tight">
-                    <span className="grid size-7 place-items-center rounded-md bg-primary font-serif text-base text-primary-foreground">
-                      g
+                    <span className="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground">
+                      <BrandMark className="size-5" />
                     </span>
                     Hi, {firstName}
                   </h1>

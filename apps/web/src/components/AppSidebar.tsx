@@ -24,6 +24,7 @@ import {
   Table2,
 } from "lucide-react";
 import { cn } from "@/lib/util/utils";
+import BrandMark from "@/components/BrandMark";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -159,8 +160,8 @@ function SidebarPanel({ session, open, mode, onNavigate, onToggle }: SidebarPane
             onClick={onNavigate}
             className="flex items-center gap-1.5 px-2 transition-opacity hover:opacity-80"
           >
-            <span className="grid size-6 place-items-center rounded-md bg-primary font-serif text-sm font-medium text-primary-foreground">
-              g
+            <span className="grid size-6 place-items-center rounded-md bg-primary text-primary-foreground">
+              <BrandMark className="size-4" />
             </span>
             <span className="font-serif text-2xl font-light tracking-tight">gitmatter</span>
           </Link>

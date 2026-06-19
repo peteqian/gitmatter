@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import BrandMark from "@/components/BrandMark";
 import { Badge } from "@/components/ui/badge";
 import {
   Conversation,
@@ -108,8 +109,8 @@ export function AssistantView({ loaded }: { loaded: ChatDetail | null }) {
     return (
       <div className="mx-auto flex h-full w-full max-w-xl flex-col items-center justify-center gap-section md:max-w-2xl lg:max-w-3xl xl:max-w-4xl">
         <h1 className="flex items-center gap-3 font-heading text-4xl font-light tracking-tight">
-          <span className="grid size-9 place-items-center rounded-lg bg-primary font-serif text-lg text-primary-foreground">
-            g
+          <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground">
+            <BrandMark className="size-6" />
           </span>
           Hi, {firstName}
         </h1>
