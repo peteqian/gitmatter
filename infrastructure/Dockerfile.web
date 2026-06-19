@@ -4,6 +4,10 @@
 # one-shot service in docker-compose, or `drizzle-kit migrate` in CI/CD).
 FROM oven/bun:1.3.14 AS build
 WORKDIR /app
+# ca-certificates: the cloud build prerenders pages, and the SSR runtime's HTTP
+# client aborts (SIGABRT) without system CA certs in the slim bun image.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 # Build-time deployment flavor. `local` (default) is the self-host build: marketing
 # pages are tree-shaken out and "/" redirects to login. `cloud` ships the public
 # marketing site + static prerender. Baked into the bundle via import.meta.env, so
@@ -21,6 +25,8 @@ RUN cd apps/web && DEPLOYMENT=$DEPLOYMENT bun run build
 
 FROM oven/bun:1.3.14
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app /app
 ENV NODE_ENV=production PORT=4280
 EXPOSE 4280
