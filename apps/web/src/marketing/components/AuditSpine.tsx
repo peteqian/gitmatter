@@ -1,19 +1,22 @@
 import Eyebrow from "@/marketing/components/Eyebrow";
+import CommitPanel from "@/marketing/components/CommitPanel";
 
-// The audit-spine statement — text only. The artifacts above already show the
-// diffs and blame; here we just say what they mean.
+// The record statement, with the change-history panel as proof beneath it —
+// plain words for what "on the record" means.
 export default function AuditSpine() {
   return (
-    <section className="mx-auto max-w-3xl px-6 py-24 text-center">
-      <Eyebrow>the audit spine</Eyebrow>
-      <h2 className="mt-stack font-heading text-4xl tracking-tight text-balance">
-        Every change is a commit with blame.
+    <section className="mx-auto max-w-3xl px-6 py-40 text-center">
+      <Eyebrow>a clear record</Eyebrow>
+      <h2 className="mt-stack font-heading text-4xl tracking-tight text-balance sm:text-5xl">
+        Every change is on the record.
       </h2>
-      <p className="mx-auto mt-stack max-w-[56ch] text-lg leading-relaxed text-muted-foreground">
-        Human or agent, every edit lands in one history — author, message, and a field-level diff
-        you can read, cite, and revert. Open any clause and see exactly who wrote it, when, and why.
-        No black box.
+      <p className="mx-auto mt-section max-w-[56ch] text-lg leading-relaxed text-muted-foreground">
+        Person or AI, every edit lands in one history — who made it, when, and exactly what changed.
+        Open any clause and see how it got there. Read it, share it, or undo it. No black box.
       </p>
+      <div className="mx-auto mt-section max-w-md text-left">
+        <CommitPanel />
+      </div>
     </section>
   );
 }

@@ -1,27 +1,26 @@
 import Eyebrow from "@/marketing/components/Eyebrow";
 
-// The thesis: gitmatter builds on mike with connectivity in BOTH directions.
-// Inbound (MCP): outside agents drive our audited tools. Outbound (SDK): our
-// engine runs on the firm's own key. Two clean columns — no boxes.
+// Two audiences, one product. Anyone can use it with the AI chatbot they
+// already pay for. Technical teams can connect their own tools over MCP.
 const FLOWS = [
   {
-    tag: "Inbound",
-    title: "Your agent drives our tools.",
-    body: "Any AI client your firm already uses connects over MCP and drives gitmatter's review, extraction, and drafting — every action recorded as a commit.",
+    tag: "For anyone",
+    title: "Use your AI chatbot.",
+    body: "Connect the AI assistant you already pay for — like ChatGPT or Claude — and run your legal work through it. Nothing technical to learn.",
   },
   {
-    tag: "Outbound",
-    title: "Our engine runs on your key.",
-    body: "gitmatter's own features call out to the firm's LLM key — multi-provider, encrypted, zero data retention. Your AI on the front, our audited engine behind.",
+    tag: "For technical teams",
+    title: "Or connect over MCP.",
+    body: "Developers can plug gitmatter's tools into their own AI setup over MCP and automate the work — with the same clear record behind every change.",
   },
 ];
 
 export default function BothDirections() {
   return (
     <section className="mx-auto max-w-7xl px-6 py-24">
-      <Eyebrow>connectivity, both directions</Eyebrow>
+      <Eyebrow>works for everyone</Eyebrow>
       <h2 className="mt-stack max-w-[22ch] font-heading text-3xl tracking-tight text-balance sm:text-4xl">
-        We build on mike — and wire it up both ways.
+        Easy for anyone. Open for builders.
       </h2>
       <div className="mt-12 grid gap-12 sm:grid-cols-2 md:gap-16">
         {FLOWS.map((f) => (

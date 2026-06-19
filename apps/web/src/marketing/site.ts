@@ -1,8 +1,8 @@
 // External links for the marketing site, kept in one place so the GitHub repo
-// URL (not finalized yet) is a single swap. mikeoss is the project gitmatter
-// builds on — credited in the footer.
+// URL (not finalized yet) is a single swap. mike is credited in the README, not
+// on the marketing page.
 export const SITE = {
+  url: "https://gitmatter.com", // production origin — canonical/OG/sitemap base
   github: "https://github.com/your-org/gitmatter", // TODO: real repo URL
-  mikeoss: "https://mikeoss.com",
   docs: "/docs",
 };

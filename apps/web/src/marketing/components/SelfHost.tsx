@@ -1,22 +1,22 @@
-import { GitBranch } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { SITE } from "@/marketing/site";
 import Eyebrow from "@/marketing/components/Eyebrow";
 
-// Self-host band: warm editorial, full-bleed sunken paper with hairline rules —
-// not a generic dark SaaS block. Unapologetic, restrained.
+// "Runs on your terms" band: warm editorial, full-bleed sunken paper with
+// hairline rules — not a generic dark SaaS block. Plain language, no jargon.
 const POINTS = [
   {
-    title: "Run it yourself",
-    body: "Self-host the whole stack with one Docker command. No cloud lock-in.",
+    title: "Install it yourself",
+    body: "Set it up on your own computer or server in minutes. Nothing locked to one company's cloud.",
   },
   {
-    title: "Your key, your provider",
-    body: "Bring your own LLM key — Claude, Gemini, OpenAI, OpenRouter — stored encrypted.",
+    title: "Use your own AI account",
+    body: "Connect the AI account your firm already pays for. Stored safely, only used for your work.",
   },
   {
-    title: "Zero data retention",
-    body: "Configured so your documents never train anyone's model. Auditable end to end.",
+    title: "Your documents stay private",
+    body: "Your files are never kept or used to train anyone's model. Every step is on the record.",
   },
 ];
 
@@ -24,9 +24,9 @@ export default function SelfHost() {
   return (
     <section className="border-y border-border bg-secondary/60">
       <div className="mx-auto max-w-7xl px-6 py-24">
-        <Eyebrow>open source, self-hostable</Eyebrow>
+        <Eyebrow>runs on your terms</Eyebrow>
         <h2 className="mt-stack max-w-[16ch] font-heading text-4xl tracking-tight text-balance">
-          Own the whole stack.
+          Set it up your way.
         </h2>
         <div className="mt-12 grid gap-10 sm:grid-cols-3 md:gap-16">
           {POINTS.map((p) => (
@@ -37,12 +37,9 @@ export default function SelfHost() {
           ))}
         </div>
         <div className="mt-section flex flex-wrap gap-3">
-          <a href={SITE.github} target="_blank" rel="noreferrer">
-            <Button size="lg">
-              <GitBranch />
-              Star on GitHub
-            </Button>
-          </a>
+          <Link to="/login">
+            <Button size="lg">See a demo</Button>
+          </Link>
           <a href={SITE.docs}>
             <Button size="lg" variant="outline">
               Read the docs

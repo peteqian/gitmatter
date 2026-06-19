@@ -1,37 +1,50 @@
 import Eyebrow from "@/marketing/components/Eyebrow";
 
-// Three differentiators, calm. No boxes — whitespace separates, big serif
-// numerals carry the hierarchy. Shorter copy than a feature dump.
+// The control thesis. Left-rail label + a right stack of three pillars — a
+// distinct layout from the full-width sections, so hierarchy reads at a glance.
+// No boxes; hairline rules and big serif numerals carry the rhythm.
 const POINTS = [
   {
     n: "01",
-    title: "Bring your own agent",
-    body: "Connect the AI client your firm already uses over MCP. It drives gitmatter's tools; every action is recorded.",
+    title: "Set up in minutes",
+    body: "Install it on your own computer or server and add your AI account. No consultants, no IT project — you're running in minutes.",
   },
   {
     n: "02",
-    title: "Bring your own key",
-    body: "Runs on your firm's LLM key — Claude, Gemini, OpenAI, OpenRouter — encrypted, zero data retention.",
+    title: "Run the work as steps",
+    body: "Review, pull out, and draft contract terms as simple, repeatable steps. The AI does the work; you stay in charge and approve what counts.",
   },
   {
     n: "03",
-    title: "Built for how firms work",
-    body: "Client → Matter → artifacts, a team per matter, every change traceable to a member.",
+    title: "Keep a full record",
+    body: "Every change is saved with the person, the time, and the exact before and after. Read it, share it, or undo it — nothing is hidden.",
   },
 ];
 
 export default function Manifesto() {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-24">
-      <Eyebrow>what makes it different</Eyebrow>
-      <div className="mt-12 grid gap-12 md:grid-cols-3 md:gap-16">
-        {POINTS.map((p) => (
-          <div key={p.n} className="flex flex-col gap-3">
-            <span className="font-heading text-3xl text-bronze/60">{p.n}</span>
-            <h3 className="font-heading text-2xl tracking-tight">{p.title}</h3>
-            <p className="leading-relaxed text-muted-foreground">{p.body}</p>
-          </div>
-        ))}
+    <section className="mx-auto max-w-7xl px-6 py-32">
+      <div className="grid gap-section lg:grid-cols-[0.6fr_1.4fr] lg:gap-24">
+        <div className="flex flex-col gap-stack lg:sticky lg:top-24 lg:self-start">
+          <Eyebrow>why firms choose it</Eyebrow>
+          <h2 className="max-w-[14ch] font-heading text-4xl tracking-tight text-balance">
+            Easy to run. Nothing slips by.
+          </h2>
+        </div>
+        <div className="flex flex-col">
+          {POINTS.map((p, i) => (
+            <div
+              key={p.n}
+              className={`grid gap-4 py-8 sm:grid-cols-[auto_1fr] sm:gap-8 ${i > 0 ? "border-t border-border" : ""}`}
+            >
+              <span className="font-heading text-3xl text-bronze/60">{p.n}</span>
+              <div className="flex flex-col gap-2">
+                <h3 className="font-heading text-2xl tracking-tight">{p.title}</h3>
+                <p className="max-w-[52ch] leading-relaxed text-muted-foreground">{p.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

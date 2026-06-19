@@ -62,17 +62,6 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 py-10 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-2">
             <Wordmark />
-            <span className="text-xs">
-              Built on{" "}
-              <a
-                href={SITE.mikeoss}
-                target="_blank"
-                rel="noreferrer"
-                className="text-bronze underline-offset-4 hover:underline"
-              >
-                mikeoss.com
-              </a>
-            </span>
           </div>
           <nav className="flex flex-wrap items-center gap-4">
             <a href={SITE.docs} className="hover:text-foreground">
