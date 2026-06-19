@@ -52,11 +52,18 @@ function reviewColumns(onManagePeople: (r: ReviewListItem) => void) {
       size: 360,
       cell: (c) => <span className="block truncate font-medium">{c.getValue()}</span>,
     }),
+    columnHelper.accessor("matterName", {
+      id: "matter",
+      header: "Matter",
+      size: 200,
+      cell: (c) => (
+        <span className="block truncate text-muted-foreground">{c.getValue() ?? "—"}</span>
+      ),
+    }),
     columnHelper.accessor((r) => r.documentIds.length, {
       id: "documents",
       header: "Documents",
       size: 120,
-      enableSorting: false,
       cell: (c) => <span className="text-muted-foreground">{c.getValue()}</span>,
     }),
     columnHelper.accessor("createdAt", {

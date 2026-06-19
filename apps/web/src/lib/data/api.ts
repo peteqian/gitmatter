@@ -65,6 +65,7 @@ export type ReviewDetail = {
   };
   cells: Cell[];
   documentTitles: Record<string, string>;
+  documentMatters: Record<string, string | null>;
 };
 
 export type MatterRole = "owner" | "editor" | "viewer";
@@ -201,6 +202,7 @@ export type Doc = {
 export type ReviewListItem = {
   id: string;
   title: string;
+  matterName: string | null;
   documentIds: string[];
   createdAt: string;
   isOwner: boolean;

@@ -30,7 +30,7 @@ export const workflowRoute = new Hono<AuthEnv>();
 
 const workflowTabs = ["all", "builtin", "custom", "hidden"] as const;
 const workflowTypes = ["assistant", "tabular"] as const;
-const workflowSorts = ["title", "type", "createdAt", "updatedAt"] as const;
+const workflowSorts = ["title", "type", "createdAt", "updatedAt", "practice", "source"] as const;
 
 function asTab(v: string | undefined) {
   return workflowTabs.includes(v as (typeof workflowTabs)[number])

@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ilike, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@workspace/db/client";
 import {
   type MatterRole,
@@ -80,7 +80,7 @@ export async function listClients(userId: string) {
     .orderBy(desc(clients.createdAt));
 }
 
-export type ClientListSort = "name" | "type" | "clientNumber" | "status" | "createdAt";
+export type ClientListSort = "name" | "type" | "clientNumber" | "status" | "createdAt" | "shared";
 
 export type ClientListParams = {
   q?: string;
@@ -136,6 +136,7 @@ export async function listClientsPage(userId: string, params: ClientListParams) 
     clientNumber: clients.clientNumber,
     status: clients.status,
     createdAt: clients.createdAt,
+    shared: sql`(select count(*) from ${clientMembers} cm where cm.client_id = ${clients.id})`,
   };
   const sortCol = sortCols[params.sort ?? "createdAt"];
   const order = params.dir === "asc" ? asc(sortCol) : desc(sortCol);
@@ -471,7 +472,7 @@ export async function listMattersForUser(userId: string) {
 }
 
 export type MatterListScope = "all" | "mine" | "shared";
-export type MatterListSort = "name" | "client" | "updatedAt" | "createdAt";
+export type MatterListSort = "name" | "client" | "updatedAt" | "createdAt" | "owner" | "shared";
 
 export type MatterListParams = {
   q?: string;
@@ -501,6 +502,9 @@ export async function listMattersPage(userId: string, params: MatterListParams) 
     client: clients.name,
     updatedAt: matters.updatedAt,
     createdAt: matters.createdAt,
+    owner: sql`(select u.name from ${matterMembers} mm join ${user} u on u.id = mm.user_id
+      where mm.matter_id = ${matters.id} and mm.role = 'owner' limit 1)`,
+    shared: sql`(select count(*) from ${matterMembers} mm where mm.matter_id = ${matters.id})`,
   };
   const sortCol = sortCols[params.sort ?? "updatedAt"];
   const order = params.dir === "asc" ? asc(sortCol) : desc(sortCol);

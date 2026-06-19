@@ -89,6 +89,7 @@ function ReviewView() {
   const review = data?.review;
   const cells = data?.cells;
   const docTitle = (docId: string) => data?.documentTitles[docId] ?? docId.slice(0, 8);
+  const docMatter = (docId: string) => data?.documentMatters[docId] ?? null;
   const cellOf = (docId: string, col: number): Cell | undefined =>
     cells?.find((c) => c.documentId === docId && c.columnIndex === col);
 
@@ -163,7 +164,12 @@ function ReviewView() {
   // per configured extraction column. Cell rendering reads run state through
   // the table meta so column identity stays stable across runs.
   const tableData = useMemo<ReviewRow[]>(
-    () => (review?.documentIds ?? []).map((docId) => ({ docId, title: docTitle(docId) })),
+    () =>
+      (review?.documentIds ?? []).map((docId) => ({
+        docId,
+        title: docTitle(docId),
+        matterName: docMatter(docId),
+      })),
     // docTitle reads data.documentTitles; recompute when the review payload changes.
     [data, review] // eslint-disable-line react-hooks/exhaustive-deps
   );
@@ -184,6 +190,16 @@ function ReviewView() {
             </button>
           );
         },
+      },
+      {
+        id: "matter",
+        header: "Matter",
+        size: 160,
+        cell: ({ row }) => (
+          <span className="block truncate text-muted-foreground">
+            {row.original.matterName ?? "—"}
+          </span>
+        ),
       },
     ];
     for (const col of review?.columnsConfig ?? []) {
@@ -303,7 +319,7 @@ function ReviewView() {
   );
 }
 
-type ReviewRow = { docId: string; title: string };
+type ReviewRow = { docId: string; title: string; matterName: string | null };
 
 type ReviewMeta = {
   run: (docId: string, columnIndex: number) => void;

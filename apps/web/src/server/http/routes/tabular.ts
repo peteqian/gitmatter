@@ -34,7 +34,7 @@ import {
 
 export const tabularRoute = new Hono<AuthEnv>();
 
-const reviewSorts = ["title", "createdAt"] as const;
+const reviewSorts = ["title", "matter", "createdAt", "documents", "shared"] as const;
 const shareScopes = ["all", "mine", "shared"] as const;
 const shareRoles = ["viewer", "editor", "owner"] as const;
 

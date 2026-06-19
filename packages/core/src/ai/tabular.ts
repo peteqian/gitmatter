@@ -14,7 +14,7 @@ import {
   user,
 } from "@workspace/db/schema";
 import { type Actor, recordCommit } from "../core/commit.js";
-import { accessSummaryByArtifact, sharedArtifactIds } from "../platform/shares.js";
+import { accessCountSql, accessSummaryByArtifact, sharedArtifactIds } from "../platform/shares.js";
 import { completeText, DEFAULT_MODEL, providerForModel, resolveLlmKey } from "./provider.js";
 import { buildCellPrompt, buildRowPrompt, normalizeCell } from "./prompts/tabular.js";
 
@@ -628,7 +628,7 @@ export async function listReviews(userId: string) {
   return db.select().from(tabularReviews).where(eq(tabularReviews.userId, userId));
 }
 
-export type ReviewListSort = "title" | "createdAt";
+export type ReviewListSort = "title" | "matter" | "createdAt" | "documents" | "shared";
 
 export type ReviewListScope = "all" | "mine" | "shared";
 
@@ -663,7 +663,15 @@ export async function listReviewsPage(userId: string, params: ReviewListParams) 
   const where = and(scopeCond, q ? ilike(tabularReviews.title, `%${q}%`) : undefined);
   const sortCols = {
     title: tabularReviews.title,
+    matter: matters.name,
     createdAt: tabularReviews.createdAt,
+    documents: sql`jsonb_array_length(${tabularReviews.documentIds})`,
+    shared: accessCountSql({
+      artifactType: "tabular_review",
+      ownerId: tabularReviews.userId,
+      matterId: tabularReviews.matterId,
+      artifactId: tabularReviews.id,
+    }),
   };
   const sortCol = sortCols[params.sort ?? "createdAt"];
   const order = params.dir === "asc" ? asc(sortCol) : desc(sortCol);
@@ -671,8 +679,9 @@ export async function listReviewsPage(userId: string, params: ReviewListParams) 
 
   const [rows, countRows] = await Promise.all([
     db
-      .select()
+      .select({ ...getTableColumns(tabularReviews), matterName: matters.name })
       .from(tabularReviews)
+      .leftJoin(matters, eq(matters.id, tabularReviews.matterId))
       .where(where)
       .orderBy(order)
       .limit(params.pageSize)
@@ -723,11 +732,14 @@ export async function getReview(reviewId: string) {
   // document list — collaborators don't own these docs, so a client lookup misses.
   const docRows = review.documentIds.length
     ? await db
-        .select({ id: documents.id, title: documents.title })
+        .select({ id: documents.id, title: documents.title, matterName: matters.name })
         .from(documents)
+        .leftJoin(matters, eq(matters.id, documents.matterId))
         .where(inArray(documents.id, review.documentIds))
     : [];
   const documentTitles = Object.fromEntries(docRows.map((d) => [d.id, d.title]));
+  // Origin matter per document; null when the document belongs to no matter.
+  const documentMatters = Object.fromEntries(docRows.map((d) => [d.id, d.matterName ?? null]));
 
   return {
     review,
@@ -736,5 +748,6 @@ export async function getReview(reviewId: string) {
       blame: c.lastCommitId ? (blameById.get(c.lastCommitId) ?? null) : null,
     })),
     documentTitles,
+    documentMatters,
   };
 }

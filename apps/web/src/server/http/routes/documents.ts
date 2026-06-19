@@ -74,7 +74,15 @@ function bodyTooLarge(c: Context): boolean {
 }
 
 const documentStatuses = ["pending", "processing", "ready", "failed"] as const;
-const documentSorts = ["title", "fileType", "status", "createdAt"] as const;
+const documentSorts = [
+  "title",
+  "fileType",
+  "status",
+  "createdAt",
+  "matter",
+  "version",
+  "shared",
+] as const;
 const shareScopes = ["all", "mine", "shared"] as const;
 const shareRoles = ["viewer", "editor", "owner"] as const;
 

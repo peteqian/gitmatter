@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { type AnyColumn, type SQL, and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@workspace/db/client";
 import {
   type ArtifactType,
@@ -218,6 +218,30 @@ export async function accessSummaryByArtifact(
     out.set(a.id, { count: seen.size, names: names.slice(0, 3) });
   }
   return out;
+}
+
+/** SQL scalar counting distinct people-with-access (owner + matter members +
+ *  direct shares) for an artifact row. Mirrors accessSummaryByArtifact's count,
+ *  but as a correlated subquery so a list query can ORDER BY its "Shared with"
+ *  column. Pass the artifact table's owner/matter/id columns. */
+export function accessCountSql(args: {
+  artifactType: ShareableType;
+  ownerId: AnyColumn;
+  matterId: AnyColumn;
+  artifactId: AnyColumn;
+}): SQL<number> {
+  return sql<number>`(
+    select count(distinct uid) from (
+      select ${args.ownerId} as uid
+      union
+      select ${matterMembers.userId} from ${matterMembers}
+        where ${matterMembers.matterId} = ${args.matterId}
+      union
+      select ${artifactShares.userId} from ${artifactShares}
+        where ${artifactShares.artifactType} = ${args.artifactType}
+          and ${artifactShares.artifactId} = ${args.artifactId}
+    ) s
+  )`;
 }
 
 /** Ids of artifacts of a type directly shared with a user — powers "shared with

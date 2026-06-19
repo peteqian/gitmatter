@@ -26,7 +26,7 @@ import {
 } from "@workspace/db/schema";
 import { recordAudit } from "../platform/audit.js";
 import { assertStorageWithinQuota } from "../platform/usage.js";
-import { accessSummaryByArtifact, sharedArtifactIds } from "../platform/shares.js";
+import { accessCountSql, accessSummaryByArtifact, sharedArtifactIds } from "../platform/shares.js";
 import { type Actor, recordCommit } from "../core/commit.js";
 import { logEvent } from "../core/log.js";
 import { extractMarkdown, type SupportedFileType } from "./extract.js";
@@ -64,7 +64,14 @@ async function deleteObjectAudited(storagePath: string): Promise<void> {
 
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-export type DocumentListSort = "title" | "fileType" | "status" | "createdAt";
+export type DocumentListSort =
+  | "title"
+  | "fileType"
+  | "status"
+  | "createdAt"
+  | "matter"
+  | "version"
+  | "shared";
 
 export type ShareScope = "all" | "mine" | "shared";
 
@@ -191,6 +198,14 @@ export async function listDocumentsPage(userId: string, params: DocumentListPara
     fileType: documents.fileType,
     status: documents.status,
     createdAt: documents.createdAt,
+    matter: matters.name,
+    version: documentVersions.versionNumber,
+    shared: accessCountSql({
+      artifactType: "document",
+      ownerId: documents.userId,
+      matterId: documents.matterId,
+      artifactId: documents.id,
+    }),
   };
   const sortCol = sortCols[params.sort ?? "createdAt"];
   const order = params.dir === "asc" ? asc(sortCol) : desc(sortCol);

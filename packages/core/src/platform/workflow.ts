@@ -321,7 +321,7 @@ async function resolveWorkflowAccess(
 
 export type WorkflowListTab = "all" | "builtin" | "custom" | "hidden";
 export type WorkflowListType = "assistant" | "tabular";
-export type WorkflowListSort = "title" | "type" | "createdAt" | "updatedAt";
+export type WorkflowListSort = "title" | "type" | "createdAt" | "updatedAt" | "practice" | "source";
 
 export type WorkflowListParams = {
   q?: string;
@@ -403,6 +403,9 @@ export async function listWorkflowsPage(
     type: workflows.type,
     createdAt: workflows.createdAt,
     updatedAt: workflows.updatedAt,
+    practice: workflows.practice,
+    // Source groups: built-in first, then mine, then shared-by-others.
+    source: sql`case when ${workflows.isSystem} then 0 when ${workflows.userId} = ${userId} then 1 else 2 end`,
   };
   const sortCol = sortCols[params.sort ?? "title"];
   const order = params.dir === "asc" ? asc(sortCol) : desc(sortCol);

@@ -50,7 +50,7 @@ import {
 export const mattersRoute = new Hono<AuthEnv>();
 
 const clientStatuses = ["active", "inactive"] as const;
-const clientSorts = ["name", "type", "clientNumber", "status", "createdAt"] as const;
+const clientSorts = ["name", "type", "clientNumber", "status", "createdAt", "shared"] as const;
 type ClientStatusQuery = (typeof clientStatuses)[number];
 
 function isClientStatus(value: string | undefined): value is ClientStatusQuery {
@@ -188,7 +188,7 @@ mattersRoute.delete("/api/clients/:id/members/:userId", async (c) => {
 // ---- Matters ----
 
 const matterScopes = ["all", "mine", "shared"] as const;
-const matterSorts = ["name", "client", "updatedAt", "createdAt"] as const;
+const matterSorts = ["name", "client", "updatedAt", "createdAt", "owner", "shared"] as const;
 
 mattersRoute.get("/api/matters", async (c) => {
   const paged = parsePageQuery(c, { sorts: matterSorts, filters: { scope: matterScopes } });

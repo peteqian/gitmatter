@@ -56,17 +56,17 @@ export function documentColumns(handlers: {
       ),
     }),
     columnHelper.accessor("matterName", {
+      id: "matter",
       header: "Matter",
       size: 180,
-      enableSorting: false,
       cell: (c) => (
         <span className="block truncate text-muted-foreground">{c.getValue() ?? "—"}</span>
       ),
     }),
     columnHelper.accessor("versionNumber", {
+      id: "version",
       header: "Version",
       size: 80,
-      enableSorting: false,
       cell: (c) => {
         const v = c.getValue();
         return <span className="text-muted-foreground">{v != null ? `v${v}` : "—"}</span>;
