@@ -51,15 +51,14 @@ jobs:
     needs: version
     runs-on: ubuntu-latest
     strategy:
-      # Two flavors of the same source: `local` (self-host, login-first) keeps the
-      # plain tags (latest, vDATE); `cloud` (marketing + prerender) gets a -cloud
-      # suffix. DEPLOYMENT is baked at build time, so one image can't be both.
+      # Two flavors of the same source, published as two separate GHCR packages so
+      # their visibility differs: `local` (self-host, login-first) → public
+      # `gitmatter`; `cloud` (marketing + prerender) → private `gitmatter-cloud`.
+      # DEPLOYMENT is baked at build time, so one image can't be both.
       matrix:
         include:
           - deployment: local
-            suffix: ""
           - deployment: cloud
-            suffix: "-cloud"
     steps:
       - uses: actions/checkout@v4
 
@@ -77,12 +76,12 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
-          # Cloud flavor appends -cloud to every tag (vDATE-cloud, latest-cloud);
-          # local keeps the bare tags (vDATE, latest).
+          # local → ghcr.io/<owner>/gitmatter (public); cloud →
+          # ghcr.io/<owner>/gitmatter-cloud (private). Both carry bare tags
+          # (vDATE, latest); the package name distinguishes the flavor.
+          images: ghcr.io/${{ github.repository }}${{ matrix.deployment == 'cloud' && '-cloud' || '' }}
           flavor: |
             latest=true
-            suffix=${{ matrix.suffix }},onlatest=true
           tags: |
             type=raw,value=${{ needs.version.outputs.version }}
 

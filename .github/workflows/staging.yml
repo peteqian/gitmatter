@@ -1,7 +1,7 @@
 name: Staging
 
-# dev branch → staging. Verify, build the cloud image as :staging-cloud, push to
-# GHCR, then ping the staging VPS redeploy webhook.
+# dev branch → staging. Verify, build the cloud image as gitmatter-cloud:staging
+# (private package), push to GHCR, then ping the staging VPS redeploy webhook.
 on:
   push:
     branches: [dev]
@@ -39,12 +39,11 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
-          # Cloud flavor (marketing + prerender), mutable :staging-cloud plus a
-          # per-commit :staging-<sha>-cloud for traceability.
+          # Cloud flavor → private gitmatter-cloud package. Mutable :staging plus
+          # a per-commit :staging-<sha> for traceability.
+          images: ghcr.io/${{ github.repository }}-cloud
           flavor: |
             latest=false
-            suffix=-cloud
           tags: |
             type=raw,value=staging
             type=sha,prefix=staging-
