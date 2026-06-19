@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import {
+  addClientMember,
   addMember,
   checkConflicts,
   clearConflicts,
@@ -14,7 +15,9 @@ import {
   findUserByEmail,
   getClientOverview,
   getMatter,
+  hasClientAccess,
   hasMatterAccess,
+  listClientMembers,
   listClients,
   listClientsPage,
   listFolders,
@@ -22,6 +25,7 @@ import {
   listMattersPage,
   listPracticeAreas,
   listMembers,
+  removeClientMember,
   removeMember,
   renameFolder,
   searchUsers,
@@ -60,8 +64,8 @@ mattersRoute.get("/api/clients", async (c) => {
     sorts: clientSorts,
     filters: { status: clientStatuses },
   });
-  if (paged) return c.json(await listClientsPage(c.get("user").tenantId, paged));
-  return c.json(await listClients(c.get("user").tenantId));
+  if (paged) return c.json(await listClientsPage(c.get("user").id, paged));
+  return c.json(await listClients(c.get("user").id));
 });
 
 mattersRoute.post("/api/clients", zValidator("json", createClientSchema), async (c) => {
@@ -71,11 +75,11 @@ mattersRoute.post("/api/clients", zValidator("json", createClientSchema), async 
 });
 
 mattersRoute.patch("/api/clients/:id", zValidator("json", updateClientSchema), async (c) => {
-  const updated = await updateClient(
-    c.get("user").tenantId,
-    c.req.param("id"),
-    c.req.valid("json")
-  );
+  const id = c.req.param("id");
+  // Editing client details is owner-only.
+  if (!(await hasClientAccess(c.get("user").id, id, "owner")))
+    return c.json({ error: "Forbidden" }, 403);
+  const updated = await updateClient(c.get("user").tenantId, id, c.req.valid("json"));
   return updated ? c.json(updated) : c.json({ error: "Not found" }, 404);
 });
 
@@ -106,7 +110,7 @@ mattersRoute.post("/api/clients/bulk-delete", async (c) => {
     q: typeof body.q === "string" ? body.q : undefined,
     status: typeof body.status === "string" ? body.status : undefined,
   });
-  return c.json(await deleteClients(c.get("user").tenantId, sel));
+  return c.json(await deleteClients(c.get("user").id, sel));
 });
 
 mattersRoute.get("/api/clients/export", async (c) => {
@@ -116,7 +120,7 @@ mattersRoute.get("/api/clients/export", async (c) => {
     q: c.req.query("q"),
     status: c.req.query("status"),
   });
-  const rows = await selectClients(c.get("user").tenantId, sel);
+  const rows = await selectClients(c.get("user").id, sel);
   const header = ["id", "name", "type", "clientNumber", "status", "createdAt"];
   const csv = rowsToCsv([
     header,
@@ -140,6 +144,45 @@ mattersRoute.get("/api/clients/export", async (c) => {
 mattersRoute.get("/api/clients/:id", async (c) => {
   const overview = await getClientOverview(c.get("user").id, c.req.param("id"));
   return overview ? c.json(overview) : c.json({ error: "Not found" }, 404);
+});
+
+// ---- Client team (sharing) ----
+
+// People with access (members + their roles); the creator has role "owner".
+mattersRoute.get("/api/clients/:id/people", async (c) => {
+  const id = c.req.param("id");
+  if (!(await hasClientAccess(c.get("user").id, id))) return c.json({ error: "Not found" }, 404);
+  return c.json(await listClientMembers(id));
+});
+
+// Mike-style "Add by email": look up a tenant user, then add them. 404s if the
+// email isn't a user in this tenant.
+mattersRoute.post("/api/clients/:id/members/by-email", async (c) => {
+  const id = c.req.param("id");
+  const user = c.get("user");
+  if (!(await hasClientAccess(user.id, id, "owner"))) return c.json({ error: "Forbidden" }, 403);
+  const body = (await c.req.json().catch(() => ({}))) as { email?: string; role?: string };
+  if (!body.email) return c.json({ error: "email required" }, 400);
+  const target = await findUserByEmail(user.tenantId, body.email);
+  if (!target) return c.json({ error: "No user in your organization with that email" }, 404);
+  try {
+    await addClientMember(id, target.id, (body.role as "owner" | "editor" | "viewer") ?? "editor");
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "failed" }, 400);
+  }
+  return c.json(target, 201);
+});
+
+mattersRoute.delete("/api/clients/:id/members/:userId", async (c) => {
+  const id = c.req.param("id");
+  if (!(await hasClientAccess(c.get("user").id, id, "owner")))
+    return c.json({ error: "Forbidden" }, 403);
+  try {
+    await removeClientMember(id, c.req.param("userId"));
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "failed" }, 400);
+  }
+  return c.body(null, 204);
 });
 
 // ---- Matters ----

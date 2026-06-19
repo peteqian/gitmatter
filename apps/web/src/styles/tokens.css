@@ -36,17 +36,18 @@
   --destructive-surface: oklch(0.955 0.035 27);
   --destructive-border: oklch(0.86 0.075 27);
 
-  /* Quiet Bronze accent + its wash. */
-  --bronze: oklch(0.55 0.09 75);
-  --bronze-tint: oklch(0.94 0.025 75);
+  /* Slate-blue accent + its wash (token kept named "bronze" so every existing
+     text-bronze / bg-bronze-tint utility recolours in place). */
+  --bronze: oklch(0.47 0.11 264);
+  --bronze-tint: oklch(0.93 0.03 264);
 }
 
 .dark {
   --destructive-surface: oklch(0.26 0.055 27);
   --destructive-border: oklch(0.4 0.09 27);
 
-  --bronze: oklch(0.7 0.09 75);
-  --bronze-tint: oklch(0.28 0.04 75);
+  --bronze: oklch(0.65 0.12 264);
+  --bronze-tint: oklch(0.3 0.05 264);
 }
 
 /* ---- mike-inspired chrome, in Quiet Chambers tones ----
@@ -57,8 +58,8 @@
   border: 1px solid color-mix(in oklab, var(--background) 70%, white 30%);
   backdrop-filter: blur(24px);
   box-shadow:
-    0 -2px 7px oklch(0.17 0.008 90 / 0.04),
-    0 5px 14px oklch(0.17 0.008 90 / 0.08),
+    0 -2px 7px oklch(0.21 0.012 264 / 0.04),
+    0 5px 14px oklch(0.21 0.012 264 / 0.08),
     inset 0 1px 0 oklch(1 0 0 / 0.6);
 }
 

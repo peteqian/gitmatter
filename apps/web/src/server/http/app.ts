@@ -3,8 +3,7 @@ import { cors } from "hono/cors";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { auth } from "./lib/auth.js";
 import {
-  getUserJurisdiction,
-  getUserTenant,
+  getEnvNumber,
   logEvent,
   probeEnvProviders,
   purgeExpiredDocuments,
@@ -31,6 +30,7 @@ import { checkReadiness } from "./lib/health.js";
 import { serverOrigin } from "./lib/origin.js";
 import { clientMeta } from "./lib/request-meta.js";
 import { type AuthEnv, requireUser } from "./middleware/auth.js";
+import { ipKey, rateLimit, tokenOrIpKey } from "./middleware/rate-limit.js";
 import { requestLog } from "./middleware/request-log.js";
 
 // Probe which AI providers have a server env key at boot, so the model catalog
@@ -94,6 +94,53 @@ app.use(
     origin: "*",
     allowHeaders: ["Authorization", "Content-Type", "Mcp-Session-Id", "Mcp-Protocol-Version"],
     exposeHeaders: ["WWW-Authenticate", "Mcp-Session-Id"],
+  })
+);
+
+// Rate limits on the public, unauthenticated-reachable endpoints (registered after
+// CORS so preflight OPTIONS is answered before the limiter). These are the abuse
+// surfaces: open client registration, the OAuth flow, and the MCP tool endpoint.
+// Per-IP, except MCP which keys per token. Each limit is env-tunable; 0 disables.
+// Windows in ms.
+//
+// NOTE: the per-IP keys only isolate callers when TRUST_PROXY=true (a trusted edge
+// sets the forwarded IP). Without it, these share one bucket, so the limit applies
+// globally — defaults carry headroom to avoid blocking legit bursts in that mode.
+// Set TRUST_PROXY=true in production for true per-IP limiting.
+app.use(
+  "/api/oauth/register",
+  rateLimit({
+    name: "oauth_register",
+    limit: getEnvNumber("OAUTH_REGISTER_RATE_LIMIT", 20),
+    windowMs: 10 * 60_000,
+    key: ipKey,
+  })
+);
+app.use(
+  "/api/oauth/authorize",
+  rateLimit({
+    name: "oauth_authorize",
+    limit: getEnvNumber("OAUTH_RATE_LIMIT", 120),
+    windowMs: 60_000,
+    key: ipKey,
+  })
+);
+app.use(
+  "/api/oauth/token",
+  rateLimit({
+    name: "oauth_token",
+    limit: getEnvNumber("OAUTH_RATE_LIMIT", 120),
+    windowMs: 60_000,
+    key: ipKey,
+  })
+);
+app.use(
+  "/api/mcp",
+  rateLimit({
+    name: "mcp",
+    limit: getEnvNumber("MCP_RATE_LIMIT", 240),
+    windowMs: 60_000,
+    key: tokenOrIpKey,
   })
 );
 
@@ -167,9 +214,16 @@ app.all("/api/mcp", async (c) => {
     );
     return c.json({ error: "Unauthorized" }, 401);
   }
-  const jurisdiction = resolveJurisdiction(null, await getUserJurisdiction(account.userId));
-  const tenantId = await getUserTenant(account.userId);
-  const server = buildMcpServer({ ...account, jurisdiction, tenantId });
+  // tenant + jurisdiction already came back with the account (one joined query
+  // for static tokens, or carried in the signed OAuth token) — no extra reads.
+  const jurisdiction = resolveJurisdiction(null, account.jurisdiction);
+  const server = buildMcpServer({
+    userId: account.userId,
+    label: account.label,
+    tokenId: account.tokenId,
+    tenantId: account.tenantId,
+    jurisdiction,
+  });
   const transport = new StreamableHTTPTransport({ sessionIdGenerator: undefined });
   await server.connect(transport);
   return transport.handleRequest(c);

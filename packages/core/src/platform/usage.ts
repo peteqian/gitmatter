@@ -10,6 +10,11 @@ import { recordAudit } from "./audit.js";
 // going over budget emits a structured `budget.exceeded` log + audit row, but
 // never rejects the action. A budget env unset or <= 0 disables that check.
 // Everything is best-effort — metering must never break the action it observes.
+//
+// NOTE: these inserts are deliberately NOT batched. The budget check immediately
+// after each insert sums the window INCLUDING the row just written; buffering the
+// write would make a burst slip past the limit before any flag fires. (Audit
+// events, which nothing reads back, are batched — see audit.ts.)
 
 const windowMinutes = () => getEnvNumber("BUDGET_WINDOW_MINUTES", 60);
 const since = (minutes: number) => new Date(Date.now() - minutes * 60_000);

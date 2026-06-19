@@ -6,7 +6,13 @@ import type { Blame } from "../lib/data/api";
  * bronze-dotted timeline: each commit shows who, what op, sequence, when, and the
  * message. Hairline rail, no card per commit (DESIGN.md).
  */
-export function CommitHistory({ commits }: { commits: Blame[] }) {
+export function CommitHistory({
+  commits,
+  currentUserId,
+}: {
+  commits: Blame[];
+  currentUserId?: string | null;
+}) {
   if (!commits.length) {
     return <p className="py-2 text-xs text-muted-foreground">No commits yet.</p>;
   }
@@ -21,7 +27,13 @@ export function CommitHistory({ commits }: { commits: Blame[] }) {
           </div>
           <div className="min-w-0 flex-1 text-xs">
             <div className="flex flex-wrap items-center gap-2">
-              <ActorBadge actorType={c.actorType} agentLabel={c.agentLabel} />
+              <ActorBadge
+                actorType={c.actorType}
+                agentLabel={c.agentLabel}
+                actorId={c.actorId}
+                actorName={c.actorName}
+                currentUserId={currentUserId}
+              />
               <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
                 {c.op}
               </span>

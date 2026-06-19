@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocxView } from "./-components/DocxView";
 import { PageHeader } from "@/components/PageHeader";
 import { api, type DocumentDetail, type DocEdit } from "@/lib/data/api";
+import { useSession } from "@/lib/auth/auth-client";
 
 export const Route = createFileRoute("/_auth/documents/$id")({ component: DocumentView });
 
@@ -24,6 +25,7 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "dest
 function DocumentView() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
+  const { data: session } = useSession();
   const docKey = ["document", id];
   const { data } = useQuery({ queryKey: docKey, queryFn: () => api.getDocumentDetail(id) });
   const { data: history = [] } = useQuery({
@@ -181,7 +183,11 @@ function DocumentView() {
                     <span className="text-xs text-muted-foreground">
                       by{" "}
                       <span className={e.blame.actorType === "agent" ? "text-bronze" : undefined}>
-                        {e.blame.actorType === "agent" ? (e.blame.agentLabel ?? "agent") : "you"}
+                        {e.blame.actorType === "agent"
+                          ? (e.blame.agentLabel ?? "agent")
+                          : e.blame.actorId && e.blame.actorId === session?.user.id
+                            ? "you"
+                            : (e.blame.actorName ?? "you")}
                       </span>{" "}
                       · #{e.blame.seq}
                     </span>
@@ -222,7 +228,7 @@ function DocumentView() {
 
       <aside>
         <h2 className="mb-2 text-sm font-semibold">History</h2>
-        <CommitHistory commits={history} />
+        <CommitHistory commits={history} currentUserId={session?.user.id} />
       </aside>
     </div>
   );

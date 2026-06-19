@@ -84,15 +84,30 @@ function withAttachments(
 // their content. The model reads any document on demand with get_document, so
 // the same file is never re-sent turn after turn. Returns "" when the matter is
 // inaccessible or there's no matter scope.
-async function matterContextBlock(userId: string, matterId: string): Promise<string> {
+async function matterContextBlock(
+  userId: string,
+  matterId: string,
+  activeDocumentId?: string
+): Promise<string> {
   if (!(await hasMatterAccess(userId, matterId, "viewer"))) return "";
   const matter = await getMatter(matterId);
   if (!matter) return "";
   const docs = await listMatterDocuments(matterId);
+  const openDoc = activeDocumentId ? docs.find((d) => d.id === activeDocumentId) : undefined;
   const docLines = docs.length
-    ? docs.map((d) => `- ${d.title} (id: ${d.id}, ${d.fileType}, ${d.status})`).join("\n")
+    ? docs
+        .map(
+          (d) =>
+            `- ${d.title} (id: ${d.id}, ${d.fileType}, ${d.status})${
+              d.id === openDoc?.id ? " — currently open in the viewer" : ""
+            }`
+        )
+        .join("\n")
     : "- (no documents filed yet)";
-  return `\n\n[Matter context] This conversation is filed under the matter "${matter.name}" (id: ${matterId}). Documents in this matter:\n${docLines}\nThe user can see and open these in their workspace. To read one, call get_document with its id (or fetch); call list_matter_documents to refresh the list. You already have these ids — don't ask the user for them.`;
+  const openLine = openDoc
+    ? `\nThe user is looking at "${openDoc.title}" (id: ${openDoc.id}) right now — treat "this document" or "the open document" as referring to it.`
+    : "";
+  return `\n\n[Matter context] This conversation is filed under the matter "${matter.name}" (id: ${matterId}). Documents in this matter:\n${docLines}${openLine}\nThe user can see and open these in their workspace. To read one, call get_document with its id (or fetch); call list_matter_documents to refresh the list. You already have these ids — don't ask the user for them.`;
 }
 
 class HttpError extends Error {
@@ -200,7 +215,9 @@ async function runAssistant(
   // Inject the matter's document index into the system prompt once per request.
   const matterId = body.matterId ?? prior?.matterId ?? undefined;
   const base = `${CITATIONS_INSTRUCTION}\n\n${REDLINE_INSTRUCTION}`;
-  const system = matterId ? base + (await matterContextBlock(user.id, matterId)) : base;
+  const system = matterId
+    ? base + (await matterContextBlock(user.id, matterId, body.activeDocumentId))
+    : base;
   const toolCalls: Array<{ tool: string; input: unknown }> = [];
   let finalText = "";
 

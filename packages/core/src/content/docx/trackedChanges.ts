@@ -597,23 +597,6 @@ function findUniqueAnchor(
   };
 }
 
-/** Map a normalized [start, end) range back to the original string range. */
-function mapNormRangeToOriginal(
-  paraNorm: Normalized,
-  origLen: number,
-  normStart: number,
-  normEnd: number
-): { start: number; end: number } {
-  const origStart = normStart < paraNorm.origIdx.length ? paraNorm.origIdx[normStart] : origLen;
-  const origEnd =
-    normEnd === normStart
-      ? origStart
-      : normEnd - 1 < paraNorm.origIdx.length
-        ? paraNorm.origIdx[normEnd - 1] + 1
-        : origLen;
-  return { start: origStart, end: origEnd };
-}
-
 // ---------------------------------------------------------------------------
 // Main: applyTrackedEdits
 // ---------------------------------------------------------------------------
@@ -822,8 +805,29 @@ export async function applyTrackedEdits(
     }
   }
 
-  // Precompute normalized forms per paragraph for reuse across edits.
-  const paraNorms: Normalized[] = paragraphs.map((p) => normalizeWs(p.flat.paraText));
+  // Anchor against the WHOLE document (paragraphs joined by "\n") so an edit's
+  // context_before / context_after may straddle paragraph boundaries — the
+  // extracted text the model reads is itself this joined form, so its context
+  // routinely spans neighbouring paragraphs (e.g. a heading above the line it
+  // edits). We keep a map from each global char back to (paraIdx, offset within
+  // that paragraph's text); the "\n" separators map to paraIdx -1 (no paragraph).
+  let globalText = "";
+  const gPara: number[] = [];
+  const gLocal: number[] = [];
+  for (let pi = 0; pi < paragraphs.length; pi++) {
+    if (pi > 0) {
+      globalText += "\n";
+      gPara.push(-1);
+      gLocal.push(-1);
+    }
+    const t = paragraphs[pi].flat.paraText;
+    for (let k = 0; k < t.length; k++) {
+      globalText += t[k];
+      gPara.push(pi);
+      gLocal.push(k);
+    }
+  }
+  const globalNorm = normalizeWs(globalText);
 
   let nextWId = maxTrackedId(tree) + 1;
   const plansPerParagraph = new Map<number, PlannedChange[]>();
@@ -856,55 +860,28 @@ export async function applyTrackedEdits(
     // Strategy:
     //   1) find + full context  (strictest — preferred)
     //   2) find + half context  (drop whichever context side is shorter)
-    //   3) find alone           (only if globally unique across doc)
-    // At each stage we scan every paragraph. "Unique across the doc"
-    // means exactly one paragraph yields exactly one match.
-    type Hit = { paraIdx: number; normStart: number; normEnd: number };
-
-    /**
-     * Search every paragraph with the given context sides. If any
-     * paragraph returns a match AND no paragraph is internally ambiguous,
-     * return the collected hits; otherwise signal ambiguous.
-     */
-    const tryStrategy = (
-      cb: string,
-      ca: string
-    ): { kind: "ok"; hits: Hit[] } | { kind: "ambiguous" } => {
-      const hits: Hit[] = [];
-      let ambiguous = false;
-      for (let pi = 0; pi < paragraphs.length; pi++) {
-        const r = findUniqueAnchor(paraNorms[pi].norm, findNorm, cb, ca);
-        if ("error" in r) {
-          if (r.error === "ambiguous") ambiguous = true;
-          continue;
-        }
-        hits.push({ paraIdx: pi, normStart: r.start, normEnd: r.end });
-      }
-      if (ambiguous || hits.length > 1) return { kind: "ambiguous" };
-      return { kind: "ok", hits };
-    };
-
-    let selected: Hit | null = null;
+    //   3) find alone           (only if globally unique across the document)
+    // Each stage searches the joined document text, so context that lives in a
+    // neighbouring paragraph still counts toward making the anchor unique.
     const attempts = [
       { cb: ctxBeforeNorm, ca: ctxAfterNorm },
       { cb: ctxBeforeNorm, ca: "" },
       { cb: "", ca: ctxAfterNorm },
       { cb: "", ca: "" }, // find-only
     ];
+    let anchor: { start: number; end: number } | null = null;
     let sawAmbiguous = false;
     for (const { cb, ca } of attempts) {
-      const r = tryStrategy(cb, ca);
-      if (r.kind === "ambiguous") {
-        sawAmbiguous = true;
+      const r = findUniqueAnchor(globalNorm.norm, findNorm, cb, ca);
+      if ("error" in r) {
+        if (r.error === "ambiguous") sawAmbiguous = true;
         continue;
       }
-      if (r.hits.length === 1) {
-        selected = r.hits[0];
-        break;
-      }
+      anchor = r;
+      break;
     }
 
-    if (!selected) {
+    if (!anchor) {
       errors.push({
         index: editIdx,
         reason: sawAmbiguous
@@ -914,16 +891,52 @@ export async function applyTrackedEdits(
       continue;
     }
 
-    const hit = selected;
-    const paraIdx = hit.paraIdx;
-    const paraNorm = paraNorms[paraIdx];
-    const origLen = paragraphs[paraIdx].flat.paraText.length;
-    const { start: findStart, end: findEnd } = mapNormRangeToOriginal(
-      paraNorm,
-      origLen,
-      hit.normStart,
-      hit.normEnd
-    );
+    // Map the normalized [start, end) range back to global original offsets.
+    const gStart =
+      anchor.start < globalNorm.origIdx.length
+        ? globalNorm.origIdx[anchor.start]
+        : globalText.length;
+    const gEnd =
+      anchor.end === anchor.start
+        ? gStart
+        : anchor.end - 1 < globalNorm.origIdx.length
+          ? globalNorm.origIdx[anchor.end - 1] + 1
+          : globalText.length;
+
+    // Resolve which paragraph the find lands in. The edit (find range) must stay
+    // within ONE paragraph; only context is allowed to straddle boundaries.
+    let paraIdx: number;
+    let findStart: number;
+    let findEnd: number;
+    if (gEnd > gStart) {
+      paraIdx = gPara[gStart];
+      if (paraIdx < 0 || gPara[gEnd - 1] !== paraIdx) {
+        errors.push({
+          index: editIdx,
+          reason: `find="${truncate(find, 80)}" spans a paragraph boundary; each edit must stay within a single paragraph.`,
+        });
+        continue;
+      }
+      findStart = gLocal[gStart];
+      findEnd = gLocal[gEnd - 1] + 1;
+    } else {
+      // Pure insertion: anchor at the insertion point, falling back to the end
+      // of the preceding paragraph when the point sits on a separator.
+      if (gStart < gPara.length && gPara[gStart] >= 0) {
+        paraIdx = gPara[gStart];
+        findStart = gLocal[gStart];
+      } else if (gStart > 0 && gPara[gStart - 1] >= 0) {
+        paraIdx = gPara[gStart - 1];
+        findStart = gLocal[gStart - 1] + 1;
+      } else {
+        errors.push({
+          index: editIdx,
+          reason: `Could not place insertion for find="${truncate(find, 80)}".`,
+        });
+        continue;
+      }
+      findEnd = findStart;
+    }
 
     // Use the actual original text in that range as `deletedText` —
     // this preserves the document's whitespace/quote style rather than
@@ -933,7 +946,6 @@ export async function applyTrackedEdits(
     const { deleted, inserted, leadingEq } = collapseDiff(originalFind, replace);
     const minStart = findStart + leadingEq;
     const minEnd = minStart + deleted.length;
-    void findEnd;
 
     const changeId = `mike-${editIdx}-${Date.now()}`;
     const plan: PlannedChange = {

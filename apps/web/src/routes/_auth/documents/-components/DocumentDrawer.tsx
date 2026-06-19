@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CommitHistory } from "@/components/CommitHistory";
+import { useSession } from "@/lib/auth/auth-client";
 import { DocxView } from "./DocxView";
 import { api, type DocVersion } from "../../../../lib/data/api";
 import {
@@ -82,6 +83,7 @@ type PendingDelete = "doc" | { versionId: string; versionNumber: number } | null
 function DrawerBody({ docId, onClose }: { docId: string; onClose: () => void }) {
   const qc = useQueryClient();
   const router = useRouter();
+  const { data: session } = useSession();
   const fileRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
@@ -377,7 +379,7 @@ function DrawerBody({ docId, onClose }: { docId: string; onClose: () => void }) 
 
               <section className="flex flex-col gap-1.5">
                 <h3 className="text-sm font-medium">History</h3>
-                <CommitHistory commits={history} />
+                <CommitHistory commits={history} currentUserId={session?.user.id} />
               </section>
             </div>
           </ScrollArea>

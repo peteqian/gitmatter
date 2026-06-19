@@ -1,5 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  inArray,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import { db } from "@workspace/db/client";
 import {
   commits,
@@ -1095,7 +1107,11 @@ export async function getDocumentDetail(documentId: string) {
 
   const commitIds = [...new Set(edits.map((e) => e.lastCommitId).filter((x): x is string => !!x))];
   const blameRows = commitIds.length
-    ? await db.select().from(commits).where(inArray(commits.id, commitIds))
+    ? await db
+        .select({ ...getTableColumns(commits), actorName: user.name, actorEmail: user.email })
+        .from(commits)
+        .leftJoin(user, eq(user.id, commits.actorId))
+        .where(inArray(commits.id, commitIds))
     : [];
   const blameById = new Map(blameRows.map((b) => [b.id, b]));
 

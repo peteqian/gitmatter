@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import {
@@ -68,6 +69,14 @@ export const auth = betterAuth({
     },
     user: {
       create: {
+        // A name is mandatory — it's the actor label across the audit trail. The
+        // column is NOT NULL but still accepts "", so reject empty/whitespace-only
+        // names here (covers any client, not just our form) and store it trimmed.
+        before: async (u) => {
+          const name = u.name?.trim() ?? "";
+          if (!name) throw new APIError("BAD_REQUEST", { message: "Name is required." });
+          return { data: { ...u, name } };
+        },
         // Create-or-invite: a matching pending invite joins that tenant, else a
         // new tenant is created (user becomes admin). Then provision a home
         // matter. Idempotent.

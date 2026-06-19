@@ -32,5 +32,6 @@ tools over MCP). Full credit to mikeoss for the original product and approach.
 
 ## Build & run
 
-See **[docs/manual.md](docs/manual.md)** — setup, local development, the full Docker stack, and how
-to connect an AI agent over MCP.
+See **[docs/admin/self-hosting.mdx](docs/admin/self-hosting.mdx)** — setup, local development, and
+the full Docker stack — and **[docs/ai-agents/connect-an-agent.mdx](docs/ai-agents/connect-an-agent.mdx)**
+for connecting an AI agent over MCP. These render on the docs site under `/docs`.

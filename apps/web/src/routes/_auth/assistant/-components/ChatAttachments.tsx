@@ -26,16 +26,17 @@ const SOURCES: Array<{
   kind: Kind;
   label: string;
   icon: typeof FileText;
-  load: () => Promise<Option[]>;
+  load: (matterId?: string) => Promise<Option[]>;
 }> = [
   {
     kind: "document",
     label: "Documents",
     icon: FileText,
-    load: () =>
-      api
-        .listDocuments()
-        .then((ds) => ds.map((d) => ({ id: d.id, label: d.title, sub: d.status }))),
+    // In a matter workspace, scope to that matter's documents; otherwise list all.
+    load: (matterId?: string) =>
+      (matterId ? api.listMatterDocuments(matterId) : api.listDocuments()).then((ds) =>
+        ds.map((d) => ({ id: d.id, label: d.title, sub: d.status }))
+      ),
   },
   {
     kind: "matter",
@@ -81,9 +82,11 @@ const KIND_ICON: Record<Kind, typeof FileText> = {
 export function AttachControls({
   attachments,
   onAdd,
+  matterId,
 }: {
   attachments: ChatAttachment[];
   onAdd: (a: ChatAttachment) => void;
+  matterId?: string;
 }) {
   return (
     <>
@@ -93,6 +96,7 @@ export function AttachControls({
           <AttachSourceButton
             key={s.kind}
             source={s}
+            matterId={matterId}
             selectedIds={new Set(attachments.filter((a) => a.kind === s.kind).map((a) => a.id))}
             onPick={(opt) => onAdd({ kind: s.kind, id: opt.id, label: opt.label })}
           />
@@ -100,7 +104,7 @@ export function AttachControls({
       </div>
       {/* Narrow: collapsed behind "+". */}
       <div className="@sm/composer:hidden">
-        <AttachMenu attachments={attachments} onAdd={onAdd} />
+        <AttachMenu attachments={attachments} onAdd={onAdd} matterId={matterId} />
       </div>
     </>
   );
@@ -111,10 +115,12 @@ function AttachSourceButton({
   source,
   selectedIds,
   onPick,
+  matterId,
 }: {
   source: (typeof SOURCES)[number];
   selectedIds: Set<string>;
   onPick: (opt: Option) => void;
+  matterId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const Icon = source.icon;
@@ -133,6 +139,7 @@ function AttachSourceButton({
       <PopoverContent align="start" className="w-72 gap-0 overflow-hidden p-0">
         <SourceList
           source={source}
+          matterId={matterId}
           selectedIds={selectedIds}
           onPick={(opt) => {
             onPick(opt);
@@ -152,9 +159,11 @@ function AttachSourceButton({
 export function AttachMenu({
   attachments,
   onAdd,
+  matterId,
 }: {
   attachments: ChatAttachment[];
   onAdd: (a: ChatAttachment) => void;
+  matterId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<Kind | null>(null);
@@ -178,6 +187,7 @@ export function AttachMenu({
         {source ? (
           <SourceList
             source={source}
+            matterId={matterId}
             selectedIds={
               new Set(attachments.filter((a) => a.kind === source.kind).map((a) => a.id))
             }
@@ -253,6 +263,7 @@ function SourceList({
   selectedIds,
   onBack,
   onPick,
+  matterId,
 }: {
   source: (typeof SOURCES)[number];
   selectedIds: Set<string>;
@@ -260,13 +271,15 @@ function SourceList({
   // standalone per-source popovers, which have nothing to go back to.
   onBack?: () => void;
   onPick: (opt: Option) => void;
+  matterId?: string;
 }) {
   const [query, setQuery] = useState("");
 
-  // Lazy-load this source's list once it's opened; cached per source kind.
+  // Lazy-load this source's list once it's opened; cached per source kind (and
+  // matter, so the matter-scoped list isn't served the global cache or vice-versa).
   const { data: options } = useQuery({
-    queryKey: ["attach-source", source.kind],
-    queryFn: () => source.load(),
+    queryKey: ["attach-source", source.kind, matterId ?? null],
+    queryFn: () => source.load(matterId),
   });
 
   const q = query.trim().toLowerCase();

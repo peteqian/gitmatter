@@ -20,8 +20,10 @@ function Signup() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    const trimmedName = name.trim();
+    if (!trimmedName) return setError("Please enter your name.");
     setBusy(true);
-    const { error: signUpError } = await signUp.email({ name, email, password });
+    const { error: signUpError } = await signUp.email({ name: trimmedName, email, password });
     setBusy(false);
     if (signUpError) return setError(signUpError.message ?? "Sign up failed");
     // Full reload so the server beforeLoad re-resolves the new session and SSRs

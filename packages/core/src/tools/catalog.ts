@@ -276,12 +276,9 @@ export function buildToolCatalog(
     // ---- Clients & matters ----
     {
       name: "list_clients",
-      description: "List the firm's clients.",
+      description: "List the clients you have access to.",
       schema: {},
-      handler: async () => {
-        const tenantId = await getUserTenant(actor.userId);
-        return tenantId ? listClients(tenantId) : [];
-      },
+      handler: async () => listClients(actor.userId),
     },
     {
       name: "create_client",

@@ -39,10 +39,12 @@ export type Turn = {
 export function useChatSession({
   loaded,
   matterId,
+  activeDocumentId,
   onFirstChat,
 }: {
   loaded: ChatDetail | null;
   matterId?: string;
+  activeDocumentId?: string;
   onFirstChat?: (chatId: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -138,6 +140,8 @@ export function useChatSession({
           chatId,
           // Only meaningful when creating a new chat; ignored once chatId exists.
           matterId: chatId ? undefined : matterId,
+          // Sent every turn — the open tab changes as the user switches documents.
+          activeDocumentId,
         },
         {
           onReasoning: (delta) => {

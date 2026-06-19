@@ -4,6 +4,8 @@ import {
   type ArtifactType,
   type MatterRole,
   artifactShares,
+  clientMembers,
+  clients,
   documents,
   matterMembers,
   matters,
@@ -77,6 +79,33 @@ async function artifactShareRole(
   // Defense-in-depth: shares are tenant-bound at write time, re-check on read.
   if (row.userTenant !== artifactTenant) return null;
   return row.role;
+}
+
+/**
+ * The caller's role on a client, or null if not a member. Like matterRole, asserts
+ * same-tenant as defense-in-depth. A client is visible only to its members.
+ */
+async function clientRole(userId: string, clientId: string): Promise<MatterRole | null> {
+  const [row] = await db
+    .select({ role: clientMembers.role, clientTenant: clients.tenantId, userTenant: user.tenantId })
+    .from(clientMembers)
+    .innerJoin(clients, eq(clientMembers.clientId, clients.id))
+    .innerJoin(user, eq(clientMembers.userId, user.id))
+    .where(and(eq(clientMembers.clientId, clientId), eq(clientMembers.userId, userId)));
+  if (!row) return null;
+  if (row.clientTenant !== row.userTenant) return null;
+  return row.role;
+}
+
+/** True if the user is a member of the client with at least `min` role. */
+export async function hasClientAccess(
+  userId: string,
+  clientId: string,
+  min: MatterRole = "viewer"
+): Promise<boolean> {
+  const role = await clientRole(userId, clientId);
+  if (!role) return false;
+  return ROLE_RANK[role] >= ROLE_RANK[min];
 }
 
 /** True if the user is a member of the matter with at least `min` role. */

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -23,18 +23,24 @@ const STATUS_VARIANT: Record<ChatEdit["status"], "outline" | "secondary" | "dest
  * reflect instantly; the document page is the source of truth on reload.
  */
 export function ChatEditCards({ edits }: { edits: ChatEdit[] }) {
+  const qc = useQueryClient();
   // Local status overlay so resolving a card updates it in place.
   const [status, setStatus] = useState<Record<string, ChatEdit["status"]>>({});
   const statusOf = (e: ChatEdit) => status[e.changeId] ?? e.status;
+  // Resolving produces a new document version; reload any open viewer of it.
+  const refreshDoc = (documentId: string) =>
+    void qc.invalidateQueries({ queryKey: ["document", documentId] });
 
   const resolve = useMutation({
     mutationFn: (v: { edit: ChatEdit; decision: "accept" | "reject" }) =>
       api.resolveEdit(v.edit.documentId, v.edit.changeId, v.decision),
-    onSuccess: (_d, v) =>
+    onSuccess: (_d, v) => {
       setStatus((s) => ({
         ...s,
         [v.edit.changeId]: v.decision === "accept" ? "accepted" : "rejected",
-      })),
+      }));
+      refreshDoc(v.edit.documentId);
+    },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
 
@@ -49,12 +55,14 @@ export function ChatEditCards({ edits }: { edits: ChatEdit[] }) {
       await Promise.all([...byDoc].map(([docId, ids]) => api.resolveBatch(docId, ids, decision)));
       return { decision, ids: pending.map((e) => e.changeId) };
     },
-    onSuccess: ({ decision, ids }) =>
+    onSuccess: ({ decision, ids }) => {
       setStatus((s) => {
         const next = { ...s };
         for (const id of ids) next[id] = decision === "accept" ? "accepted" : "rejected";
         return next;
-      }),
+      });
+      for (const docId of new Set(edits.map((e) => e.documentId))) refreshDoc(docId);
+    },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
 

@@ -20,6 +20,7 @@ export function Composer({
   busy,
   onSend,
   onStop,
+  matterId,
 }: {
   input: string;
   setInput: (v: string) => void;
@@ -33,6 +34,7 @@ export function Composer({
   busy: boolean;
   onSend: () => void;
   onStop?: () => void;
+  matterId?: string;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card shadow-xs focus-within:border-ring/60">
@@ -55,7 +57,7 @@ export function Composer({
           <ModelPicker value={model} onChange={setModel} />
           <ReasoningPicker model={model} value={reasoning} onChange={setReasoning} />
           <span className="mx-1 h-4 w-px shrink-0 bg-border" />
-          <AttachControls attachments={attachments} onAdd={onAdd} />
+          <AttachControls attachments={attachments} onAdd={onAdd} matterId={matterId} />
         </div>
         {busy && onStop ? (
           <Button

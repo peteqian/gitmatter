@@ -111,6 +111,7 @@ export function MatterChatWorkspace({
   const s = useChatSession({
     loaded,
     matterId,
+    activeDocumentId: activeTabId ?? undefined,
     onFirstChat: (chatId) =>
       void navigate({
         to: "/matters/$id/assistant/$chatId",
@@ -135,12 +136,28 @@ export function MatterChatWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docSignature]);
 
+  // When the assistant proposes tracked-change edits, the edited document gains a
+  // new version. Reload that document so the open viewer shows the redlines
+  // without a manual refresh. Keyed by the set of edited doc ids.
+  const editSignature = [
+    ...new Set(s.turns.flatMap((t) => (t.edits ?? []).map((e) => e.documentId))),
+  ]
+    .sort()
+    .join(",");
+  useEffect(() => {
+    if (!editSignature) return;
+    for (const docId of editSignature.split(","))
+      void qc.invalidateQueries({ queryKey: ["document", docId] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editSignature]);
+
   const firstName =
     session?.user.name?.split(" ")[0] || session?.user.email?.split("@")[0] || "there";
   const chatTitle = loaded?.title || "New chat";
 
   const composer = (
     <Composer
+      matterId={matterId}
       input={s.input}
       setInput={s.setInput}
       model={s.model}

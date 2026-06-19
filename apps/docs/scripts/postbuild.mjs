@@ -7,9 +7,10 @@ const base = ".next/standalone/apps/docs";
 
 await cp(".next/static", `${base}/.next/static`, { recursive: true });
 
-// The /docs/md/* route reads raw .mdx via getText at request time; the server's
-// cwd is the standalone app dir, so ship the source markdown there.
-await cp("content/docs", `${base}/content/docs`, { recursive: true });
+// The /docs/md/* route reads raw .mdx via getText at request time. The server's
+// cwd is the standalone app dir (.next/standalone/apps/docs) and source.config's
+// dir is "../../docs", so the source must land at .next/standalone/docs.
+await cp("../../docs", ".next/standalone/docs", { recursive: true });
 
 try {
   await access("public");

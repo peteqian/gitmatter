@@ -17,6 +17,9 @@ export const chatSchema = z.object({
   // Scope a NEW chat to a matter (the 3-pane matter workspace). Ignored when
   // continuing an existing chat — scope is fixed at creation.
   matterId: z.string().uuid().optional(),
+  // The document the user currently has open in the matter viewer. Sent every
+  // turn (the open tab changes), so the assistant can resolve "the open document".
+  activeDocumentId: z.string().uuid().optional(),
 });
 
 export const pinSchema = z.object({ pinned: z.boolean() });

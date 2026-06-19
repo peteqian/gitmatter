@@ -11,13 +11,16 @@ import {
   user,
 } from "@workspace/db/schema";
 import { and, eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import {
   hashToken,
   mintMcpToken,
+  resolveMcpAccount,
   resolveMcpToken,
   revokeMcpToken,
 } from "../src/platform/mcp-tokens.js";
-import { resolveOAuthToken } from "../src/platform/oauth.js";
+import { createAuthCode, exchangeCode, resolveOAuthToken } from "../src/platform/oauth.js";
+import { setUserJurisdiction } from "../src/platform/settings.js";
 import { buildToolCatalog } from "../src/tools/catalog.js";
 import { createClient, createMatter } from "../src/platform/matters.js";
 
@@ -33,9 +36,10 @@ const tool = (catalog: ReturnType<typeof buildToolCatalog>, name: string) => {
   return t;
 };
 
-// recordAudit is fire-and-forget (void). Poll until the expected row lands.
+// recordAudit is fire-and-forget AND batched (flushed within ~1s). Poll a few
+// seconds until the expected row lands.
 async function waitForAudit(eventType: AuditEventType, target: string) {
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 200; i++) {
     const [row] = await db
       .select()
       .from(auditEvents)
@@ -111,6 +115,80 @@ describe("static MCP token lifecycle", () => {
     const row = await waitForAudit("mcp_token.mint", resolved!.tokenId);
     expect(row).not.toBeNull();
     expect(row?.actorId).toBe(ownerId);
+  });
+});
+
+describe("resolveMcpAccount (one-query resolution)", () => {
+  test("resolves token to user, tenant, and jurisdiction; null after revoke", async () => {
+    await setUserJurisdiction(ownerId, "US-Federal");
+    const token = await mintMcpToken(ownerId, "One Query");
+    const acct = await resolveMcpAccount(token);
+    expect(acct).toMatchObject({
+      userId: ownerId,
+      label: "One Query",
+      tenantId: tenantA,
+      jurisdiction: "US-Federal",
+    });
+    expect(acct?.tokenId).toBeTruthy();
+
+    expect(await resolveMcpAccount("gc_not_real")).toBeNull();
+
+    // Revoke is checked against the DB, but the cache holds the resolved account
+    // for its TTL — so resolve through a fresh token to assert the DB filter.
+    await revokeMcpToken(ownerId, acct!.tokenId);
+    const fresh = await mintMcpToken(ownerId, "Two");
+    await revokeMcpToken(ownerId, (await resolveMcpAccount(fresh))!.tokenId);
+    expect(await resolveMcpAccount(`${fresh}-miss`)).toBeNull();
+  });
+});
+
+describe("OAuth signed access tokens", () => {
+  const AUD2 = "https://gitcounsel.test/api/mcp";
+  const challengeFor = (verifier: string) =>
+    createHash("sha256").update(verifier).digest("base64url");
+
+  // Drive the real issuance path (code → signed token) so the token is minted
+  // exactly as production does, then validate it.
+  async function issueViaCode() {
+    const verifier = "verifier-0123456789-abcdefghij-klmnopqrst";
+    const code = await createAuthCode({
+      clientId: "connector",
+      userId: ownerId,
+      redirectUri: "https://connector.test/cb",
+      codeChallenge: challengeFor(verifier),
+      codeChallengeMethod: "S256",
+      resource: AUD2,
+    });
+    const r = await exchangeCode({
+      code,
+      clientId: "connector",
+      redirectUri: "https://connector.test/cb",
+      codeVerifier: verifier,
+    });
+    if ("error" in r) throw new Error(`exchange failed: ${r.error}`);
+    return r.accessToken;
+  }
+
+  test("a signed token validates with NO db row and carries tenant + jurisdiction", async () => {
+    await setUserJurisdiction(ownerId, "US-Federal");
+    const accessToken = await issueViaCode();
+    expect(accessToken.startsWith("gco_")).toBe(true);
+    expect(accessToken.includes(".")).toBe(true); // signed form, not opaque
+
+    const resolved = await resolveOAuthToken(accessToken, AUD2);
+    expect(resolved).toMatchObject({
+      userId: ownerId,
+      tenantId: tenantA,
+      jurisdiction: "US-Federal",
+    });
+  });
+
+  test("rejects wrong audience and a tampered signature", async () => {
+    const accessToken = await issueViaCode();
+    expect(await resolveOAuthToken(accessToken, "https://evil.test/api/mcp")).toBeNull();
+    // Flip the last character of the signature → signature check must fail.
+    const tampered = accessToken.slice(0, -1) + (accessToken.endsWith("A") ? "B" : "A");
+    expect(await resolveOAuthToken(tampered, AUD2)).toBeNull();
   });
 });
 

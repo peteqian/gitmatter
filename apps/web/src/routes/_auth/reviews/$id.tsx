@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton";
 import { ActorBadge } from "@/components/ActorBadge";
 import { CommitHistory } from "@/components/CommitHistory";
+import { useSession } from "@/lib/auth/auth-client";
 import { DataTable } from "@/components/DataTable";
 import { ModelPicker } from "@/components/ModelPicker";
 import { PageHeader } from "@/components/PageHeader";
@@ -49,6 +50,7 @@ function ReviewView() {
   "use no memo";
   const { id } = Route.useParams();
   const qc = useQueryClient();
+  const { data: session } = useSession();
   const reviewKey = ["review", id];
   const { data } = useQuery({ queryKey: reviewKey, queryFn: () => api.getReview(id) });
   const { data: docs = [] } = useQuery({
@@ -285,7 +287,7 @@ function ReviewView() {
               <ChevronRight className="size-3.5" />
             </Button>
           </div>
-          <CommitHistory commits={history} />
+          <CommitHistory commits={history} currentUserId={session?.user.id} />
         </aside>
       )}
     </div>
@@ -376,7 +378,12 @@ function BlamePopover({ blame }: { blame: Blame }) {
       />
       <PopoverContent className="w-64 text-xs">
         <div className="flex items-center gap-2">
-          <ActorBadge actorType={blame.actorType} agentLabel={blame.agentLabel} />
+          <ActorBadge
+            actorType={blame.actorType}
+            agentLabel={blame.agentLabel}
+            actorId={blame.actorId}
+            actorName={blame.actorName}
+          />
           <span className="font-mono">{blame.op}</span>
         </div>
         <p className="mt-1">{blame.message}</p>

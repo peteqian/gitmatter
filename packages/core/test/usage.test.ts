@@ -10,6 +10,7 @@ import {
   user,
 } from "@workspace/db/schema";
 import { and, eq } from "drizzle-orm";
+import { flushAllBatches } from "../src/platform/batch-writer.js";
 import {
   assertStorageWithinQuota,
   recordLlmUsage,
@@ -20,6 +21,16 @@ import {
 
 let tenantId: string;
 const userId = `usage-${randomUUID()}`;
+
+// budget.exceeded rows are written through the batched audit writer; drain it so
+// the rows are queryable before asserting on them.
+async function flaggedRows() {
+  await flushAllBatches();
+  return db
+    .select()
+    .from(auditEvents)
+    .where(and(eq(auditEvents.eventType, "budget.exceeded"), eq(auditEvents.actorId, userId)));
+}
 
 beforeAll(async () => {
   const [t] = await db.insert(tenants).values({ name: "Usage Tenant" }).returning();
@@ -88,20 +99,14 @@ describe("recordLlmUsage", () => {
     // 15 + 15 = 30 tokens > 20 budget on the second call.
     await recordLlmUsage({ userId, tenantId, inputTokens: 10, outputTokens: 5 });
     await recordLlmUsage({ userId, tenantId, inputTokens: 10, outputTokens: 5 });
-    const flagged = await db
-      .select()
-      .from(auditEvents)
-      .where(and(eq(auditEvents.eventType, "budget.exceeded"), eq(auditEvents.actorId, userId)));
+    const flagged = await flaggedRows();
     expect(flagged.length).toBeGreaterThanOrEqual(1);
   });
 
   test("under budget writes no budget.exceeded row", async () => {
     process.env.USER_LLM_TOKEN_BUDGET = "1000";
     await recordLlmUsage({ userId, tenantId, inputTokens: 10, outputTokens: 5 });
-    const flagged = await db
-      .select()
-      .from(auditEvents)
-      .where(and(eq(auditEvents.eventType, "budget.exceeded"), eq(auditEvents.actorId, userId)));
+    const flagged = await flaggedRows();
     expect(flagged).toHaveLength(0);
   });
 });
@@ -112,16 +117,10 @@ describe("recordToolCall", () => {
     process.env.MCP_TOKEN_CALL_BUDGET = "2";
     await recordToolCall({ tokenId, userId, tenantId, tool: "search" });
     await recordToolCall({ tokenId, userId, tenantId, tool: "search" });
-    let flagged = await db
-      .select()
-      .from(auditEvents)
-      .where(and(eq(auditEvents.eventType, "budget.exceeded"), eq(auditEvents.actorId, userId)));
+    let flagged = await flaggedRows();
     expect(flagged).toHaveLength(0); // 2 == budget, not over
     await recordToolCall({ tokenId, userId, tenantId, tool: "search" });
-    flagged = await db
-      .select()
-      .from(auditEvents)
-      .where(and(eq(auditEvents.eventType, "budget.exceeded"), eq(auditEvents.actorId, userId)));
+    flagged = await flaggedRows();
     expect(flagged.length).toBeGreaterThanOrEqual(1); // 3 > 2
   });
 });

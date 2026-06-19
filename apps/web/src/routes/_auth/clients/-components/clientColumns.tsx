@@ -1,13 +1,17 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { Building2, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StateCue } from "@/components/StateCue";
-import type { Client } from "@/lib/data/api";
+import { SharedWithCell } from "@/components/SharedWithCell";
+import type { ClientListItem } from "@/lib/data/api";
 
-const columnHelper = createColumnHelper<Client>();
+const columnHelper = createColumnHelper<ClientListItem>();
 
-export function clientColumns(onEdit: (client: Client) => void) {
+export function clientColumns(
+  onEdit: (client: ClientListItem) => void,
+  onManagePeople: (client: ClientListItem) => void
+) {
   return [
     columnHelper.display({
       id: "select",
@@ -60,13 +64,19 @@ export function clientColumns(onEdit: (client: Client) => void) {
       header: "Shared with",
       size: 150,
       meta: { noTruncate: true },
-      // Clients are org-wide — visible to everyone in the organization.
-      cell: () => (
-        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Building2 className="size-3.5" />
-          Everyone in org
-        </span>
-      ),
+      // A client is private unless shared; the avatar stack opens the manage dialog.
+      cell: (c) => {
+        const client = c.row.original;
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <SharedWithCell
+              count={client.memberCount}
+              names={client.ownerName ? [client.ownerName] : []}
+              onClick={() => onManagePeople(client)}
+            />
+          </div>
+        );
+      },
     }),
     columnHelper.display({
       id: "actions",

@@ -1,7 +1,7 @@
 import { Download, Trash2 } from "lucide-react";
 import type { Table } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import type { Client } from "@/lib/data/api";
+import type { ClientListItem } from "@/lib/data/api";
 
 export function ClientSelectionBar({
   table,
@@ -14,7 +14,7 @@ export function ClientSelectionBar({
   onExport,
   onDelete,
 }: {
-  table: Table<Client>;
+  table: Table<ClientListItem>;
   selectedCount: number;
   selectAllMatching: boolean;
   rowCount: number;

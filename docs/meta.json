@@ -1,0 +1,11 @@
+{
+  "pages": [
+    "index",
+    "getting-started",
+    "user-manual",
+    "user-guide",
+    "ai-agents",
+    "api-reference",
+    "admin"
+  ]
+}

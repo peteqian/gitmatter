@@ -8,12 +8,13 @@ import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
 import { TablePager } from "@/components/TablePager";
 import { TableSearch } from "@/components/TableSearch";
-import { api, type Client, type ClientSelection } from "@/lib/data/api";
+import { api, type Client, type ClientListItem, type ClientSelection } from "@/lib/data/api";
 import { queryKeys } from "@/lib/data/queries";
 import { useDataTable } from "@/lib/hooks/table/useDataTable";
 import { useTablePageParams } from "@/lib/hooks/table/useTablePageParams";
 import { useTableState } from "@/lib/hooks/table/useTableState";
 import { ClientDialog } from "./-components/ClientDialog";
+import { ClientPeopleModal } from "./-components/ClientPeopleModal";
 import { ClientSelectionBar } from "./-components/ClientSelectionBar";
 import { CreateClient } from "./-components/CreateClient";
 import { DeleteClientsDialog } from "./-components/DeleteClientsDialog";
@@ -38,6 +39,7 @@ function Clients() {
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Client | null>(null);
+  const [peopleFor, setPeopleFor] = useState<ClientListItem | null>(null);
   const { sorting, setSorting, pagination, setPagination, ready } = useTableState("clients", {
     defaultSorting: [{ id: "name", desc: false }],
   });
@@ -89,7 +91,14 @@ function Clients() {
     setSelected(selectedOverview.client);
   }, [selectedOverview]);
 
-  const columns = useMemo(() => clientColumns((c) => setSelected(c)), []);
+  const columns = useMemo(
+    () =>
+      clientColumns(
+        (c) => setSelected(c),
+        (c) => setPeopleFor(c)
+      ),
+    []
+  );
   const { table } = useDataTable({
     columns,
     data: clients,
@@ -208,6 +217,16 @@ function Clients() {
         onOpenChange={setConfirmDelete}
         onConfirm={() => deleteMutation.mutate()}
       />
+
+      {peopleFor && (
+        <ClientPeopleModal
+          clientId={peopleFor.id}
+          clientName={peopleFor.name}
+          canManage={peopleFor.role === "owner"}
+          open
+          onOpenChange={(open) => !open && setPeopleFor(null)}
+        />
+      )}
     </div>
   );
 }

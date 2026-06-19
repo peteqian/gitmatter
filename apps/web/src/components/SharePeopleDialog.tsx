@@ -212,6 +212,24 @@ export function matterShareSource(
   };
 }
 
+export function clientShareSource(
+  clientId: string,
+  clientName: string,
+  canManage: boolean
+): ShareSource {
+  return {
+    title: clientName,
+    canManage,
+    roles: ["editor", "viewer", "owner"],
+    queryKey: ["client-people", clientId],
+    list: () => api.getClientPeople(clientId),
+    addByEmail: (email, role) => api.addClientMemberByEmail(clientId, email, role),
+    remove: (userId) => api.removeClientMember(clientId, userId),
+    // Client owners are managed via the server's last-owner guard.
+    canRemove: (p) => p.role !== "owner",
+  };
+}
+
 export function documentShareSource(id: string, title: string, canManage: boolean): ShareSource {
   return {
     title,

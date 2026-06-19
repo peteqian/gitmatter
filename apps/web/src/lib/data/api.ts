@@ -20,6 +20,11 @@ export type Blame = {
   message: string;
   actorType: "user" | "agent";
   agentLabel: string | null;
+  // Resolved identity of the acting user (null for agent commits, which use
+  // agentLabel instead). Lets the audit name collaborators rather than "you".
+  actorId: string | null;
+  actorName: string | null;
+  actorEmail: string | null;
   createdAt: string;
 };
 
@@ -70,6 +75,14 @@ export type Client = {
   clientNumber: string | null;
   status: "active" | "inactive";
   createdAt: string;
+};
+
+// A row in the clients list: the client plus the caller's role, the owner's name,
+// and how many people have access (drives the "Shared with" cell).
+export type ClientListItem = Client & {
+  role: MatterRole;
+  ownerName: string | null;
+  memberCount: number;
 };
 
 export type Matter = {
@@ -312,8 +325,16 @@ export const api = {
   // Clients & matters (firm organization)
   listClients: () => req<Client[]>("/api/clients"),
   listClientsPage: (params: ListPageParams) =>
-    req<PageResult<Client>>(`/api/clients?${listQuery(params)}`),
+    req<PageResult<ClientListItem>>(`/api/clients?${listQuery(params)}`),
   getClient: (id: string) => req<ClientOverview>(`/api/clients/${id}`),
+  getClientPeople: (id: string) => req<MatterMember[]>(`/api/clients/${id}/people`),
+  addClientMemberByEmail: (id: string, email: string, role: MatterRole = "editor") =>
+    req<FirmUser>(`/api/clients/${id}/members/by-email`, {
+      method: "POST",
+      body: JSON.stringify({ email, role }),
+    }),
+  removeClientMember: (id: string, userId: string) =>
+    req<null>(`/api/clients/${id}/members/${userId}`, { method: "DELETE" }),
   bulkDeleteClients: (sel: ClientSelection) =>
     req<{ deleted: number; skipped: number }>("/api/clients/bulk-delete", {
       method: "POST",
@@ -660,6 +681,9 @@ export type ChatSendOpts = {
   chatId?: string;
   // Scope a new chat to a matter (matter workspace). Ignored when chatId is set.
   matterId?: string;
+  // The document open in the matter viewer; sent every turn so the assistant
+  // can resolve "the open document".
+  activeDocumentId?: string;
 };
 
 // A tracked change touched by an assistant turn, rendered as a chat card.

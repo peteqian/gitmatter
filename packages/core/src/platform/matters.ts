@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, ilike, inArray, isNull, ne, or } from "drizz
 import { db } from "@workspace/db/client";
 import {
   type MatterRole,
+  clientMembers,
   clients,
   documentFolders,
   documents,
@@ -17,22 +18,27 @@ import {
 
 // ---- Clients ----
 
+/** Create a client and add the creator as its `owner` member, atomically. A
+ *  client is visible only to its members (no org-wide default). */
 export async function createClient(
   creatorId: string,
   tenantId: string,
   input: { name: string; type?: "organization" | "individual"; clientNumber?: string }
 ) {
-  const [row] = await db
-    .insert(clients)
-    .values({
-      tenantId,
-      name: input.name,
-      type: input.type ?? "organization",
-      clientNumber: input.clientNumber ?? null,
-      createdBy: creatorId,
-    })
-    .returning();
-  return row!;
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(clients)
+      .values({
+        tenantId,
+        name: input.name,
+        type: input.type ?? "organization",
+        clientNumber: input.clientNumber ?? null,
+        createdBy: creatorId,
+      })
+      .returning();
+    await tx.insert(clientMembers).values({ clientId: row!.id, userId: creatorId, role: "owner" });
+    return row!;
+  });
 }
 
 export async function updateClient(
@@ -53,11 +59,24 @@ export async function updateClient(
   return row ?? null;
 }
 
-export async function listClients(tenantId: string) {
+/** Clients the user is a member of, newest first. Backs the client picker and
+ *  the sidebar's recent list — a client is visible only to its members. */
+export async function listClients(userId: string) {
   return db
-    .select()
-    .from(clients)
-    .where(eq(clients.tenantId, tenantId))
+    .select({
+      id: clients.id,
+      tenantId: clients.tenantId,
+      name: clients.name,
+      type: clients.type,
+      clientNumber: clients.clientNumber,
+      status: clients.status,
+      createdBy: clients.createdBy,
+      createdAt: clients.createdAt,
+      updatedAt: clients.updatedAt,
+    })
+    .from(clientMembers)
+    .innerJoin(clients, eq(clientMembers.clientId, clients.id))
+    .where(eq(clientMembers.userId, userId))
     .orderBy(desc(clients.createdAt));
 }
 
@@ -72,13 +91,14 @@ export type ClientListParams = {
   dir?: "asc" | "desc";
 };
 
-// Shared WHERE for the client list: tenant scope + optional status + fuzzy
-// search. Used by the paged list, bulk delete, and CSV export so all three
-// resolve the exact same set for a given filter.
-function clientFilter(tenantId: string, opts: { q?: string; status?: "active" | "inactive" }) {
+// Shared WHERE for the client list: membership scope (caller must be a member)
+// + optional status + fuzzy search. Used by the paged list, bulk delete, and CSV
+// export so all three resolve the exact same set for a given user + filter.
+// Queries using this must innerJoin clientMembers on (clientId, userId=userId).
+function clientFilter(userId: string, opts: { q?: string; status?: "active" | "inactive" }) {
   const q = opts.q?.trim();
   return and(
-    eq(clients.tenantId, tenantId),
+    eq(clientMembers.userId, userId),
     opts.status ? eq(clients.status, opts.status) : undefined,
     q
       ? or(
@@ -90,8 +110,26 @@ function clientFilter(tenantId: string, opts: { q?: string; status?: "active" | 
   );
 }
 
-export async function listClientsPage(tenantId: string, params: ClientListParams) {
-  const where = clientFilter(tenantId, params);
+// Owner name + people-with-access count for a set of clients, keyed by client id.
+async function clientMemberAgg(clientIds: string[]) {
+  const rows = await db
+    .select({ clientId: clientMembers.clientId, role: clientMembers.role, name: user.name })
+    .from(clientMembers)
+    .innerJoin(user, eq(clientMembers.userId, user.id))
+    .where(inArray(clientMembers.clientId, clientIds));
+
+  const byClient = new Map<string, { owner: string | null; count: number }>();
+  for (const r of rows) {
+    const agg = byClient.get(r.clientId) ?? { owner: null, count: 0 };
+    agg.count += 1;
+    if (r.role === "owner") agg.owner = r.name;
+    byClient.set(r.clientId, agg);
+  }
+  return byClient;
+}
+
+export async function listClientsPage(userId: string, params: ClientListParams) {
+  const where = clientFilter(userId, params);
   const sortCols = {
     name: clients.name,
     type: clients.type,
@@ -103,12 +141,36 @@ export async function listClientsPage(tenantId: string, params: ClientListParams
   const order = params.dir === "asc" ? asc(sortCol) : desc(sortCol);
   const offset = params.page * params.pageSize;
 
-  const [rows, countRows] = await Promise.all([
-    db.select().from(clients).where(where).orderBy(order).limit(params.pageSize).offset(offset),
-    db.select({ count: count() }).from(clients).where(where),
+  const [base, countRows] = await Promise.all([
+    db
+      .select({ client: clients, role: clientMembers.role })
+      .from(clientMembers)
+      .innerJoin(clients, eq(clientMembers.clientId, clients.id))
+      .where(where)
+      .orderBy(order)
+      .limit(params.pageSize)
+      .offset(offset),
+    db
+      .select({ count: count() })
+      .from(clientMembers)
+      .innerJoin(clients, eq(clientMembers.clientId, clients.id))
+      .where(where),
   ]);
 
-  return { rows, rowCount: Number(countRows[0]?.count ?? 0) };
+  const rowCount = Number(countRows[0]?.count ?? 0);
+  const clientIds = base.map((b) => b.client.id);
+  if (!clientIds.length) return { rows: [], rowCount };
+
+  const byClient = await clientMemberAgg(clientIds);
+  // Flatten: the client row's fields plus the caller's role, owner name, and
+  // how many people have access (drives the "Shared with" cell).
+  const rows = base.map((b) => ({
+    ...b.client,
+    role: b.role,
+    ownerName: byClient.get(b.client.id)?.owner ?? null,
+    memberCount: byClient.get(b.client.id)?.count ?? 1,
+  }));
+  return { rows, rowCount };
 }
 
 // A bulk selection is either an explicit set of ids (the rows the user ticked)
@@ -118,56 +180,71 @@ export type ClientSelection =
   | { ids: string[] }
   | { all: true; q?: string; status?: "active" | "inactive" };
 
-async function resolveClientIds(tenantId: string, sel: ClientSelection): Promise<string[]> {
+async function resolveClientIds(userId: string, sel: ClientSelection): Promise<string[]> {
   if ("ids" in sel) {
     if (!sel.ids.length) return [];
-    // Re-scope to the tenant so a caller can't act on ids from another firm.
+    // Re-scope to the caller's memberships so they can't act on ids they can't see.
     const rows = await db
       .select({ id: clients.id })
-      .from(clients)
-      .where(and(eq(clients.tenantId, tenantId), inArray(clients.id, sel.ids)));
+      .from(clientMembers)
+      .innerJoin(clients, eq(clientMembers.clientId, clients.id))
+      .where(and(eq(clientMembers.userId, userId), inArray(clients.id, sel.ids)));
     return rows.map((r) => r.id);
   }
-  const rows = await db.select({ id: clients.id }).from(clients).where(clientFilter(tenantId, sel));
+  const rows = await db
+    .select({ id: clients.id })
+    .from(clientMembers)
+    .innerJoin(clients, eq(clientMembers.clientId, clients.id))
+    .where(clientFilter(userId, sel));
   return rows.map((r) => r.id);
 }
 
-/** Full client rows for a selection, name-sorted — backs CSV export. */
-export async function selectClients(tenantId: string, sel: ClientSelection) {
-  if ("ids" in sel) {
-    if (!sel.ids.length) return [];
-    return db
-      .select()
-      .from(clients)
-      .where(and(eq(clients.tenantId, tenantId), inArray(clients.id, sel.ids)))
-      .orderBy(asc(clients.name));
-  }
-  return db.select().from(clients).where(clientFilter(tenantId, sel)).orderBy(asc(clients.name));
+/** Full client rows for a selection, name-sorted — backs CSV export. Scoped to
+ *  clients the caller is a member of. */
+export async function selectClients(userId: string, sel: ClientSelection) {
+  const ids = await resolveClientIds(userId, sel);
+  if (!ids.length) return [];
+  return db.select().from(clients).where(inArray(clients.id, ids)).orderBy(asc(clients.name));
 }
 
-/** Bulk-delete clients in a selection. Clients that still have matters are
- *  blocked (would orphan work) and counted as `skipped`; the rest are deleted.
- *  Returns the split so the UI can report it. */
+/** Bulk-delete clients in a selection. Only clients the caller OWNS can be
+ *  deleted; clients that still have matters are blocked (would orphan work) and
+ *  counted as `skipped`. Returns the split so the UI can report it. */
 export async function deleteClients(
-  tenantId: string,
+  userId: string,
   sel: ClientSelection
 ): Promise<{ deleted: number; skipped: number }> {
-  const candidateIds = await resolveClientIds(tenantId, sel);
+  const candidateIds = await resolveClientIds(userId, sel);
   if (!candidateIds.length) return { deleted: 0, skipped: 0 };
+
+  // Deletion is owner-only: narrow the candidate set to clients the caller owns.
+  const ownedRows = await db
+    .select({ clientId: clientMembers.clientId })
+    .from(clientMembers)
+    .where(
+      and(
+        eq(clientMembers.userId, userId),
+        eq(clientMembers.role, "owner"),
+        inArray(clientMembers.clientId, candidateIds)
+      )
+    );
+  const ownedIds = ownedRows.map((r) => r.clientId);
+  if (!ownedIds.length) return { deleted: 0, skipped: candidateIds.length };
 
   const withMatters = await db
     .selectDistinct({ clientId: matters.clientId })
     .from(matters)
-    .where(inArray(matters.clientId, candidateIds));
+    .where(inArray(matters.clientId, ownedIds));
   const blocked = new Set(withMatters.map((r) => r.clientId));
-  const deletable = candidateIds.filter((id) => !blocked.has(id));
+  const deletable = ownedIds.filter((id) => !blocked.has(id));
 
   // Chunk to stay clear of the bind-parameter limit on large "select all" sets.
   for (let i = 0; i < deletable.length; i += 500) {
     const chunk = deletable.slice(i, i + 500);
-    await db.delete(clients).where(and(eq(clients.tenantId, tenantId), inArray(clients.id, chunk)));
+    await db.delete(clients).where(inArray(clients.id, chunk));
   }
-  return { deleted: deletable.length, skipped: blocked.size };
+  // Skipped = everything we couldn't delete: not owned + owned-but-has-matters.
+  return { deleted: deletable.length, skipped: candidateIds.length - deletable.length };
 }
 
 export async function getClient(id: string) {
@@ -181,6 +258,12 @@ export async function getClient(id: string) {
 export async function getClientOverview(userId: string, clientId: string) {
   const client = await getClient(clientId);
   if (!client) return null;
+  // A client is visible only to its members.
+  const [member] = await db
+    .select({ id: clientMembers.id })
+    .from(clientMembers)
+    .where(and(eq(clientMembers.clientId, clientId), eq(clientMembers.userId, userId)));
+  if (!member) return null;
 
   const matterRows = await db
     .select({ matter: matters, role: matterMembers.role })
@@ -225,6 +308,63 @@ export async function getClientOverview(userId: string, clientId: string) {
     documents: documentRows,
     reviews: reviewRows,
   };
+}
+
+// ---- Client members (sharing) ----
+
+/** People with access to a client + their roles. Mirrors listMembers. */
+export async function listClientMembers(clientId: string) {
+  return db
+    .select({
+      userId: clientMembers.userId,
+      role: clientMembers.role,
+      addedAt: clientMembers.addedAt,
+      name: user.name,
+      email: user.email,
+    })
+    .from(clientMembers)
+    .innerJoin(user, eq(clientMembers.userId, user.id))
+    .where(eq(clientMembers.clientId, clientId));
+}
+
+/** Add (or re-role) a client member. Tenant-bounded: the target user must
+ *  belong to the same tenant as the client. Mirrors addMember. */
+export async function addClientMember(
+  clientId: string,
+  userId: string,
+  role: MatterRole = "editor"
+) {
+  const [client] = await db
+    .select({ tenantId: clients.tenantId })
+    .from(clients)
+    .where(eq(clients.id, clientId));
+  if (!client) throw new Error("Client not found");
+  const [target] = await db
+    .select({ tenantId: user.tenantId })
+    .from(user)
+    .where(eq(user.id, userId));
+  if (!target) throw new Error("User not found");
+  if (target.tenantId !== client.tenantId) {
+    throw new Error("can only share with users in your organization");
+  }
+  await db
+    .insert(clientMembers)
+    .values({ clientId, userId, role })
+    .onConflictDoUpdate({ target: [clientMembers.clientId, clientMembers.userId], set: { role } });
+}
+
+/** Remove a client member. Refuses to remove the last owner (would orphan it). */
+export async function removeClientMember(clientId: string, userId: string) {
+  const owners = await db
+    .select({ userId: clientMembers.userId })
+    .from(clientMembers)
+    .where(and(eq(clientMembers.clientId, clientId), eq(clientMembers.role, "owner")));
+  if (owners.length <= 1 && owners.some((o) => o.userId === userId)) {
+    throw new Error("cannot remove the last owner of a client");
+  }
+  await db
+    .delete(clientMembers)
+    .where(and(eq(clientMembers.clientId, clientId), eq(clientMembers.userId, userId)));
 }
 
 // ---- Matters ----
@@ -591,6 +731,8 @@ export async function ensureDefaultMatter(
         createdBy: userId,
       })
       .returning();
+    // The personal client is private — only its owner can see it.
+    await tx.insert(clientMembers).values({ clientId: client!.id, userId, role: "owner" });
     const [matter] = await tx
       .insert(matters)
       .values({

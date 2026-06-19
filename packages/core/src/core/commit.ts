@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, isNotNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, isNotNull, lte, sql } from "drizzle-orm";
 import { db, type Tx } from "@workspace/db/client";
 import {
   type ArtifactType,
@@ -7,6 +7,7 @@ import {
   documents,
   fieldChanges,
   tabularReviews,
+  user,
   workflows,
 } from "@workspace/db/schema";
 
@@ -166,9 +167,13 @@ export async function diffCommits(
 }
 
 export async function listCommits(artifactType: ArtifactType, artifactId: string) {
+  // Resolve the acting user's identity so the audit trail can name them — a
+  // shared artifact has many actors, and the UI must tell them apart (not just
+  // "you"). agent commits leave actorName/actorEmail null and rely on agentLabel.
   return db
-    .select()
+    .select({ ...getTableColumns(commits), actorName: user.name, actorEmail: user.email })
     .from(commits)
+    .leftJoin(user, eq(user.id, commits.actorId))
     .where(and(eq(commits.artifactType, artifactType), eq(commits.artifactId, artifactId)))
     .orderBy(desc(commits.seq));
 }
@@ -185,9 +190,10 @@ export async function getCommitChanges(commitId: string) {
 /** Blame fallback: the latest commit that set a given path to a non-null value. */
 export async function deriveBlame(artifactType: ArtifactType, artifactId: string, path: string) {
   const [row] = await db
-    .select({ commit: commits })
+    .select({ ...getTableColumns(commits), actorName: user.name, actorEmail: user.email })
     .from(fieldChanges)
     .innerJoin(commits, eq(fieldChanges.commitId, commits.id))
+    .leftJoin(user, eq(user.id, commits.actorId))
     .where(
       and(
         eq(commits.artifactType, artifactType),
@@ -198,5 +204,5 @@ export async function deriveBlame(artifactType: ArtifactType, artifactId: string
     )
     .orderBy(desc(commits.seq))
     .limit(1);
-  return row?.commit ?? null;
+  return row ?? null;
 }
