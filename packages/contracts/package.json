@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "vp test",
+    "test": "vp test --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
