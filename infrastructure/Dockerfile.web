@@ -1,7 +1,10 @@
 # Builds the whole monorepo and serves the TanStack Start app (Hono mounted
-# behind /api/$). The serving container is immutable: it does NOT mutate the
-# schema on boot. Run migrations as a separate, controlled step (the `migrate`
-# one-shot service in docker-compose, or `drizzle-kit migrate` in CI/CD).
+# behind /api/$). By default the serving container is immutable: it does NOT
+# mutate the schema on boot — run migrations as a separate, controlled step (the
+# `migrate` one-shot service in docker-compose, or `drizzle-kit migrate` in
+# CI/CD). For a single-instance deploy that has no separate migrate step, set
+# MIGRATE_ON_BOOT=true to migrate then serve in one container. Do NOT enable it
+# when running multiple replicas — they would race the migration on startup.
 FROM oven/bun:1.3.14 AS build
 WORKDIR /app
 # ca-certificates: the cloud build prerenders pages, and the SSR runtime's HTTP
@@ -30,5 +33,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY --from=build /app /app
 ENV NODE_ENV=production PORT=4280
 EXPOSE 4280
-# Serve the built output. Schema migrations run in a separate step, not here.
-CMD ["sh", "-c", "cd /app/apps/web && bunx vite preview --host 0.0.0.0 --port ${PORT:-4280}"]
+# Serve the built output. With MIGRATE_ON_BOOT=true, apply schema migrations
+# first (single-instance deploys); otherwise migrations run as a separate step.
+CMD ["sh", "-c", "if [ \"$MIGRATE_ON_BOOT\" = \"true\" ]; then cd /app/packages/db && bun run migrate; fi && cd /app/apps/web && bunx vite preview --host 0.0.0.0 --port ${PORT:-4280}"]
