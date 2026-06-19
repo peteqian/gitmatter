@@ -8,7 +8,13 @@ import { signUp } from "../../lib/auth/auth-client";
 import { AuthShell } from "./-components/AuthShell";
 import { FormError } from "../../components/form/FormError";
 
-export const Route = createFileRoute("/_unauth/signup")({ component: Signup });
+export const Route = createFileRoute("/_unauth/signup")({
+  // Auth pages carry no SEO value — keep them out of the index.
+  head: () => ({
+    meta: [{ title: "Sign up · gitmatter" }, { name: "robots", content: "noindex" }],
+  }),
+  component: Signup,
+});
 
 function Signup() {
   const [name, setName] = useState("");

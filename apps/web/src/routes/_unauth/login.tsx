@@ -9,6 +9,8 @@ import { AuthShell } from "./-components/AuthShell";
 import { FormError } from "../../components/form/FormError";
 
 export const Route = createFileRoute("/_unauth/login")({
+  // Auth pages carry no SEO value — keep them out of the index.
+  head: () => ({ meta: [{ title: "Log in · gitmatter" }, { name: "robots", content: "noindex" }] }),
   validateSearch: (s: Record<string, unknown>): { next?: string } => ({
     next: typeof s.next === "string" ? s.next : undefined,
   }),
