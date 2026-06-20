@@ -82,20 +82,14 @@ jobs:
           cache-from: type=gha,scope=cloud
           cache-to: type=gha,mode=max,scope=cloud
 
-      # dokploy.studybetter.net is behind Cloudflare, whose WAF 403s GitHub Actions
-      # runner IPs. Join the VPS's tailnet so we can reach the origin privately.
-      - name: Connect Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          authkey: ${{ secrets.TS_AUTHKEY }}
-
       # Staging runs as a Docker-image app in dokploy, so we trigger a redeploy via
       # the dokploy API (application.deploy with x-api-key) rather than a git webhook.
       # dokploy then pulls the freshly pushed :staging image and restarts.
       #
-      # --resolve pins the host to the VPS's tailnet IP (STAGING_DOKPLOY_ORIGIN_IP),
-      # so the request goes over the private tailnet straight to Traefik — bypassing
-      # Cloudflare while TLS still validates against Traefik's real Let's Encrypt cert.
+      # dokploy.studybetter.net is behind Cloudflare, whose WAF 403s GitHub Actions
+      # runner IPs. --resolve pins the host to the VPS public IP (STAGING_DOKPLOY_ORIGIN_IP),
+      # so the request hits Traefik directly — bypassing only Cloudflare while TLS still
+      # validates against Traefik's real Let's Encrypt cert (api-key stays encrypted).
       - name: Trigger staging redeploy
         env:
           DOKPLOY_URL: ${{ secrets.STAGING_DOKPLOY_URL }}
