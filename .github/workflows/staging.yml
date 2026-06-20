@@ -22,9 +22,6 @@ jobs:
   deploy:
     needs: ci
     runs-on: ubuntu-latest
-    # TS_AUTHKEY at job level so the `if:` on the Tailscale step can read it.
-    env:
-      TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -85,33 +82,28 @@ jobs:
           cache-from: type=gha,scope=cloud
           cache-to: type=gha,mode=max,scope=cloud
 
-      # dokploy sits behind Cloudflare, whose WAF 403s GitHub Actions runner IPs.
-      # When a Tailscale key is configured, join the tailnet and point the deploy
-      # at the dokploy origin directly (STAGING_DOKPLOY_URL = http://<tailnet-ip>:3000),
-      # bypassing Cloudflare entirely. No key → step skips and we hit the public URL.
-      - name: Connect Tailscale
-        if: env.TS_AUTHKEY != ''
-        uses: tailscale/github-action@v3
-        with:
-          authkey: ${{ env.TS_AUTHKEY }}
-
       # Staging runs as a Docker-image app in dokploy, so we trigger a redeploy via
-      # the dokploy API (application.deploy with x-api-key) rather than a git
-      # webhook. dokploy then pulls the freshly pushed :staging image and restarts.
+      # the dokploy API (application.deploy with x-api-key) rather than a git webhook.
+      # dokploy then pulls the freshly pushed :staging image and restarts.
+      #
+      # dokploy.studybetter.net is behind Cloudflare, whose WAF 403s GitHub Actions
+      # runner IPs. We reach the origin directly with --resolve (pinning the VPS IP),
+      # which bypasses only Cloudflare — TLS still validates against Traefik's real
+      # Let's Encrypt cert, so the api-key is sent encrypted.
       - name: Trigger staging redeploy
         env:
           DOKPLOY_URL: ${{ secrets.STAGING_DOKPLOY_URL }}
           DOKPLOY_API_KEY: ${{ secrets.STAGING_DOKPLOY_API_KEY }}
           APP_ID: ${{ secrets.STAGING_DOKPLOY_APP_ID }}
+          ORIGIN_IP: ${{ secrets.STAGING_DOKPLOY_ORIGIN_IP }}
         run: |
           if [ -z "$DOKPLOY_URL" ]; then
             echo "STAGING_DOKPLOY_URL unset — skipping deploy."
             exit 0
           fi
-          # UA header: dokploy sits behind Cloudflare, whose Bot Fight Mode 403s the
-          # default curl UA from CI runner IPs. A browser UA slips past it.
+          host=$(printf '%s' "$DOKPLOY_URL" | sed -E 's#^https?://##; s#/.*##')
           curl -fsSL -X POST "$DOKPLOY_URL/api/application.deploy" \
-            -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+            ${ORIGIN_IP:+--resolve "$host:443:$ORIGIN_IP"} \
             -H "x-api-key: $DOKPLOY_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{\"applicationId\":\"$APP_ID\"}"
