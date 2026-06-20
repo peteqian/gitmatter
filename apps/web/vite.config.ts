@@ -64,7 +64,9 @@ const config = defineConfig({
   devtools: !!process.env.ANALYZE,
   resolve: { tsconfigPaths: true },
   server: { port, strictPort: false },
-  preview: { port, strictPort: false },
+  // allowedHosts: the prod/staging containers serve via `vp preview` behind
+  // Traefik, which already routes by host — so accept whatever host it forwards.
+  preview: { port, strictPort: false, allowedHosts: true },
   plugins: [
     devtools(),
     tailwindcss(),
