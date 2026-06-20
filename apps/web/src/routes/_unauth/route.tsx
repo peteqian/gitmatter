@@ -1,18 +1,22 @@
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { Navigate, Outlet, createFileRoute } from "@tanstack/react-router";
+import { useSession } from "../../lib/auth/auth-client";
 
-// Mirror of _auth: a guest-only layout for login/signup. A logged-in visitor
-// is bounced to the app home. The session is server-resolved in the root
-// beforeLoad (cookies available), so this runs correctly during SSR and renders
-// the public content directly.
+// Guest-only layout for login/signup. These pages are prerendered to static
+// HTML (cloud build), so they must not resolve the session on the server —
+// that would need a database at build time. Instead a logged-in visitor is
+// bounced to the app client-side after hydration.
 export const Route = createFileRoute("/_unauth")({
-  beforeLoad: ({ context }) => {
-    if (context.session) {
-      throw redirect({ to: "/assistant" });
-    }
-  },
   component: UnauthLayout,
 });
 
 function UnauthLayout() {
-  return <Outlet />;
+  const { data: session } = useSession();
+  if (session) {
+    return <Navigate to="/assistant" />;
+  }
+  return (
+    <main className="container mx-auto px-6 pt-page pb-12">
+      <Outlet />
+    </main>
+  );
 }
