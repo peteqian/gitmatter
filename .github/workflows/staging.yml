@@ -82,28 +82,18 @@ jobs:
           cache-from: type=gha,scope=cloud
           cache-to: type=gha,mode=max,scope=cloud
 
-      # Staging runs as a Docker-image app in dokploy, so we trigger a redeploy via
-      # the dokploy API (application.deploy with x-api-key) rather than a git webhook.
-      # dokploy then pulls the freshly pushed :staging image and restarts.
-      #
-      # dokploy.studybetter.net is behind Cloudflare, whose WAF 403s GitHub Actions
-      # runner IPs. --resolve pins the host to the VPS public IP (STAGING_DOKPLOY_ORIGIN_IP),
-      # so the request hits Traefik directly — bypassing only Cloudflare while TLS still
-      # validates against Traefik's real Let's Encrypt cert (api-key stays encrypted).
+      - name: Connect Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
       - name: Trigger staging redeploy
         env:
           DOKPLOY_URL: ${{ secrets.STAGING_DOKPLOY_URL }}
           DOKPLOY_API_KEY: ${{ secrets.STAGING_DOKPLOY_API_KEY }}
           APP_ID: ${{ secrets.STAGING_DOKPLOY_APP_ID }}
-          ORIGIN_IP: ${{ secrets.STAGING_DOKPLOY_ORIGIN_IP }}
         run: |
-          if [ -z "$DOKPLOY_URL" ]; then
-            echo "STAGING_DOKPLOY_URL unset — skipping deploy."
-            exit 0
-          fi
-          host=$(printf '%s' "$DOKPLOY_URL" | sed -E 's#^https?://##; s#/.*##')
           curl -fsSL -X POST "$DOKPLOY_URL/api/application.deploy" \
-            ${ORIGIN_IP:+--resolve "$host:443:$ORIGIN_IP"} \
             -H "x-api-key: $DOKPLOY_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{\"applicationId\":\"$APP_ID\"}"
