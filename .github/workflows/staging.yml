@@ -95,7 +95,10 @@ jobs:
             echo "STAGING_DOKPLOY_URL unset — skipping deploy."
             exit 0
           fi
+          # UA header: dokploy sits behind Cloudflare, whose Bot Fight Mode 403s the
+          # default curl UA from CI runner IPs. A browser UA slips past it.
           curl -fsSL -X POST "$DOKPLOY_URL/api/application.deploy" \
+            -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
             -H "x-api-key: $DOKPLOY_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{\"applicationId\":\"$APP_ID\"}"
