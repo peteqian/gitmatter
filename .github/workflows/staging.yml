@@ -82,13 +82,20 @@ jobs:
           cache-from: type=gha,scope=cloud
           cache-to: type=gha,mode=max,scope=cloud
 
+      # Staging runs as a Docker-image app in dokploy, so we trigger a redeploy via
+      # the dokploy API (application.deploy with x-api-key) rather than a git
+      # webhook. dokploy then pulls the freshly pushed :staging image and restarts.
       - name: Trigger staging redeploy
         env:
-          WEBHOOK: ${{ secrets.STAGING_WEBHOOK_URL }}
-          TOKEN: ${{ secrets.STAGING_WEBHOOK_TOKEN }}
+          DOKPLOY_URL: ${{ secrets.STAGING_DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.STAGING_DOKPLOY_API_KEY }}
+          APP_ID: ${{ secrets.STAGING_DOKPLOY_APP_ID }}
         run: |
-          if [ -z "$WEBHOOK" ]; then
-            echo "STAGING_WEBHOOK_URL unset — skipping deploy."
+          if [ -z "$DOKPLOY_URL" ]; then
+            echo "STAGING_DOKPLOY_URL unset — skipping deploy."
             exit 0
           fi
-          curl -fsSL -X POST "$WEBHOOK" ${TOKEN:+-H "Authorization: Bearer $TOKEN"}
+          curl -fsSL -X POST "$DOKPLOY_URL/api/application.deploy" \
+            -H "x-api-key: $DOKPLOY_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"applicationId\":\"$APP_ID\"}"
