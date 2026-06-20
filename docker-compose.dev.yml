@@ -1,7 +1,0 @@
-# Dev-only overlay. Publishes the no-auth docling-serve sidecar to localhost so a
-# locally-run `bun dev` (outside the compose network) can reach it. Applied
-# explicitly via `-f`, so the production compose stays internal-only.
-services:
-  docling:
-    ports:
-      - "127.0.0.1:5001:5001"

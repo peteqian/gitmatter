@@ -43,7 +43,7 @@ if (!flags["skip-deps"]) {
   await step(
     "starting deps (postgres + docling)",
     () =>
-      $`docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --wait postgres docling`
+      $`docker compose up -d --wait postgres docling`
   );
 } else {
   log("skipping deps (--skip-deps)");

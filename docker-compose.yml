@@ -1,19 +1,28 @@
-# Self-host stack. For development you typically only run `docker compose up -d
-# postgres` and `bun run dev`; this full compose runs the whole system.
+# Full self-host stack for end users. Pulls the prebuilt web image (no build from
+# source) alongside bundled Postgres + Docling, then serves the app on
+# http://localhost:4280. The web image applies schema migrations on startup, so
+# there is no separate migrate step.
 #
-#   docker compose up --build
+#   cp .env.example .env       # then fill BETTER_AUTH_SECRET, ENCRYPTION_KEY, S3_*
+#   docker compose up -d
 #
-# docling-serve has no authentication, so it is NOT published to the host — it
-# is only reachable on the internal compose network.
+# Storage is bring-your-own: the app requires an S3-compatible bucket (Cloudflare
+# R2, AWS S3, MinIO, …) — set the S3_* vars in .env. Pin a version with
+# GITMATTER_IMAGE (e.g. ghcr.io/peteqian/gitmatter:v1.2.3).
+#
+# Postgres and Docling publish on 127.0.0.1 only — never reachable from outside
+# the host. The loopback ports let a locally-run `bun dev` (outside the compose
+# network) reach them; the in-compose web service uses the internal hostnames.
 services:
   postgres:
     image: pgvector/pgvector:pg17
+    restart: unless-stopped
     environment:
       POSTGRES_USER: gitmatter
       POSTGRES_PASSWORD: gitmatter
       POSTGRES_DB: gitmatter
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,13 +31,13 @@ services:
       timeout: 5s
       retries: 10
 
-  # Docling document parser as a sidecar. No auth -> internal network only.
-  # Pinned (not :latest) so a restart can't silently pull a different version;
-  # override DOCLING_IMAGE to bump.
+  # Docling document parser. Pinned (not :latest); override DOCLING_IMAGE to bump.
+  # No auth, so loopback-only (see header).
   docling:
     image: ${DOCLING_IMAGE:-quay.io/docling-project/docling-serve-cpu:v1.24.0}
-    expose:
-      - "5001"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5001:5001"
     healthcheck:
       test:
         [
@@ -40,29 +49,12 @@ services:
       retries: 6
       start_period: 30s
 
-  # One-shot schema migration. Runs to completion before web starts; keeps the
-  # serving container immutable (no schema mutation at app boot).
-  migrate:
-    build:
-      context: .
-      dockerfile: infrastructure/Dockerfile.web
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgres://gitmatter:gitmatter@postgres:5432/gitmatter
-    command: ["sh", "-c", "cd /app/packages/db && bun run migrate"]
-    restart: "no"
-
   web:
-    build:
-      context: .
-      dockerfile: infrastructure/Dockerfile.web
+    image: ${GITMATTER_IMAGE:-ghcr.io/peteqian/gitmatter:latest}
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
       docling:
         condition: service_healthy
     environment:
@@ -70,6 +62,13 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set in .env}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4280}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set in .env}
+      # S3-compatible object storage (required — no local fallback).
+      S3_ENDPOINT: ${S3_ENDPOINT:?set in .env}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set in .env}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set in .env}
+      S3_BUCKET: ${S3_BUCKET:-gitmatter}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
       COURTLISTENER_API_TOKEN: ${COURTLISTENER_API_TOKEN:-}
       DOCLING_URL: http://docling:5001/v1/convert/source
       PORT: "4280"
