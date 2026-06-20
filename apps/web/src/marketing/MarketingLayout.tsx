@@ -27,6 +27,12 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         </Link>
         <nav className="flex items-center gap-1 text-sm">
           <Link
+            to="/use-cases"
+            className="rounded-md px-3 py-2 text-muted-foreground hover:text-foreground"
+          >
+            Use cases
+          </Link>
+          <Link
             to="/about"
             className="rounded-md px-3 py-2 text-muted-foreground hover:text-foreground"
           >
@@ -64,6 +70,12 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <Wordmark />
           </div>
           <nav className="flex flex-wrap items-center gap-4">
+            <Link to="/use-cases" className="hover:text-foreground">
+              Use cases
+            </Link>
+            <Link to="/compare" className="hover:text-foreground">
+              Compare
+            </Link>
             <a href={SITE.docs} className="hover:text-foreground">
               Docs
             </a>

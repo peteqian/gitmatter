@@ -17,6 +17,7 @@ import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as UnauthSignupRouteImport } from './routes/_unauth/signup'
 import { Route as UnauthLoginRouteImport } from './routes/_unauth/login'
 import { Route as DotwellKnownSplatRouteImport } from './routes/[.]well-known/$'
+import { Route as marketingUseCasesRouteImport } from './routes/(marketing)/use-cases'
 import { Route as marketingTermsRouteImport } from './routes/(marketing)/terms'
 import { Route as marketingSecurityRouteImport } from './routes/(marketing)/security'
 import { Route as marketingPrivacyRouteImport } from './routes/(marketing)/privacy'
@@ -28,9 +29,15 @@ import { Route as AuthMattersIndexRouteImport } from './routes/_auth/matters/ind
 import { Route as AuthDocumentsIndexRouteImport } from './routes/_auth/documents/index'
 import { Route as AuthClientsIndexRouteImport } from './routes/_auth/clients/index'
 import { Route as AuthAssistantIndexRouteImport } from './routes/_auth/assistant/index'
+import { Route as marketingCompareIndexRouteImport } from './routes/(marketing)/compare.index'
 import { Route as AuthReviewsIdRouteImport } from './routes/_auth/reviews/$id'
 import { Route as AuthDocumentsIdRouteImport } from './routes/_auth/documents/$id'
 import { Route as AuthAssistantIdRouteImport } from './routes/_auth/assistant/$id'
+import { Route as marketingCompareSpellbookRouteImport } from './routes/(marketing)/compare.spellbook'
+import { Route as marketingCompareLegalonRouteImport } from './routes/(marketing)/compare.legalon'
+import { Route as marketingCompareLegalflyRouteImport } from './routes/(marketing)/compare.legalfly'
+import { Route as marketingCompareHarveyRouteImport } from './routes/(marketing)/compare.harvey'
+import { Route as marketingCompareGitlawRouteImport } from './routes/(marketing)/compare.gitlaw'
 import { Route as AuthMattersIdIndexRouteImport } from './routes/_auth/matters/$id/index'
 import { Route as AuthWorkflowsTabularReviewIdRouteImport } from './routes/_auth/workflows/tabular-review/$id'
 import { Route as AuthWorkflowsAssistantIdRouteImport } from './routes/_auth/workflows/assistant/$id'
@@ -73,6 +80,11 @@ const DotwellKnownSplatRoute = DotwellKnownSplatRouteImport.update({
   id: '/.well-known/$',
   path: '/.well-known/$',
   getParentRoute: () => rootRouteImport,
+} as any)
+const marketingUseCasesRoute = marketingUseCasesRouteImport.update({
+  id: '/use-cases',
+  path: '/use-cases',
+  getParentRoute: () => marketingRouteRoute,
 } as any)
 const marketingTermsRoute = marketingTermsRouteImport.update({
   id: '/terms',
@@ -129,6 +141,11 @@ const AuthAssistantIndexRoute = AuthAssistantIndexRouteImport.update({
   path: '/assistant/',
   getParentRoute: () => AuthRouteRoute,
 } as any)
+const marketingCompareIndexRoute = marketingCompareIndexRouteImport.update({
+  id: '/compare/',
+  path: '/compare/',
+  getParentRoute: () => marketingRouteRoute,
+} as any)
 const AuthReviewsIdRoute = AuthReviewsIdRouteImport.update({
   id: '/reviews/$id',
   path: '/reviews/$id',
@@ -143,6 +160,33 @@ const AuthAssistantIdRoute = AuthAssistantIdRouteImport.update({
   id: '/assistant/$id',
   path: '/assistant/$id',
   getParentRoute: () => AuthRouteRoute,
+} as any)
+const marketingCompareSpellbookRoute =
+  marketingCompareSpellbookRouteImport.update({
+    id: '/compare/spellbook',
+    path: '/compare/spellbook',
+    getParentRoute: () => marketingRouteRoute,
+  } as any)
+const marketingCompareLegalonRoute = marketingCompareLegalonRouteImport.update({
+  id: '/compare/legalon',
+  path: '/compare/legalon',
+  getParentRoute: () => marketingRouteRoute,
+} as any)
+const marketingCompareLegalflyRoute =
+  marketingCompareLegalflyRouteImport.update({
+    id: '/compare/legalfly',
+    path: '/compare/legalfly',
+    getParentRoute: () => marketingRouteRoute,
+  } as any)
+const marketingCompareHarveyRoute = marketingCompareHarveyRouteImport.update({
+  id: '/compare/harvey',
+  path: '/compare/harvey',
+  getParentRoute: () => marketingRouteRoute,
+} as any)
+const marketingCompareGitlawRoute = marketingCompareGitlawRouteImport.update({
+  id: '/compare/gitlaw',
+  path: '/compare/gitlaw',
+  getParentRoute: () => marketingRouteRoute,
 } as any)
 const AuthMattersIdIndexRoute = AuthMattersIdIndexRouteImport.update({
   id: '/matters/$id/',
@@ -180,13 +224,20 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof marketingPrivacyRoute
   '/security': typeof marketingSecurityRoute
   '/terms': typeof marketingTermsRoute
+  '/use-cases': typeof marketingUseCasesRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/login': typeof UnauthLoginRoute
   '/signup': typeof UnauthSignupRoute
   '/api/$': typeof ApiSplatRoute
+  '/compare/gitlaw': typeof marketingCompareGitlawRoute
+  '/compare/harvey': typeof marketingCompareHarveyRoute
+  '/compare/legalfly': typeof marketingCompareLegalflyRoute
+  '/compare/legalon': typeof marketingCompareLegalonRoute
+  '/compare/spellbook': typeof marketingCompareSpellbookRoute
   '/assistant/$id': typeof AuthAssistantIdRoute
   '/documents/$id': typeof AuthDocumentsIdRoute
   '/reviews/$id': typeof AuthReviewsIdRoute
+  '/compare/': typeof marketingCompareIndexRoute
   '/assistant/': typeof AuthAssistantIndexRoute
   '/clients/': typeof AuthClientsIndexRoute
   '/documents/': typeof AuthDocumentsIndexRoute
@@ -206,13 +257,20 @@ export interface FileRoutesByTo {
   '/privacy': typeof marketingPrivacyRoute
   '/security': typeof marketingSecurityRoute
   '/terms': typeof marketingTermsRoute
+  '/use-cases': typeof marketingUseCasesRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/login': typeof UnauthLoginRoute
   '/signup': typeof UnauthSignupRoute
   '/api/$': typeof ApiSplatRoute
+  '/compare/gitlaw': typeof marketingCompareGitlawRoute
+  '/compare/harvey': typeof marketingCompareHarveyRoute
+  '/compare/legalfly': typeof marketingCompareLegalflyRoute
+  '/compare/legalon': typeof marketingCompareLegalonRoute
+  '/compare/spellbook': typeof marketingCompareSpellbookRoute
   '/assistant/$id': typeof AuthAssistantIdRoute
   '/documents/$id': typeof AuthDocumentsIdRoute
   '/reviews/$id': typeof AuthReviewsIdRoute
+  '/compare': typeof marketingCompareIndexRoute
   '/assistant': typeof AuthAssistantIndexRoute
   '/clients': typeof AuthClientsIndexRoute
   '/documents': typeof AuthDocumentsIndexRoute
@@ -235,14 +293,21 @@ export interface FileRoutesById {
   '/(marketing)/privacy': typeof marketingPrivacyRoute
   '/(marketing)/security': typeof marketingSecurityRoute
   '/(marketing)/terms': typeof marketingTermsRoute
+  '/(marketing)/use-cases': typeof marketingUseCasesRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/_unauth/login': typeof UnauthLoginRoute
   '/_unauth/signup': typeof UnauthSignupRoute
   '/api/$': typeof ApiSplatRoute
   '/(marketing)/': typeof marketingIndexRoute
+  '/(marketing)/compare/gitlaw': typeof marketingCompareGitlawRoute
+  '/(marketing)/compare/harvey': typeof marketingCompareHarveyRoute
+  '/(marketing)/compare/legalfly': typeof marketingCompareLegalflyRoute
+  '/(marketing)/compare/legalon': typeof marketingCompareLegalonRoute
+  '/(marketing)/compare/spellbook': typeof marketingCompareSpellbookRoute
   '/_auth/assistant/$id': typeof AuthAssistantIdRoute
   '/_auth/documents/$id': typeof AuthDocumentsIdRoute
   '/_auth/reviews/$id': typeof AuthReviewsIdRoute
+  '/(marketing)/compare/': typeof marketingCompareIndexRoute
   '/_auth/assistant/': typeof AuthAssistantIndexRoute
   '/_auth/clients/': typeof AuthClientsIndexRoute
   '/_auth/documents/': typeof AuthDocumentsIndexRoute
@@ -264,13 +329,20 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/security'
     | '/terms'
+    | '/use-cases'
     | '/.well-known/$'
     | '/login'
     | '/signup'
     | '/api/$'
+    | '/compare/gitlaw'
+    | '/compare/harvey'
+    | '/compare/legalfly'
+    | '/compare/legalon'
+    | '/compare/spellbook'
     | '/assistant/$id'
     | '/documents/$id'
     | '/reviews/$id'
+    | '/compare/'
     | '/assistant/'
     | '/clients/'
     | '/documents/'
@@ -290,13 +362,20 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/security'
     | '/terms'
+    | '/use-cases'
     | '/.well-known/$'
     | '/login'
     | '/signup'
     | '/api/$'
+    | '/compare/gitlaw'
+    | '/compare/harvey'
+    | '/compare/legalfly'
+    | '/compare/legalon'
+    | '/compare/spellbook'
     | '/assistant/$id'
     | '/documents/$id'
     | '/reviews/$id'
+    | '/compare'
     | '/assistant'
     | '/clients'
     | '/documents'
@@ -318,14 +397,21 @@ export interface FileRouteTypes {
     | '/(marketing)/privacy'
     | '/(marketing)/security'
     | '/(marketing)/terms'
+    | '/(marketing)/use-cases'
     | '/.well-known/$'
     | '/_unauth/login'
     | '/_unauth/signup'
     | '/api/$'
     | '/(marketing)/'
+    | '/(marketing)/compare/gitlaw'
+    | '/(marketing)/compare/harvey'
+    | '/(marketing)/compare/legalfly'
+    | '/(marketing)/compare/legalon'
+    | '/(marketing)/compare/spellbook'
     | '/_auth/assistant/$id'
     | '/_auth/documents/$id'
     | '/_auth/reviews/$id'
+    | '/(marketing)/compare/'
     | '/_auth/assistant/'
     | '/_auth/clients/'
     | '/_auth/documents/'
@@ -406,6 +492,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotwellKnownSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/(marketing)/use-cases': {
+      id: '/(marketing)/use-cases'
+      path: '/use-cases'
+      fullPath: '/use-cases'
+      preLoaderRoute: typeof marketingUseCasesRouteImport
+      parentRoute: typeof marketingRouteRoute
+    }
     '/(marketing)/terms': {
       id: '/(marketing)/terms'
       path: '/terms'
@@ -483,6 +576,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAssistantIndexRouteImport
       parentRoute: typeof AuthRouteRoute
     }
+    '/(marketing)/compare/': {
+      id: '/(marketing)/compare/'
+      path: '/compare'
+      fullPath: '/compare/'
+      preLoaderRoute: typeof marketingCompareIndexRouteImport
+      parentRoute: typeof marketingRouteRoute
+    }
     '/_auth/reviews/$id': {
       id: '/_auth/reviews/$id'
       path: '/reviews/$id'
@@ -503,6 +603,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/assistant/$id'
       preLoaderRoute: typeof AuthAssistantIdRouteImport
       parentRoute: typeof AuthRouteRoute
+    }
+    '/(marketing)/compare/spellbook': {
+      id: '/(marketing)/compare/spellbook'
+      path: '/compare/spellbook'
+      fullPath: '/compare/spellbook'
+      preLoaderRoute: typeof marketingCompareSpellbookRouteImport
+      parentRoute: typeof marketingRouteRoute
+    }
+    '/(marketing)/compare/legalon': {
+      id: '/(marketing)/compare/legalon'
+      path: '/compare/legalon'
+      fullPath: '/compare/legalon'
+      preLoaderRoute: typeof marketingCompareLegalonRouteImport
+      parentRoute: typeof marketingRouteRoute
+    }
+    '/(marketing)/compare/legalfly': {
+      id: '/(marketing)/compare/legalfly'
+      path: '/compare/legalfly'
+      fullPath: '/compare/legalfly'
+      preLoaderRoute: typeof marketingCompareLegalflyRouteImport
+      parentRoute: typeof marketingRouteRoute
+    }
+    '/(marketing)/compare/harvey': {
+      id: '/(marketing)/compare/harvey'
+      path: '/compare/harvey'
+      fullPath: '/compare/harvey'
+      preLoaderRoute: typeof marketingCompareHarveyRouteImport
+      parentRoute: typeof marketingRouteRoute
+    }
+    '/(marketing)/compare/gitlaw': {
+      id: '/(marketing)/compare/gitlaw'
+      path: '/compare/gitlaw'
+      fullPath: '/compare/gitlaw'
+      preLoaderRoute: typeof marketingCompareGitlawRouteImport
+      parentRoute: typeof marketingRouteRoute
     }
     '/_auth/matters/$id/': {
       id: '/_auth/matters/$id/'
@@ -547,7 +682,14 @@ interface marketingRouteRouteChildren {
   marketingPrivacyRoute: typeof marketingPrivacyRoute
   marketingSecurityRoute: typeof marketingSecurityRoute
   marketingTermsRoute: typeof marketingTermsRoute
+  marketingUseCasesRoute: typeof marketingUseCasesRoute
   marketingIndexRoute: typeof marketingIndexRoute
+  marketingCompareGitlawRoute: typeof marketingCompareGitlawRoute
+  marketingCompareHarveyRoute: typeof marketingCompareHarveyRoute
+  marketingCompareLegalflyRoute: typeof marketingCompareLegalflyRoute
+  marketingCompareLegalonRoute: typeof marketingCompareLegalonRoute
+  marketingCompareSpellbookRoute: typeof marketingCompareSpellbookRoute
+  marketingCompareIndexRoute: typeof marketingCompareIndexRoute
 }
 
 const marketingRouteRouteChildren: marketingRouteRouteChildren = {
@@ -555,7 +697,14 @@ const marketingRouteRouteChildren: marketingRouteRouteChildren = {
   marketingPrivacyRoute: marketingPrivacyRoute,
   marketingSecurityRoute: marketingSecurityRoute,
   marketingTermsRoute: marketingTermsRoute,
+  marketingUseCasesRoute: marketingUseCasesRoute,
   marketingIndexRoute: marketingIndexRoute,
+  marketingCompareGitlawRoute: marketingCompareGitlawRoute,
+  marketingCompareHarveyRoute: marketingCompareHarveyRoute,
+  marketingCompareLegalflyRoute: marketingCompareLegalflyRoute,
+  marketingCompareLegalonRoute: marketingCompareLegalonRoute,
+  marketingCompareSpellbookRoute: marketingCompareSpellbookRoute,
+  marketingCompareIndexRoute: marketingCompareIndexRoute,
 }
 
 const marketingRouteRouteWithChildren = marketingRouteRoute._addFileChildren(
