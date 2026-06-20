@@ -23,9 +23,6 @@ todos.json
 # local scratch (screenshots etc)
 .scratch
 
-# local plans
-.plans
-
 # gitmatter CLI build artifacts
 cli/dist/
 

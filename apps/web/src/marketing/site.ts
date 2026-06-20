@@ -5,4 +5,8 @@ export const SITE = {
   url: "https://gitmatter.com", // production origin — canonical/OG/sitemap base
   github: "https://github.com/your-org/gitmatter", // TODO: real repo URL
   docs: "/docs",
+  email: "contact@gitmatter.com", // single contact address for legal/privacy/security
+  get contact() {
+    return `mailto:${this.email}`;
+  },
 };

@@ -2,6 +2,7 @@
   "name": "gitmatter",
   "version": "0.0.1",
   "private": true,
+  "license": "AGPL-3.0-only",
   "scripts": {
     "build": "turbo run build",
     "docs:build": "turbo run build --filter=docs",
