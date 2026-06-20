@@ -32,6 +32,11 @@ import { clientMeta } from "./lib/request-meta.js";
 import { type AuthEnv, requireUser } from "./middleware/auth.js";
 import { ipKey, rateLimit, tokenOrIpKey } from "./middleware/rate-limit.js";
 import { requestLog } from "./middleware/request-log.js";
+import { initSentry, Sentry } from "../observability/sentry.js";
+
+// Initialize error tracking first, so anything thrown during boot is captured.
+// No-op when SENTRY_DSN is unset.
+initSentry();
 
 // Probe which AI providers have a server env key at boot, so the model catalog
 // can mark unavailable ones. Logs the result for ops visibility.
@@ -70,6 +75,22 @@ export const app = new Hono<AuthEnv>();
 
 // Structured request logging first, so every request (incl. health) is logged.
 app.use("*", requestLog);
+
+// Unhandled route errors: report to Sentry, then fall through to Hono's default
+// 500 response. The user (if any) is attached for attribution; no body is sent.
+app.onError((err, c) => {
+  const user = c.get("user");
+  // captureException carries the stack; logged directly (not via logEvent) so
+  // the error sink does not also send a duplicate message for the same error.
+  Sentry.captureException(err, {
+    user: user ? { id: user.id } : undefined,
+    tags: { method: c.req.method, path: c.req.routePath },
+  });
+  console.log(
+    JSON.stringify({ level: "error", msg: "unhandled", path: c.req.path, error: String(err) })
+  );
+  return c.json({ error: "Internal Server Error" }, 500);
+});
 
 // Liveness: is the process up? Cheap, no dependencies — for restart probes.
 app.get("/api/health", (c) => c.json({ ok: true }));

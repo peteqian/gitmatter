@@ -77,10 +77,11 @@ export default function Security() {
       <h2>Subprocessors and hosting</h2>
       <p>
         The hosted service runs on third-party infrastructure, object storage, authentication,
-        email, and AI model providers. Document and prompt content is sent only to the AI provider
-        you select (Anthropic, Google, OpenAI, or OpenRouter), under your own key where configured.
-        gitmatter does not train models on your data. A current list of subprocessors is available
-        on request.
+        email, error monitoring, and AI model providers. Error reports are scrubbed of document
+        content, keys, request bodies, and credentials before they leave our servers and are
+        processed in the EU. Document and prompt content is sent only to the AI provider you select
+        (Anthropic, Google, OpenAI, or OpenRouter), under your own key where configured. gitmatter
+        does not train models on your data. A current list of subprocessors is available on request.
       </p>
 
       <h2>Vulnerability management</h2>

@@ -46,6 +46,10 @@ export default function Privacy() {
         <li>Prompts, chat history, reviews, extractions, and AI outputs</li>
         <li>The audit spine: commits, authors, messages, field-level diffs, and blame</li>
         <li>Security-event and usage logs, settings, and preferences</li>
+        <li>
+          Error and diagnostic data (crash reports), with document content, keys, request bodies,
+          and credentials stripped before they leave our servers
+        </li>
         <li>Messages you send us by email</li>
       </ul>
 
@@ -128,10 +132,10 @@ export default function Privacy() {
       <p>
         We do not sell your personal information. We share information only with subprocessors and
         partners that help us operate the Service — infrastructure and hosting, object storage,
-        authentication, email, analytics, and the AI model provider you select — and only as needed
-        to run it. We may also disclose information with your consent or at your direction, to
-        comply with legal obligations or court orders, or to protect rights, safety, security, or
-        property. A current list of subprocessors is available on request.
+        authentication, email, analytics, error monitoring, and the AI model provider you select —
+        and only as needed to run it. We may also disclose information with your consent or at your
+        direction, to comply with legal obligations or court orders, or to protect rights, safety,
+        security, or property. A current list of subprocessors is available on request.
       </p>
 
       <h2>11. International data transfers</h2>
