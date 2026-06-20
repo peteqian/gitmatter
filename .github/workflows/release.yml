@@ -121,20 +121,26 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.deployment }}
           cache-to: type=gha,mode=max,scope=${{ matrix.deployment }}
 
-  # Auto-deploy the freshly pushed -cloud image to the production VPS by pinging
-  # its Coolify/Dokploy redeploy webhook. The platform pulls + restarts; CI only
-  # fires the hook. Skips cleanly when the webhook secret is unset (e.g. forks).
   deploy-prod:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Connect Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
       - name: Trigger production redeploy
         env:
-          WEBHOOK: ${{ secrets.PROD_WEBHOOK_URL }}
-          TOKEN: ${{ secrets.PROD_WEBHOOK_TOKEN }}
+          DOKPLOY_URL: ${{ secrets.PROD_DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.PROD_DOKPLOY_API_KEY }}
+          APP_ID: ${{ secrets.PROD_DOKPLOY_APP_ID }}
         run: |
-          if [ -z "$WEBHOOK" ]; then
-            echo "PROD_WEBHOOK_URL unset — skipping deploy."
+          if [ -z "$DOKPLOY_URL" ]; then
+            echo "PROD_DOKPLOY_URL unset — skipping deploy."
             exit 0
           fi
-          curl -fsSL -X POST "$WEBHOOK" ${TOKEN:+-H "Authorization: Bearer $TOKEN"}
+          curl -fsSL -X POST "$DOKPLOY_URL/api/application.deploy" \
+            -H "x-api-key: $DOKPLOY_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"applicationId\":\"$APP_ID\"}"
