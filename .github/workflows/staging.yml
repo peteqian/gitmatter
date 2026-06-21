@@ -46,6 +46,11 @@ jobs:
           # BETTER_AUTH_SECRET only clears better-auth's default-secret check.
           DATABASE_URL: postgres://build:build@127.0.0.1:5432/build
           BETTER_AUTH_SECRET: build-only-not-a-real-secret-000000
+          # Public Turnstile site key for staging.gitmatter.com — baked into the
+          # client bundle here (vite define). Public by design (ships to every
+          # browser), so it lives in the workflow, not a secret. The matching
+          # TURNSTILE_SECRET_KEY is set as runtime env on the dokploy app.
+          TURNSTILE_SITE_KEY: 0x4AAAAAADoWezFOHdsCDIF
         run: cd apps/web && bun run build
 
       - name: Log in to GHCR
