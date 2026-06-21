@@ -50,7 +50,7 @@ jobs:
           # client bundle here (vite define). Public by design (ships to every
           # browser), so it lives in the workflow, not a secret. The matching
           # TURNSTILE_SECRET_KEY is set as runtime env on the dokploy app.
-          TURNSTILE_SITE_KEY: 0x4AAAAAADoWezFOHdsCDIF
+          TURNSTILE_SITE_KEY: "0x4AAAAAADoWezFOHdsCDIF-"
         run: cd apps/web && bun run build
 
       - name: Log in to GHCR
