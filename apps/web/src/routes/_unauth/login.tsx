@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { signIn } from "../../lib/auth/auth-client";
 import { AuthShell } from "./-components/AuthShell";
+import { Turnstile, turnstileEnabled } from "./-components/Turnstile";
 import { FormError } from "../../components/form/FormError";
 
 export const Route = createFileRoute("/_unauth/login")({
@@ -23,14 +24,25 @@ function Login() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  // Bumped to force a fresh Turnstile challenge after a failed attempt — tokens
+  // are single-use.
+  const [captchaKey, setCaptchaKey] = useState(0);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setBusy(true);
-    const { error: signInError } = await signIn.email({ email, password });
+    const { error: signInError } = await signIn.email(
+      { email, password },
+      captchaToken ? { headers: { "x-captcha-response": captchaToken } } : undefined
+    );
     setBusy(false);
-    if (signInError) return setError(signInError.message ?? "Sign in failed");
+    if (signInError) {
+      setCaptchaToken(null);
+      setCaptchaKey((k) => k + 1);
+      return setError(signInError.message ?? "Sign in failed");
+    }
     // Full reload (not a client nav) so the server beforeLoad re-resolves the
     // now-authenticated session and SSRs the app shell. Bounce to a local
     // `next` (gated route or OAuth /authorize); only local paths, to avoid an
@@ -65,8 +77,13 @@ function Login() {
                 required
               />
             </div>
+            <Turnstile key={captchaKey} onToken={setCaptchaToken} />
             <FormError>{error}</FormError>
-            <Button type="submit" disabled={busy} className="w-full">
+            <Button
+              type="submit"
+              disabled={busy || (turnstileEnabled && !captchaToken)}
+              className="w-full"
+            >
               {busy ? "Signing in…" : "Log in"}
             </Button>
           </form>

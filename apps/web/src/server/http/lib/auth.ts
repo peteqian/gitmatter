@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { captcha } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import {
   emailEnabled,
@@ -86,8 +87,22 @@ export const auth = betterAuth({
       },
     },
   },
-  // Ensures Set-Cookie survives TanStack Start server-fn responses.
-  plugins: [tanstackStartCookies()],
+  plugins: [
+    // Cloudflare Turnstile bot protection on sign-up / sign-in / password-reset.
+    // Verifies the `x-captcha-response` header server-side against Cloudflare.
+    // Gated on the secret: unset (local dev) leaves auth open so accounts stay
+    // usable without a widget. Set TURNSTILE_SECRET_KEY on staging/prod to enforce.
+    ...(getEnv("TURNSTILE_SECRET_KEY")
+      ? [
+          captcha({
+            provider: "cloudflare-turnstile",
+            secretKey: getEnv("TURNSTILE_SECRET_KEY") as string,
+          }),
+        ]
+      : []),
+    // Ensures Set-Cookie survives TanStack Start server-fn responses.
+    tanstackStartCookies(),
+  ],
 });
 
 export type Session = typeof auth.$Infer.Session;

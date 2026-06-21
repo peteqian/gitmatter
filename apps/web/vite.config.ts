@@ -57,6 +57,9 @@ const prerenderOptions =
 const config = defineConfig({
   define: {
     "import.meta.env.VITE_DEPLOYMENT": JSON.stringify(deployment),
+    // Public Turnstile site key, baked in as a build constant (safe to expose).
+    // Empty when unset, which disables the widget client-side.
+    "import.meta.env.VITE_TURNSTILE_SITE_KEY": JSON.stringify(process.env.TURNSTILE_SITE_KEY ?? ""),
   },
   // Vite DevTools (build-mode analysis: module graph, bundle, tree-shaking).
   // Off by default — it serves an interactive UI and blocks the build. Opt in
