@@ -1,0 +1,88 @@
+/* Custom design tokens — everything we invented on top of the shadcn baseline.
+   The standard shadcn token set (and our re-themed values for it) stays in
+   globals.css; anything original lives here so the two never tangle. */
+
+@theme inline {
+  /* Editorial serif heading face (font-heading utility). */
+  --font-heading: var(--font-serif);
+
+  /* Subtle error surface (bg-destructive-surface, border-destructive-border).
+     Values per theme below; text on it stays --destructive. */
+  --color-destructive-surface: var(--destructive-surface);
+  --color-destructive-border: var(--destructive-border);
+
+  /* Quiet Bronze — the one accent (DESIGN.md "One Voice Rule"). State cues
+     only: commit/audit markers, agent-authored indicators, citations,
+     selected-state dots. text-bronze on bg-bronze-tint, or a 6px bg-bronze
+     dot beside label text. Never decoration; ≤10% of any screen. */
+  --color-bronze: var(--bronze);
+  --color-bronze-tint: var(--bronze-tint);
+
+  /* Semantic spacing scale. Use these named utilities instead of raw numbers
+     so vertical rhythm stays consistent across the app:
+       field   -> label <-> control inside one form field (gap-field)
+       stack   -> between sibling blocks in a list/form (gap-stack, space-y-stack)
+       section -> between distinct page sections (space-y-section, gap-section)
+       page    -> page top breathing room, set once on the shell container (pt-page) */
+  --spacing-field: 0.375rem;
+  --spacing-stack: 1rem;
+  --spacing-section: 2.5rem;
+  --spacing-page: 2rem;
+}
+
+:root {
+  /* Subtle error surface — tinted bg + border that read against the warm paper
+     background. Text on it stays --destructive. */
+  --destructive-surface: oklch(0.955 0.035 27);
+  --destructive-border: oklch(0.86 0.075 27);
+
+  /* Slate-blue accent + its wash (token kept named "bronze" so every existing
+     text-bronze / bg-bronze-tint utility recolours in place). */
+  --bronze: oklch(0.47 0.11 264);
+  --bronze-tint: oklch(0.93 0.03 264);
+}
+
+.dark {
+  --destructive-surface: oklch(0.26 0.055 27);
+  --destructive-border: oklch(0.4 0.09 27);
+
+  --bronze: oklch(0.65 0.12 264);
+  --bronze-tint: oklch(0.3 0.05 264);
+}
+
+/* ---- mike-inspired chrome, in Quiet Chambers tones ----
+   Frosted "paper-glass" surface (mike's backdrop-blur panels, but our warm
+   ivory rather than cool grey) used for the sidebar, modals, and side panels. */
+@utility glass-panel {
+  background-color: color-mix(in oklab, var(--card) 78%, transparent);
+  border: 1px solid color-mix(in oklab, var(--background) 70%, white 30%);
+  backdrop-filter: blur(24px);
+  box-shadow:
+    0 -2px 7px oklch(0.21 0.012 264 / 0.04),
+    0 5px 14px oklch(0.21 0.012 264 / 0.08),
+    inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+
+/* Stronger frosted overlay for modal backdrops. */
+@utility glass-scrim {
+  background-color: color-mix(in oklab, var(--background) 40%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+/* Sticky left "name" column for the dense mike-style tables — tinted so it
+   reads as pinned while rows scroll horizontally beneath it. */
+@utility sticky-name {
+  position: sticky;
+  left: 0;
+  z-index: 30;
+  background-color: color-mix(in oklab, var(--card) 92%, var(--muted) 8%);
+}
+
+/* Large serif title input used in the New-* modals (mike's editorial inputs). */
+@utility serif-input {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  background: transparent;
+  outline: none;
+}

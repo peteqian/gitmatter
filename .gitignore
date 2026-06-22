@@ -1,0 +1,36 @@
+node_modules
+.DS_Store
+dist
+dist-ssr
+*.local
+.env*
+.tanstack
+.wrangler
+.output
+.vinxi
+.source
+.next
+next-env.d.ts
+__unconfig*
+todos.json
+
+# turbo
+.turbo
+
+# typescript
+*.tsbuildinfo
+
+# local scratch (screenshots etc)
+.scratch
+
+# gitmatter CLI build artifacts
+cli/dist/
+
+# remotion bundle output
+apps/video/build/
+
+# test artifacts
+test-results/
+
+# MCP server config (contains API keys)
+.mcp.json

@@ -1,0 +1,58 @@
+# Full self-host stack for end users. Pulls the prebuilt web image (no build from
+# source) alongside bundled Postgres, then serves the app on
+# http://localhost:4280. The web image applies schema migrations on startup, so
+# there is no separate migrate step.
+#
+#   cp .env.example .env       # then fill BETTER_AUTH_SECRET, ENCRYPTION_KEY, S3_*
+#   docker compose up -d
+#
+# Storage is bring-your-own: the app requires an S3-compatible bucket (Cloudflare
+# R2, AWS S3, MinIO, …) — set the S3_* vars in .env. Pin a version with
+# GITMATTER_IMAGE (e.g. ghcr.io/peteqian/gitmatter:v1.2.3).
+#
+# Postgres publishes on 127.0.0.1 only — never reachable from outside the host.
+# The loopback port lets a locally-run `bun dev` (outside the compose network)
+# reach it; the in-compose web service uses the internal hostname.
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gitmatter
+      POSTGRES_PASSWORD: gitmatter
+      POSTGRES_DB: gitmatter
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gitmatter"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    image: ${GITMATTER_IMAGE:-ghcr.io/peteqian/gitmatter:latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://gitmatter:gitmatter@postgres:5432/gitmatter
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set in .env}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4280}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set in .env}
+      # S3-compatible object storage (required — no local fallback).
+      S3_ENDPOINT: ${S3_ENDPOINT:?set in .env}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set in .env}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set in .env}
+      S3_BUCKET: ${S3_BUCKET:-gitmatter}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      COURTLISTENER_API_TOKEN: ${COURTLISTENER_API_TOKEN:-}
+      PORT: "4280"
+    ports:
+      - "4280:4280"
+
+volumes:
+  pgdata:

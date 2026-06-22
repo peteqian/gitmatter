@@ -1,0 +1,7 @@
+# node_modules is reinstalled inside the image so native bindings match the
+# image platform — never copy the host's. apps/web/dist (gitignored) IS needed
+# in the build context, so it is deliberately not excluded here.
+**/node_modules
+.git
+.github
+*.log

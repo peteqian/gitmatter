@@ -1,0 +1,165 @@
+import { createColumnHelper } from "@tanstack/react-table";
+import { MoreHorizontal } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { SharedWithCell } from "@/components/SharedWithCell";
+import { fileTypeLabel } from "@/lib/format/documentLabels";
+import { formatShortDate } from "@/lib/format/format";
+import type { Doc } from "@/lib/data/api";
+import { DocumentStatusBadge } from "./DocumentStatusBadge";
+
+const columnHelper = createColumnHelper<Doc>();
+
+export function documentColumns(handlers: {
+  onRetry: (id: string) => void;
+  onDownload: (id: string) => void;
+  onDelete: (doc: Doc) => void;
+  onManagePeople: (doc: Doc) => void;
+}) {
+  return [
+    columnHelper.display({
+      id: "select",
+      size: 44,
+      enableResizing: false,
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllRowsSelected()}
+          onChange={table.getToggleAllRowsSelectedHandler()}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onChange={row.getToggleSelectedHandler()}
+          onClick={(e) => e.stopPropagation()}
+          aria-label="Select row"
+        />
+      ),
+    }),
+    columnHelper.accessor("title", {
+      header: "Title",
+      size: 360,
+      cell: (c) => <span className="block truncate font-medium">{c.getValue()}</span>,
+    }),
+    columnHelper.accessor("fileType", {
+      header: "Type",
+      size: 90,
+      cell: (c) => (
+        <span className="text-muted-foreground uppercase">{fileTypeLabel(c.getValue())}</span>
+      ),
+    }),
+    columnHelper.accessor("matterName", {
+      id: "matter",
+      header: "Matter",
+      size: 180,
+      cell: (c) => (
+        <span className="block truncate text-muted-foreground">{c.getValue() ?? "—"}</span>
+      ),
+    }),
+    columnHelper.accessor("versionNumber", {
+      id: "version",
+      header: "Version",
+      size: 80,
+      cell: (c) => {
+        const v = c.getValue();
+        return <span className="text-muted-foreground">{v != null ? `v${v}` : "—"}</span>;
+      },
+    }),
+    columnHelper.accessor("status", {
+      header: "Status",
+      size: 110,
+      cell: (c) => {
+        const doc = c.row.original;
+        return (
+          <div className="flex items-center gap-1.5">
+            <DocumentStatusBadge status={c.getValue()} />
+            {doc.status === "ready" && doc.ocrSuggested && (
+              <span
+                className="text-xs text-bronze"
+                title="This PDF may be scanned — little text could be extracted"
+              >
+                Low text
+              </span>
+            )}
+          </div>
+        );
+      },
+    }),
+    columnHelper.accessor("createdAt", {
+      header: "Added",
+      size: 130,
+      cell: (c) => <span className="text-muted-foreground">{formatShortDate(c.getValue())}</span>,
+    }),
+    columnHelper.display({
+      id: "shared",
+      header: "Shared with",
+      size: 130,
+      meta: { noTruncate: true },
+      cell: (c) => {
+        const doc = c.row.original;
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <SharedWithCell
+              count={doc.shareCount}
+              names={doc.sharedNames}
+              onClick={() => handlers.onManagePeople(doc)}
+            />
+          </div>
+        );
+      },
+    }),
+    columnHelper.display({
+      id: "actions",
+      header: "",
+      size: 64,
+      enableResizing: false,
+      meta: { noTruncate: true },
+      cell: (c) => {
+        const doc = c.row.original;
+        const canRetry = doc.status === "failed" || doc.status === "processing";
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground"
+                    title="Actions"
+                    aria-label="Row actions"
+                  />
+                }
+              >
+                <MoreHorizontal className="size-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handlers.onDownload(doc.id)}>
+                  Download
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlers.onManagePeople(doc)}>
+                  Manage people
+                </DropdownMenuItem>
+                {canRetry && (
+                  <DropdownMenuItem onClick={() => handlers.onRetry(doc.id)}>
+                    Retry
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem variant="destructive" onClick={() => handlers.onDelete(doc)}>
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      },
+    }),
+  ];
+}
