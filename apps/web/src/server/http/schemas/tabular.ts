@@ -30,6 +30,13 @@ export const runAllSchema = z.object({
   model: z.string().optional(),
 });
 
+export const updateColumnSchema = z.object({
+  name: z.string().min(1).optional(),
+  prompt: z.string().min(1).optional(),
+  format: z.string().nullish(),
+  tags: z.array(z.string()).optional(),
+});
+
 export const promptSchema = z.object({
   title: z.string().min(1),
   format: z.string().optional(),

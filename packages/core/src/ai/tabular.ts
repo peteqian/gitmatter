@@ -342,6 +342,60 @@ function commitCell(
 }
 
 /**
+ * Edit one column's config (prompt/name/format/tags) in place, recorded as a
+ * commit so the change is attributable. Existing cells keep their values — the
+ * new prompt applies the next time the column is run. Returns the commit.
+ */
+export async function updateReviewColumn(
+  actor: Actor,
+  params: {
+    reviewId: string;
+    columnIndex: number;
+    patch: { name?: string; prompt?: string; format?: string | null; tags?: string[] };
+  }
+) {
+  const [review] = await db
+    .select()
+    .from(tabularReviews)
+    .where(eq(tabularReviews.id, params.reviewId));
+  if (!review) throw new Error("Review not found");
+  const cols = review.columnsConfig;
+  const idx = cols.findIndex((c) => c.index === params.columnIndex);
+  if (idx === -1) throw new Error("Column not found");
+  const before = cols[idx]!;
+  // format is nullable on the wire (null = clear); the column type uses undefined.
+  const { format, ...rest } = params.patch;
+  const after: TabularColumn = {
+    ...before,
+    ...rest,
+    ...(format !== undefined ? { format: format ?? undefined } : {}),
+  };
+  const nextCols = cols.map((c, i) => (i === idx ? after : c));
+  return recordCommit({
+    artifactType: "tabular_review",
+    artifactId: params.reviewId,
+    actor,
+    op: "edit_column",
+    message: `Edited column "${after.name}"`,
+    apply: async ({ tx }) => {
+      await tx
+        .update(tabularReviews)
+        .set({ columnsConfig: nextCols })
+        .where(eq(tabularReviews.id, params.reviewId));
+      return {
+        changes: [
+          {
+            path: `column/${params.columnIndex}`,
+            before: before as unknown,
+            after: after as unknown,
+          },
+        ],
+      };
+    },
+  });
+}
+
+/**
  * Run (or re-run) one cell: extract with the chosen model, then commit. The
  * model picks the provider; the key is the user's own or the server fallback.
  */

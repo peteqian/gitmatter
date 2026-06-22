@@ -29,7 +29,17 @@ import { formatBytes, formatDateTime } from "../../../../lib/format/format";
  * Every mutation here (rename, replace, delete) records a commit on the audit
  * spine; the History section surfaces that papertrail in-panel.
  */
-export function DocumentDrawer({ docId, onClose }: { docId: string | null; onClose: () => void }) {
+export function DocumentDrawer({
+  docId,
+  onClose,
+  page,
+}: {
+  docId: string | null;
+  onClose: () => void;
+  // Optional page to open a PDF at (e.g. jumping to a cited source). Honored by
+  // the browser's inline PDF viewer via the #page=N fragment.
+  page?: number;
+}) {
   const open = docId !== null;
   const [width, setWidth] = useState(1000);
 
@@ -71,7 +81,7 @@ export function DocumentDrawer({ docId, onClose }: { docId: string | null; onClo
             aria-orientation="vertical"
             aria-label="Resize drawer"
           />
-          {docId && <DrawerBody docId={docId} onClose={onClose} />}
+          {docId && <DrawerBody docId={docId} onClose={onClose} page={page} />}
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
@@ -80,7 +90,15 @@ export function DocumentDrawer({ docId, onClose }: { docId: string | null; onClo
 
 type PendingDelete = "doc" | { versionId: string; versionNumber: number } | null;
 
-function DrawerBody({ docId, onClose }: { docId: string; onClose: () => void }) {
+function DrawerBody({
+  docId,
+  onClose,
+  page,
+}: {
+  docId: string;
+  onClose: () => void;
+  page?: number;
+}) {
   const qc = useQueryClient();
   const router = useRouter();
   const { data: session } = useSession();
@@ -270,7 +288,7 @@ function DrawerBody({ docId, onClose }: { docId: string; onClose: () => void }) 
           {showRendered && isPdf ? (
             <iframe
               title={doc.title}
-              src={`${api.documentDownloadUrl(docId)}?inline=1`}
+              src={`${api.documentDownloadUrl(docId)}?inline=1${page ? `#page=${page}` : ""}`}
               className="min-h-0 flex-1 border-0"
             />
           ) : (

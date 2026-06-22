@@ -20,6 +20,7 @@ import {
   runCell,
   runDocument,
   runReviewStreaming,
+  updateReviewColumn,
 } from "@workspace/core";
 import { type AuthEnv } from "../middleware/auth.js";
 import { resolveCreateMatter } from "../lib/matter.js";
@@ -30,6 +31,7 @@ import {
   runAllSchema,
   runCellSchema,
   runDocSchema,
+  updateColumnSchema,
 } from "../schemas/tabular.js";
 
 export const tabularRoute = new Hono<AuthEnv>();
@@ -72,6 +74,26 @@ tabularRoute.get("/api/tabular/reviews/:id", async (c) => {
   if (!result) return c.json({ error: "Not found" }, 404);
   return c.json(result);
 });
+
+// Edit one column's config (prompt/name/format/tags). Editor-only; returns the
+// refreshed review so the client updates its cache in place.
+tabularRoute.patch(
+  "/api/tabular/reviews/:id/columns/:index",
+  zValidator("json", updateColumnSchema),
+  async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    const index = Number(c.req.param("index"));
+    if (!Number.isInteger(index)) return c.json({ error: "Invalid column" }, 400);
+    if (!(await canAccessArtifact(user.id, "tabular_review", id, "editor")))
+      return c.json({ error: "Not found" }, 404);
+    await updateReviewColumn(
+      { type: "user", userId: user.id },
+      { reviewId: id, columnIndex: index, patch: c.req.valid("json") }
+    );
+    return c.json(await getReview(id));
+  }
+);
 
 tabularRoute.post("/api/tabular/reviews/:id/run", zValidator("json", runCellSchema), async (c) => {
   const user = c.get("user");

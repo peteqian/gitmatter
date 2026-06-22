@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Download,
   History as HistoryIcon,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,22 +19,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ActorBadge } from "@/components/ActorBadge";
 import { CommitHistory } from "@/components/CommitHistory";
 import { useSession } from "@/lib/auth/auth-client";
 import { DataTable } from "@/components/DataTable";
 import { ModelPicker } from "@/components/ModelPicker";
 import { PageHeader } from "@/components/PageHeader";
-import {
-  api,
-  type Blame,
-  type Cell,
-  type ReviewDetail,
-  type ReviewStreamCell,
-} from "@/lib/data/api";
+import { api, type Cell, type ReviewDetail, type ReviewStreamCell } from "@/lib/data/api";
 import { useSelectedModel } from "@/lib/hooks/state/useSelectedModel";
 import { DocumentDrawer } from "@/routes/_auth/documents/-components/DocumentDrawer";
+import { CellDetailDrawer } from "./-components/CellDetailDrawer";
 
 export const Route = createFileRoute("/_auth/reviews/$id")({ component: ReviewView });
 
@@ -63,7 +59,10 @@ function ReviewView() {
   useEffect(() => () => runAllAbort.current?.abort(), []);
   const [model, setModel] = useSelectedModel();
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
-  const [previewId, setPreviewId] = useState<string | null>(null);
+  // Source document preview (optionally jumped to a cited page).
+  const [preview, setPreview] = useState<{ docId: string; page?: number } | null>(null);
+  // The cell whose full detail panel is open.
+  const [detail, setDetail] = useState<{ docId: string; columnIndex: number } | null>(null);
   useEffect(() => {
     const saved = localStorage.getItem("reviewHistoryCollapsed");
     if (saved !== null) setHistoryCollapsed(saved === "true");
@@ -205,7 +204,16 @@ function ReviewView() {
     for (const col of review?.columnsConfig ?? []) {
       cols.push({
         id: `col-${col.index}`,
-        header: col.name,
+        header: () => (
+          <ColumnHeader
+            reviewId={id}
+            columnIndex={col.index}
+            name={col.name}
+            prompt={col.prompt}
+            format={col.format}
+            tags={col.tags}
+          />
+        ),
         size: 240,
         cell: ({ row, table }) => {
           const meta = table.options.meta as ReviewMeta;
@@ -215,6 +223,7 @@ function ReviewView() {
               cell={meta.cellOf(row.original.docId, col.index)}
               busy={meta.running.has(key)}
               onRun={() => meta.run(row.original.docId, col.index)}
+              onDetail={() => meta.openDetail(row.original.docId, col.index)}
             />
           );
         },
@@ -229,7 +238,13 @@ function ReviewView() {
     getRowId: (row) => row.docId,
     enableSorting: false,
     getCoreRowModel: getCoreRowModel(),
-    meta: { run, running, cellOf, preview: setPreviewId } satisfies ReviewMeta,
+    meta: {
+      run,
+      running,
+      cellOf,
+      preview: (docId: string) => setPreview({ docId }),
+      openDetail: (docId: string, columnIndex: number) => setDetail({ docId, columnIndex }),
+    } satisfies ReviewMeta,
   });
 
   if (!data || !review)
@@ -314,7 +329,27 @@ function ReviewView() {
         </aside>
       )}
 
-      <DocumentDrawer docId={previewId} onClose={() => setPreviewId(null)} />
+      <DocumentDrawer
+        docId={preview?.docId ?? null}
+        page={preview?.page}
+        onClose={() => setPreview(null)}
+      />
+
+      {detail && (
+        <CellDetailDrawer
+          open
+          columnName={
+            review.columnsConfig.find((c) => c.index === detail.columnIndex)?.name ??
+            `Column ${detail.columnIndex}`
+          }
+          docTitle={docTitle(detail.docId)}
+          cell={cellOf(detail.docId, detail.columnIndex)}
+          busy={running.has(`${detail.docId}:${detail.columnIndex}`)}
+          onRun={() => run(detail.docId, detail.columnIndex)}
+          onClose={() => setDetail(null)}
+          onOpenSource={(page) => setPreview({ docId: detail.docId, page })}
+        />
+      )}
     </div>
   );
 }
@@ -326,12 +361,112 @@ type ReviewMeta = {
   running: Set<string>;
   cellOf: (docId: string, columnIndex: number) => Cell | undefined;
   preview: (docId: string) => void;
+  openDetail: (docId: string, columnIndex: number) => void;
 };
 
-// One matrix cell: extraction result with a flag dot, citation chips + blame,
-// or a Run button. Citation chips and the reasoning open in popovers (mike's
-// cell overlay, condensed).
-function ReviewCell({ cell, busy, onRun }: { cell?: Cell; busy: boolean; onRun: () => void }) {
+// Column header: the column name plus an info button that reveals — and lets you
+// edit — the extraction prompt (and shows format/tags). Saving records a commit;
+// the new prompt applies the next time the column is run.
+function ColumnHeader({
+  reviewId,
+  columnIndex,
+  name,
+  prompt,
+  format,
+  tags,
+}: {
+  reviewId: string;
+  columnIndex: number;
+  name: string;
+  prompt: string;
+  format?: string;
+  tags?: string[];
+}) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(prompt);
+  const save = useMutation({
+    mutationFn: (nextPrompt: string) =>
+      api.updateReviewColumn(reviewId, columnIndex, { prompt: nextPrompt }),
+    onSuccess: (updated) => {
+      qc.setQueryData(["review", reviewId], updated);
+      void qc.invalidateQueries({ queryKey: ["review-history", reviewId] });
+      toast.success("Prompt updated");
+      setOpen(false);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Save failed"),
+  });
+  const promptChanged = draft.trim() !== prompt.trim();
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="truncate">{name}</span>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          // Seed the editor from the current prompt each time it opens.
+          if (next) setDraft(prompt);
+          setOpen(next);
+        }}
+      >
+        <PopoverTrigger
+          render={
+            <button
+              className="shrink-0 text-muted-foreground/60 hover:text-bronze"
+              aria-label={`Edit prompt for ${name}`}
+            >
+              <Info className="size-3.5" />
+            </button>
+          }
+        />
+        <PopoverContent className="w-80 space-y-2 text-xs">
+          <p className="font-semibold tracking-wide text-muted-foreground uppercase">Prompt</p>
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={5}
+            className="text-xs leading-relaxed normal-case"
+          />
+          {(format || tags?.length) && (
+            <div className="flex flex-wrap gap-1.5 text-muted-foreground">
+              {format && <span className="rounded bg-muted px-1.5 py-0.5">format: {format}</span>}
+              {tags?.map((t) => (
+                <span key={t} className="rounded bg-muted px-1.5 py-0.5">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center justify-end gap-1.5 pt-1">
+            <Button size="xs" variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              disabled={!promptChanged || !draft.trim() || save.isPending}
+              onClick={() => save.mutate(draft.trim())}
+            >
+              {save.isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </span>
+  );
+}
+
+// One matrix cell: a flag dot + clamped summary that opens the full detail panel
+// on click (full text, reasoning, sources, blame). Keeps a Run button when empty.
+function ReviewCell({
+  cell,
+  busy,
+  onRun,
+  onDetail,
+}: {
+  cell?: Cell;
+  busy: boolean;
+  onRun: () => void;
+  onDetail: () => void;
+}) {
   // A streaming "Run all" marks the cell "generating" before content lands.
   const isBusy = busy || cell?.status === "generating";
   if (!cell?.content)
@@ -340,81 +475,23 @@ function ReviewCell({ cell, busy, onRun }: { cell?: Cell; busy: boolean; onRun: 
         {isBusy ? "Running…" : "Run"}
       </Button>
     );
-  const citations = cell.citations ?? [];
+  const sourceCount = cell.citations?.length ?? 0;
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-start gap-2">
+      <button onClick={onDetail} className="group flex items-start gap-2 text-start">
         <span
           className={`mt-1.5 size-2 shrink-0 rounded-full ${FLAG_COLOR[cell.content.flag] ?? "bg-muted-foreground/50"}`}
         />
-        <span className="text-sm">
-          {cell.content.summary}
-          {citations.map((c, i) => (
-            <Popover key={i}>
-              <PopoverTrigger
-                render={
-                  <button className="mx-0.5 inline-flex size-3.5 items-center justify-center rounded-full bg-muted align-super text-[9px] font-medium text-muted-foreground hover:bg-bronze-tint hover:text-bronze">
-                    {i + 1}
-                  </button>
-                }
-              />
-              <PopoverContent className="w-72 text-xs">
-                {c.page != null && (
-                  <p className="mb-1 font-medium text-muted-foreground">Page {c.page}</p>
-                )}
-                <p className="border-l-2 border-bronze pl-2 italic">"{c.quote}"</p>
-              </PopoverContent>
-            </Popover>
-          ))}
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        {cell.content.reasoning && (
-          <Popover>
-            <PopoverTrigger
-              render={
-                <button className="text-xs text-muted-foreground underline-offset-2 hover:underline">
-                  reasoning
-                </button>
-              }
-            />
-            <PopoverContent className="w-72 text-xs text-muted-foreground">
-              {cell.content.reasoning}
-            </PopoverContent>
-          </Popover>
-        )}
-        {cell.blame && <BlamePopover blame={cell.blame} />}
+        <span className="line-clamp-3 text-sm group-hover:text-bronze">{cell.content.summary}</span>
+      </button>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <button onClick={onDetail} className="hover:text-bronze hover:underline">
+          Details{sourceCount ? ` · ${sourceCount} source${sourceCount > 1 ? "s" : ""}` : ""}
+        </button>
         <Button size="xs" variant="ghost" disabled={isBusy} onClick={onRun}>
           {isBusy ? "…" : "Re-run"}
         </Button>
       </div>
     </div>
-  );
-}
-
-function BlamePopover({ blame }: { blame: Blame }) {
-  return (
-    <Popover>
-      <PopoverTrigger
-        render={
-          <button className="text-xs text-muted-foreground underline-offset-2 hover:underline">
-            blame #{blame.seq}
-          </button>
-        }
-      />
-      <PopoverContent className="w-64 text-xs">
-        <div className="flex items-center gap-2">
-          <ActorBadge
-            actorType={blame.actorType}
-            agentLabel={blame.agentLabel}
-            actorId={blame.actorId}
-            actorName={blame.actorName}
-          />
-          <span className="font-mono">{blame.op}</span>
-        </div>
-        <p className="mt-1">{blame.message}</p>
-        <p className="mt-0.5 text-muted-foreground">{new Date(blame.createdAt).toLocaleString()}</p>
-      </PopoverContent>
-    </Popover>
   );
 }

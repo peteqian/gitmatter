@@ -533,6 +533,16 @@ export const api = {
     matterId?: string;
   }) => req<{ id: string }>("/api/tabular/reviews", { method: "POST", body: JSON.stringify(d) }),
   getReview: (id: string) => req<ReviewDetail>(`/api/tabular/reviews/${id}`),
+  // Edit a column's config (e.g. its prompt); returns the refreshed review.
+  updateReviewColumn: (
+    id: string,
+    columnIndex: number,
+    patch: { name?: string; prompt?: string; format?: string | null; tags?: string[] }
+  ) =>
+    req<ReviewDetail>(`/api/tabular/reviews/${id}/columns/${columnIndex}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
   runCell: (id: string, documentId: string, columnIndex: number, model?: string) =>
     req<ReviewDetail>(`/api/tabular/reviews/${id}/run`, {
       method: "POST",
