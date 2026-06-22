@@ -80,6 +80,15 @@ CREATE TABLE "client_contacts" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "client_members" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"client_id" uuid NOT NULL,
+	"user_id" text NOT NULL,
+	"role" text DEFAULT 'editor' NOT NULL,
+	"added_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "client_member_unique" UNIQUE("client_id","user_id")
+);
+--> statement-breakpoint
 CREATE TABLE "clients" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid NOT NULL,
@@ -145,6 +154,44 @@ CREATE TABLE "field_changes" (
 	"after" jsonb
 );
 --> statement-breakpoint
+CREATE TABLE "audit_events" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"actor_id" text,
+	"tenant_id" uuid,
+	"event_type" text NOT NULL,
+	"ip" text,
+	"user_agent" text,
+	"target" text,
+	"metadata" jsonb,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "usage_events" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"kind" text NOT NULL,
+	"user_id" text,
+	"tenant_id" uuid,
+	"token_id" uuid,
+	"provider" text,
+	"model" text,
+	"tool" text,
+	"input_tokens" integer,
+	"output_tokens" integer,
+	"count" integer DEFAULT 1 NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "artifact_shares" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"artifact_type" text NOT NULL,
+	"artifact_id" uuid NOT NULL,
+	"user_id" text NOT NULL,
+	"role" text DEFAULT 'editor' NOT NULL,
+	"added_by" text,
+	"added_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "artifact_share_unique" UNIQUE("artifact_type","artifact_id","user_id")
+);
+--> statement-breakpoint
 CREATE TABLE "document_edits" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"document_id" uuid NOT NULL,
@@ -204,11 +251,13 @@ CREATE TABLE "documents" (
 	"page_count" integer,
 	"status" text DEFAULT 'ready' NOT NULL,
 	"extraction_error" text,
+	"ocr_suggested" boolean DEFAULT false NOT NULL,
 	"attempts" integer DEFAULT 0 NOT NULL,
 	"claimed_at" timestamp,
 	"current_version_id" uuid,
 	"head_commit_id" uuid,
 	"created_at" timestamp DEFAULT now() NOT NULL,
+	"staged" boolean DEFAULT false NOT NULL,
 	"deleted_at" timestamp,
 	"deleted_by" text
 );
@@ -396,11 +445,21 @@ CREATE TABLE "user_settings" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "practice_areas" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" text NOT NULL,
+	"name" text NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "practice_area_user_name_unique" UNIQUE("user_id","name")
+);
+--> statement-breakpoint
 ALTER TABLE "auth"."account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "auth"."session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tenant_invites" ADD CONSTRAINT "tenant_invites_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tenant_invites" ADD CONSTRAINT "tenant_invites_invited_by_user_id_fk" FOREIGN KEY ("invited_by") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "client_contacts" ADD CONSTRAINT "client_contacts_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "client_members" ADD CONSTRAINT "client_members_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "client_members" ADD CONSTRAINT "client_members_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "clients" ADD CONSTRAINT "clients_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "clients" ADD CONSTRAINT "clients_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "matter_members" ADD CONSTRAINT "matter_members_matter_id_matters_id_fk" FOREIGN KEY ("matter_id") REFERENCES "public"."matters"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -411,6 +470,9 @@ ALTER TABLE "matters" ADD CONSTRAINT "matters_lead_attorney_user_id_fk" FOREIGN 
 ALTER TABLE "matters" ADD CONSTRAINT "matters_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "commits" ADD CONSTRAINT "commits_actor_id_user_id_fk" FOREIGN KEY ("actor_id") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "field_changes" ADD CONSTRAINT "field_changes_commit_id_commits_id_fk" FOREIGN KEY ("commit_id") REFERENCES "public"."commits"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_id_user_id_fk" FOREIGN KEY ("actor_id") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "artifact_shares" ADD CONSTRAINT "artifact_shares_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "artifact_shares" ADD CONSTRAINT "artifact_shares_added_by_user_id_fk" FOREIGN KEY ("added_by") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_edits" ADD CONSTRAINT "document_edits_document_id_documents_id_fk" FOREIGN KEY ("document_id") REFERENCES "public"."documents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_edits" ADD CONSTRAINT "document_edits_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_edits" ADD CONSTRAINT "document_edits_resolved_by_user_id_fk" FOREIGN KEY ("resolved_by") REFERENCES "auth"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -452,9 +514,11 @@ ALTER TABLE "user_api_keys" ADD CONSTRAINT "user_api_keys_user_id_user_id_fk" FO
 ALTER TABLE "oauth_access_tokens" ADD CONSTRAINT "oauth_access_tokens_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth_auth_codes" ADD CONSTRAINT "oauth_auth_codes_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_settings" ADD CONSTRAINT "user_settings_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "practice_areas" ADD CONSTRAINT "practice_areas_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "user_tenant_idx" ON "auth"."user" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "tenant_invites_email_idx" ON "tenant_invites" USING btree ("email");--> statement-breakpoint
 CREATE INDEX "tenant_invites_tenant_idx" ON "tenant_invites" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "client_members_user_idx" ON "client_members" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "clients_tenant_idx" ON "clients" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "matter_members_user_idx" ON "matter_members" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "matters_client_idx" ON "matters" USING btree ("client_id");--> statement-breakpoint
@@ -462,6 +526,14 @@ CREATE INDEX "matters_tenant_idx" ON "matters" USING btree ("tenant_id");--> sta
 CREATE INDEX "commits_artifact_seq_idx" ON "commits" USING btree ("artifact_type","artifact_id","seq");--> statement-breakpoint
 CREATE INDEX "field_changes_commit_idx" ON "field_changes" USING btree ("commit_id");--> statement-breakpoint
 CREATE INDEX "field_changes_path_idx" ON "field_changes" USING btree ("path");--> statement-breakpoint
+CREATE INDEX "audit_events_tenant_created_idx" ON "audit_events" USING btree ("tenant_id","created_at");--> statement-breakpoint
+CREATE INDEX "audit_events_actor_idx" ON "audit_events" USING btree ("actor_id");--> statement-breakpoint
+CREATE INDEX "audit_events_type_idx" ON "audit_events" USING btree ("event_type");--> statement-breakpoint
+CREATE INDEX "usage_events_user_created_idx" ON "usage_events" USING btree ("user_id","created_at");--> statement-breakpoint
+CREATE INDEX "usage_events_tenant_created_idx" ON "usage_events" USING btree ("tenant_id","created_at");--> statement-breakpoint
+CREATE INDEX "usage_events_token_created_idx" ON "usage_events" USING btree ("token_id","created_at");--> statement-breakpoint
+CREATE INDEX "artifact_shares_user_idx" ON "artifact_shares" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "artifact_shares_artifact_idx" ON "artifact_shares" USING btree ("artifact_type","artifact_id");--> statement-breakpoint
 CREATE INDEX "document_folders_matter_idx" ON "document_folders" USING btree ("matter_id");--> statement-breakpoint
 CREATE INDEX "documents_matter_idx" ON "documents" USING btree ("matter_id");--> statement-breakpoint
 CREATE INDEX "documents_tenant_idx" ON "documents" USING btree ("tenant_id");--> statement-breakpoint

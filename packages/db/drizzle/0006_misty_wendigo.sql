@@ -1,1 +1,0 @@
-ALTER TABLE "documents" ADD COLUMN "ocr_suggested" boolean DEFAULT false NOT NULL;

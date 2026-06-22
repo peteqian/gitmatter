@@ -1,1 +1,0 @@
-ALTER TABLE "documents" ADD COLUMN "staged" boolean DEFAULT false NOT NULL;
