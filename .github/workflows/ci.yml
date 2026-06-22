@@ -1,11 +1,11 @@
 name: CI
 
-# Verify gate: format, lint, types, and tests. Runs on PRs into dev/master and is
+# Verify gate: format, lint, types, and tests. Runs on PRs into dev/main and is
 # reused (workflow_call) by the staging and release pipelines so a deploy never
 # ships unverified code.
 on:
   pull_request:
-    branches: [dev, master]
+    branches: [dev, main]
   workflow_call:
 
 jobs:
