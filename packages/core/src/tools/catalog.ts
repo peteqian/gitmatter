@@ -11,7 +11,7 @@ import {
   hasMatterAccess,
   listCommits,
 } from "../core/index.js";
-import { createReview, getReview, listReviews, runCell } from "../ai/index.js";
+import { createReview, getReview, listReviews, runCell, writeCell } from "../ai/index.js";
 import {
   buildDocxSpec,
   createGeneratedDocument,
@@ -210,6 +210,48 @@ export function buildToolCatalog(
             documentId: documentId as string,
             columnIndex: columnIndex as number,
             model: model as string | undefined,
+          });
+          return { committed: result.commit?.seq, changes: result.changes };
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "failed" };
+        }
+      },
+    },
+    {
+      name: "write_cell",
+      description:
+        "Write your own extracted value into one review cell — for when you have read the document yourself and produced the answer. Committed under your name. Use run_cell instead to have gitmatter run its own model. flag is the RAG status: green=ok, yellow=caution, red=problem, grey=n/a.",
+      schema: {
+        reviewId: z.string(),
+        documentId: z.string(),
+        columnIndex: z.number(),
+        summary: z.string(),
+        flag: z.enum(["green", "yellow", "red", "grey"]),
+        reasoning: z.string(),
+        citations: z.array(z.object({ page: z.number().optional(), quote: z.string() })).optional(),
+      },
+      handler: async ({
+        reviewId,
+        documentId,
+        columnIndex,
+        summary,
+        flag,
+        reasoning,
+        citations,
+      }) => {
+        if (
+          !(await canAccessArtifact(actor.userId, "tabular_review", reviewId as string, "editor"))
+        )
+          return { error: "Not found" };
+        try {
+          const result = await writeCell(actor, {
+            reviewId: reviewId as string,
+            documentId: documentId as string,
+            columnIndex: columnIndex as number,
+            summary: summary as string,
+            flag: flag as string,
+            reasoning: reasoning as string,
+            citations: citations as { page?: number; quote: string }[] | undefined,
           });
           return { committed: result.commit?.seq, changes: result.changes };
         } catch (e) {

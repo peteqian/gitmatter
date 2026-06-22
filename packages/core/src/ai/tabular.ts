@@ -15,7 +15,13 @@ import {
 } from "@workspace/db/schema";
 import { type Actor, recordCommit } from "../core/commit.js";
 import { accessCountSql, accessSummaryByArtifact, sharedArtifactIds } from "../platform/shares.js";
-import { completeText, DEFAULT_MODEL, providerForModel, resolveLlmKey } from "./provider.js";
+import {
+  completeText,
+  DEFAULT_MODEL,
+  providerForModel,
+  resolveLlmKey,
+  resolveRunModel,
+} from "./provider.js";
 import { buildCellPrompt, buildRowPrompt, normalizeCell } from "./prompts/tabular.js";
 
 const FLAGS = ["green", "grey", "yellow", "red"] as const;
@@ -264,8 +270,9 @@ export async function createReview(
   return reviewId;
 }
 
-/** Upsert one extracted cell as a commit on the audit spine. Shared by the
- *  single-cell run and the streaming run so they persist + blame identically. */
+/** Upsert one cell as a commit on the audit spine. Shared by the model runner
+ *  (single-cell + streaming run, which pass `model`) and the agent-written path
+ *  (write_cell, which passes none), so all three persist + blame identically. */
 function commitCell(
   actor: Actor,
   p: {
@@ -274,7 +281,10 @@ function commitCell(
     columnIndex: number;
     columnName: string;
     docTitle: string;
-    model: string;
+    // The model that produced the cell — recorded in the message so blame answers
+    // "with what". Omitted when an agent wrote the value itself (write_cell).
+    model?: string;
+    op?: "run_cell" | "write_cell";
     content: CellContent;
     citations: CellCitation[];
   }
@@ -283,9 +293,10 @@ function commitCell(
     artifactType: "tabular_review",
     artifactId: p.reviewId,
     actor,
-    op: "run_cell",
-    // Record the model so blame answers "with what" — the model that produced the cell.
-    message: `Ran "${p.columnName}" on ${p.docTitle} with ${p.model}`,
+    op: p.op ?? "run_cell",
+    message: p.model
+      ? `Ran "${p.columnName}" on ${p.docTitle} with ${p.model}`
+      : `Wrote "${p.columnName}" on ${p.docTitle}`,
     apply: async ({ tx, commitId }) => {
       const [old] = await tx
         .select()
@@ -354,9 +365,7 @@ export async function runCell(
   const [doc] = await db.select().from(documents).where(eq(documents.id, params.documentId));
   if (!doc) throw new Error("Document not found");
 
-  const model = params.model ?? DEFAULT_MODEL;
-  const { key } = await resolveLlmKey(actor.userId, providerForModel(model));
-  if (!key) throw new Error(`No API key for ${providerForModel(model)}`);
+  const { model, key } = await resolveRunModel(actor.userId, params.model);
 
   const { content, citations } = await queryCell({
     model,
@@ -377,6 +386,54 @@ export async function runCell(
     model,
     content,
     citations,
+  });
+}
+
+/**
+ * Write a cell value directly — for a connected agent that has read the document
+ * itself and produced the answer, instead of having gitmatter run its own model
+ * (runCell). No LLM key needed. The value is sanitized to the same shape the
+ * runner produces and committed under the agent's name, so blame shows the agent
+ * wrote it. See the write_cell tool in the catalog.
+ */
+export async function writeCell(
+  actor: Actor,
+  params: {
+    reviewId: string;
+    documentId: string;
+    columnIndex: number;
+    summary: string;
+    flag: string;
+    reasoning: string;
+    citations?: CellCitation[];
+  }
+) {
+  const [review] = await db
+    .select()
+    .from(tabularReviews)
+    .where(eq(tabularReviews.id, params.reviewId));
+  if (!review) throw new Error("Review not found");
+  const col = review.columnsConfig.find((c) => c.index === params.columnIndex);
+  if (!col) throw new Error("Column not found");
+
+  const [doc] = await db.select().from(documents).where(eq(documents.id, params.documentId));
+  if (!doc) throw new Error("Document not found");
+
+  const content: CellContent = {
+    summary: params.summary,
+    flag: coerceFlag(params.flag),
+    reasoning: params.reasoning,
+  };
+
+  return commitCell(actor, {
+    reviewId: params.reviewId,
+    documentId: params.documentId,
+    columnIndex: params.columnIndex,
+    columnName: col.name,
+    docTitle: doc.title,
+    op: "write_cell",
+    content,
+    citations: coerceCitations(params.citations),
   });
 }
 

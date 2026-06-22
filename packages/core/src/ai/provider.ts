@@ -196,6 +196,55 @@ export async function resolveLlmKey(
   return { key: null, source: null };
 }
 
+/**
+ * Resolve which model + key a server-side run (e.g. tabular run_cell) should use,
+ * with errors that say how to fix it. A requested model must be a known catalog id
+ * or an OpenRouter "vendor/model", and its provider must have a configured key.
+ * With no request, prefer DEFAULT_MODEL, else the first catalog model whose
+ * provider has a key — so a firm that configured any one provider's key just works.
+ */
+export async function resolveRunModel(
+  userId: string,
+  requested?: string
+): Promise<{ model: string; key: string }> {
+  if (requested) {
+    const known = LLM_MODELS.some((m) => m.id === requested) || requested.includes("/");
+    if (!known) {
+      const sample = LLM_MODELS.slice(0, 4)
+        .map((m) => m.id)
+        .join(", ");
+      throw new Error(
+        `Unknown model "${requested}". Use a model id (e.g. ${sample}) or an OpenRouter "vendor/model".`
+      );
+    }
+    const provider = providerForModel(requested);
+    const { key } = await resolveLlmKey(userId, provider);
+    if (!key)
+      throw new Error(
+        `No ${provider} API key configured — add one in Settings, or use a model for a provider you've configured.`
+      );
+    return { model: requested, key };
+  }
+  // No model requested: try DEFAULT_MODEL first, then any catalog model whose
+  // provider has a key. Cache per provider so we don't re-look-up shared providers.
+  const keyCache = new Map<LlmProvider, string | null>();
+  const keyFor = async (p: LlmProvider): Promise<string | null> => {
+    if (!keyCache.has(p)) keyCache.set(p, (await resolveLlmKey(userId, p)).key);
+    return keyCache.get(p)!;
+  };
+  const ordered = [
+    DEFAULT_MODEL,
+    ...LLM_MODELS.map((m) => m.id).filter((id) => id !== DEFAULT_MODEL),
+  ];
+  for (const model of ordered) {
+    const key = await keyFor(providerForModel(model));
+    if (key) return { model, key };
+  }
+  throw new Error(
+    "No LLM key configured — add one in Settings (Anthropic / OpenAI / Gemini / OpenRouter)."
+  );
+}
+
 // ---- Normalized message + tool model ----
 
 export type ToolCall = { id: string; name: string; input: Record<string, unknown> };
