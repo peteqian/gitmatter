@@ -30,6 +30,27 @@ the two things mikeoss does not have: a **git-style audit spine** (every change 
 blame) and **agent connectivity in both directions** (any AI client can drive the same audited
 tools over MCP). Full credit to mikeoss for the original product and approach.
 
+## Docker quickstart
+
+The fastest self-hosted setup uses Docker Compose. It runs the public gitmatter image and Postgres
+locally, then serves the app at `http://localhost:4280`.
+
+```bash
+cp .env.example .env
+
+# Fill BETTER_AUTH_SECRET, ENCRYPTION_KEY, and S3_* in .env.
+# For the secrets, this is enough:
+openssl rand -base64 32
+
+docker compose up -d
+```
+
+Object storage is required for uploaded documents. Cloudflare R2 works well because it speaks the
+S3 API; see [the self-hosting guide](docs/admin/self-hosting.mdx) for the exact `.env` values.
+
+The default image is `ghcr.io/peteqian/gitmatter:latest`. For production, pin a release tag with
+`GITMATTER_IMAGE`, for example `ghcr.io/peteqian/gitmatter:v2026.06.22`.
+
 ## Build & run
 
 See **[docs/admin/self-hosting.mdx](docs/admin/self-hosting.mdx)** — setup, local development, and
