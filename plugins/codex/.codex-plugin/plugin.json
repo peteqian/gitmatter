@@ -1,0 +1,25 @@
+{
+  "name": "gitmatter",
+  "version": "0.1.0",
+  "description": "Audited legal AI over MCP — contract review, redline, tabular extraction, document generation, and a git-style audit history.",
+  "author": {
+    "name": "Gitmatter",
+    "email": "contact@gitmatter.com",
+    "url": "https://gitmatter.com"
+  },
+  "homepage": "https://gitmatter.com/docs/ai-agents/connect-an-agent",
+  "repository": "https://github.com/peteqian/gitmatter",
+  "license": "AGPL-3.0",
+  "keywords": ["legal", "contracts", "mcp", "audit", "redline"],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "gitmatter",
+    "shortDescription": "Audited legal AI: review, redline, extract, generate.",
+    "longDescription": "Connect your AI agent to gitmatter — an audited legal backend. Contract review, tabular extraction, document generation, and reusable workflows on a git-style audit spine. Every action is recorded under your account with author, message, and field-level diff.",
+    "developerName": "Gitmatter",
+    "category": "Productivity",
+    "websiteURL": "https://gitmatter.com",
+    "privacyPolicyURL": "https://gitmatter.com/privacy",
+    "termsOfServiceURL": "https://gitmatter.com/terms"
+  }
+}
