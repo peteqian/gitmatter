@@ -94,16 +94,13 @@ jobs:
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
 
+      # Dokploy per-app deploy webhook (token in the URL, no api-key). Replaces the
+      # /api/application.deploy + x-api-key call, which 403'd after the API key was
+      # rotated. The webhook URL is the app's refresh-token endpoint.
       - name: Trigger staging redeploy
         env:
-          DOKPLOY_URL: ${{ secrets.STAGING_DOKPLOY_URL }}
-          DOKPLOY_API_KEY: ${{ secrets.STAGING_DOKPLOY_API_KEY }}
-          APP_ID: ${{ secrets.STAGING_DOKPLOY_APP_ID }}
-        run: |
-          curl -fsSL -X POST "$DOKPLOY_URL/api/application.deploy" \
-            -H "x-api-key: $DOKPLOY_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "{\"applicationId\":\"$APP_ID\"}"
+          WEBHOOK: ${{ secrets.STAGING_DOKPLOY_WEB_WEBHOOK }}
+        run: curl -fsSL -X POST "$WEBHOOK"
 
   # Docs is a standalone Next.js app served under /docs. It builds and ships
   # independently of the web image: next build on the runner produces a
@@ -170,19 +167,13 @@ jobs:
 
       - name: Trigger staging docs redeploy
         env:
-          DOKPLOY_URL: ${{ secrets.STAGING_DOKPLOY_URL }}
-          DOKPLOY_API_KEY: ${{ secrets.STAGING_DOKPLOY_API_KEY }}
-          APP_ID: ${{ secrets.STAGING_DOKPLOY_DOCS_APP_ID }}
+          WEBHOOK: ${{ secrets.STAGING_DOKPLOY_DOCS_WEBHOOK }}
         run: |
-          # The docs image is pushed above regardless. The redeploy only fires
-          # once the dokploy docs Application exists and its id is set as the
-          # STAGING_DOKPLOY_DOCS_APP_ID secret — until then, skip (don't fail the
-          # whole staging run, which also deploys web).
-          if [ -z "$APP_ID" ]; then
-            echo "STAGING_DOKPLOY_DOCS_APP_ID not set — docs image pushed, skipping redeploy."
+          # The docs image is pushed above regardless. The redeploy only fires once
+          # STAGING_DOKPLOY_DOCS_WEBHOOK (the docs app's deploy webhook URL) is set —
+          # until then, skip (don't fail the whole staging run, which also deploys web).
+          if [ -z "$WEBHOOK" ]; then
+            echo "STAGING_DOKPLOY_DOCS_WEBHOOK not set — docs image pushed, skipping redeploy."
             exit 0
           fi
-          curl -fsSL -X POST "$DOKPLOY_URL/api/application.deploy" \
-            -H "x-api-key: $DOKPLOY_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "{\"applicationId\":\"$APP_ID\"}"
+          curl -fsSL -X POST "$WEBHOOK"
