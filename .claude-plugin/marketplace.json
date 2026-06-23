@@ -1,0 +1,15 @@
+{
+  "name": "gitmatter",
+  "owner": {
+    "name": "Gitmatter",
+    "email": "contact@gitmatter.com",
+    "url": "https://gitmatter.com"
+  },
+  "plugins": [
+    {
+      "name": "gitmatter",
+      "source": "./plugins/claude",
+      "description": "Audited legal AI over MCP: contract review, redline, tabular extraction, document generation, and a git-style audit history. Connects to your gitmatter account via OAuth."
+    }
+  ]
+}

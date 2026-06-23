@@ -48,26 +48,51 @@ takes you through the same sign-in and approval. Approve it, and you are connect
 The rest of this page is for developers using command-line tools. If you are a lawyer
 connecting Claude or ChatGPT, you can skip it — the easy way above is all you need.
 
-These tools use a secret code (a token) instead of the sign-in screen.
+Most of these tools can use either the secure sign-in (OAuth) or a secret code (a
+token). The plugin/OAuth path below is easiest; the token path is handy for a
+self-hosted or local instance.
 
 ### Create a token
 
-Go to **Settings → Connect** and create a token. The full token is shown **once** —
-copy it then. If you lose it, revoke it and create a new one.
+Only needed for the token path below. Go to **Settings → Connect** and create a
+token. The full token is shown **once** — copy it then. If you lose it, revoke it
+and create a new one.
 
-### Claude Code (CLI, static token)
+### Claude Code (CLI)
 
-Run this command (it tells Claude Code where gitmatter is and passes your token):
+Easiest — install the plugin. This repo is also a Claude Code plugin marketplace, so
+it wires up the connection and signs you in over the secure login (no token to copy):
+
+```bash
+claude plugin marketplace add peteqian/gitmatter
+claude plugin install gitmatter@gitmatter
+claude plugin enable gitmatter
+```
+
+Approve the gitmatter sign-in the first time the agent uses a tool.
+
+Or point Claude Code straight at a gitmatter address with a static token (useful for a
+self-hosted or local instance):
 
 ```bash
 claude mcp add --transport http gitmatter http://localhost:4280/api/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-### Codex CLI (static token)
+### Codex CLI
 
-Add this to `~/.codex/config.toml` (it points Codex at gitmatter and tells it which
-token to use):
+Easiest — add gitmatter and sign in over the secure login (no token to copy):
+
+```bash
+codex mcp add gitmatter --url https://gitmatter.com/api/mcp
+codex mcp login gitmatter
+```
+
+`codex mcp login` opens a browser approval page. gitmatter supports dynamic client
+registration, so there is no client secret to configure.
+
+Or use a static token against a self-hosted or local instance — add this to
+`~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.gitmatter]
