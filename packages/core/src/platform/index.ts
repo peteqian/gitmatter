@@ -10,7 +10,6 @@ export * from "./email.js";
 export * from "./retention.js";
 export * from "./export.js";
 export * from "./oauth.js";
-export * from "./connections.js";
 export * from "./settings.js";
 export * from "./courtlistener.js";
 export * from "./practice.js";

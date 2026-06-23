@@ -35,25 +35,10 @@ import {
   type ToolDef,
 } from "@workspace/core";
 import { resolveJurisdiction } from "@workspace/registry";
-import { connectEnabledServers } from "../../mcp/client.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { chatSchema, pinSchema } from "../schemas/chat.js";
 
 export const chatRoute = new Hono<AuthEnv>();
-
-// Flatten an MCP tool result's content blocks into plain text for the model.
-function mcpResultText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content))
-    return content
-      .map((b) =>
-        b && typeof b === "object" && "text" in b
-          ? String((b as { text: unknown }).text)
-          : JSON.stringify(b)
-      )
-      .join("\n");
-  return JSON.stringify(content);
-}
 
 // Catalog tools carry a zod raw shape; the LLM tool API wants a JSON Schema.
 function toJsonSchema(shape: z.ZodRawShape): Record<string, unknown> {
@@ -207,22 +192,6 @@ async function runAssistant(
     inputSchema: toJsonSchema(t.schema),
   }));
 
-  // External MCP servers (jurisdiction-scoped) layer on top of the catalog.
-  const servers = await connectEnabledServers(user.id, jurisdiction);
-  const toolMap = new Map<
-    string,
-    { realName: string; client: (typeof servers)[number]["client"] }
-  >();
-  for (const s of servers)
-    for (const t of s.tools) {
-      toolMap.set(t.name, { realName: t.realName, client: s.client });
-      tools.push({
-        name: t.name,
-        description: t.description,
-        inputSchema: t.inputSchema as Record<string, unknown>,
-      });
-    }
-
   const generated: Array<{ id: string; title: string; download: string }> = [];
   // Tracked changes the assistant proposed/resolved this turn, hydrated into
   // chat cards after the loop.
@@ -276,104 +245,90 @@ async function runAssistant(
   const toolCalls: Array<{ tool: string; input: unknown }> = [];
   let finalText = "";
 
-  try {
-    for (let i = 0; i < 8; i++) {
-      const res = await streamComplete(
-        client,
-        {
-          model,
-          system,
-          tools: tools.length ? tools : undefined,
-          messages,
-          reasoning,
-          maxTokens: 4096,
-          cache: true,
-          cacheKey: `chat:${user.id}`,
-        },
-        { onText: handlers.onText, onReasoning: handlers.onReasoning }
-      );
-      finalText = res.text;
-      // Meter this completion's token spend (log-only; never blocks the turn).
-      if (res.usage)
-        void recordLlmUsage({
-          userId: user.id,
-          tenantId,
-          provider,
-          model,
-          inputTokens: res.usage.inputTokens,
-          outputTokens: res.usage.outputTokens,
-        });
-      messages.push({
-        role: "assistant",
-        content: res.text,
-        toolCalls: res.toolCalls,
-        reasoning: res.reasoning,
+  for (let i = 0; i < 8; i++) {
+    const res = await streamComplete(
+      client,
+      {
+        model,
+        system,
+        tools: tools.length ? tools : undefined,
+        messages,
+        reasoning,
+        maxTokens: 4096,
+        cache: true,
+        cacheKey: `chat:${user.id}`,
+      },
+      { onText: handlers.onText, onReasoning: handlers.onReasoning }
+    );
+    finalText = res.text;
+    // Meter this completion's token spend (log-only; never blocks the turn).
+    if (res.usage)
+      void recordLlmUsage({
+        userId: user.id,
+        tenantId,
+        provider,
+        model,
+        inputTokens: res.usage.inputTokens,
+        outputTokens: res.usage.outputTokens,
       });
-      if (res.stop !== "tool_use" || !res.toolCalls.length) break;
+    messages.push({
+      role: "assistant",
+      content: res.text,
+      toolCalls: res.toolCalls,
+      reasoning: res.reasoning,
+    });
+    if (res.stop !== "tool_use" || !res.toolCalls.length) break;
 
-      for (const tc of res.toolCalls) {
-        toolCalls.push({ tool: tc.name, input: tc.input });
-        handlers.onTool?.(tc.name, tc.input);
-        try {
-          const internalFn = internal.get(tc.name);
-          if (internalFn) {
-            const out = await internalFn(tc.input);
-            if (
-              tc.name === "generate_docx" &&
-              out &&
-              typeof out === "object" &&
-              "documentId" in out
-            ) {
-              const g = out as { documentId: string; title: string; download: string };
-              generated.push({ id: g.documentId, title: g.title, download: g.download });
-            }
-            if (
-              (tc.name === "propose_document_edit" || tc.name === "resolve_document_edit") &&
-              out &&
-              typeof out === "object" &&
-              !("error" in out)
-            ) {
-              const documentId = (tc.input as { documentId?: string })?.documentId;
-              // propose returns a changeId per applied edit; resolve carries one in its input.
-              const changeIds =
-                tc.name === "propose_document_edit"
-                  ? ((out as { changeIds?: string[] }).changeIds ?? [])
-                  : [(tc.input as { changeId?: string })?.changeId].filter((x): x is string => !!x);
-              if (documentId)
-                for (const changeId of changeIds) editRefs.push({ documentId, changeId });
-            }
-            messages.push({ role: "tool", toolCallId: tc.id, content: JSON.stringify(out) });
-            continue;
+    for (const tc of res.toolCalls) {
+      toolCalls.push({ tool: tc.name, input: tc.input });
+      handlers.onTool?.(tc.name, tc.input);
+      try {
+        const internalFn = internal.get(tc.name);
+        if (internalFn) {
+          const out = await internalFn(tc.input);
+          if (
+            tc.name === "generate_docx" &&
+            out &&
+            typeof out === "object" &&
+            "documentId" in out
+          ) {
+            const g = out as { documentId: string; title: string; download: string };
+            generated.push({ id: g.documentId, title: g.title, download: g.download });
           }
-          const target = toolMap.get(tc.name);
-          if (!target) {
-            messages.push({
-              role: "tool",
-              toolCallId: tc.id,
-              content: "Unknown tool",
-              isError: true,
-            });
-            continue;
+          if (
+            (tc.name === "propose_document_edit" || tc.name === "resolve_document_edit") &&
+            out &&
+            typeof out === "object" &&
+            !("error" in out)
+          ) {
+            const documentId = (tc.input as { documentId?: string })?.documentId;
+            // propose returns a changeId per applied edit; resolve carries one in its input.
+            const changeIds =
+              tc.name === "propose_document_edit"
+                ? ((out as { changeIds?: string[] }).changeIds ?? [])
+                : [(tc.input as { changeId?: string })?.changeId].filter((x): x is string => !!x);
+            if (documentId)
+              for (const changeId of changeIds) editRefs.push({ documentId, changeId });
           }
-          const out = await target.client.callTool({ name: target.realName, arguments: tc.input });
-          messages.push({
-            role: "tool",
-            toolCallId: tc.id,
-            content: mcpResultText(out.content),
-            isError: Boolean(out.isError),
-          });
-        } catch (e) {
-          messages.push({
-            role: "tool",
-            toolCallId: tc.id,
-            content: e instanceof Error ? e.message : "tool failed",
-            isError: true,
-          });
+          messages.push({ role: "tool", toolCallId: tc.id, content: JSON.stringify(out) });
+          continue;
         }
+        // Not an internal catalog tool — nothing else is exposed.
+        messages.push({
+          role: "tool",
+          toolCallId: tc.id,
+          content: "Unknown tool",
+          isError: true,
+        });
+      } catch (e) {
+        messages.push({
+          role: "tool",
+          toolCallId: tc.id,
+          content: e instanceof Error ? e.message : "tool failed",
+          isError: true,
+        });
       }
     }
-  } finally {
-    await Promise.all(servers.map((s) => s.client.close().catch(() => {})));
   }
 
   // Split the citations block off the prose; store the array, show clean text.

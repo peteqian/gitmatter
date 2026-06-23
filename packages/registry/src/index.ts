@@ -14,10 +14,6 @@ export type ToolProvider = {
   name: string;
   /** Patterns this provider serves: exact ("US-NY"), prefix ("US" matches US-*), or "*" (any). */
   jurisdictions: Jurisdiction[];
-  transport: "mcp-http" | "internal";
-  /** Env var holding the server URL (for mcp-http providers). */
-  urlEnv?: string;
-  authType: "none" | "bearer" | "header";
   capabilities: Capability[];
   tools: ToolMeta[];
 };
@@ -42,8 +38,6 @@ export const PROVIDERS: ToolProvider[] = [
     jurisdictions: ["US"], // federal -> also serves US-* sub-jurisdictions
     // Baked into the gitmatter backend (not a consumed sidecar). Exposed as our
     // own tools over our MCP server and in chat; gated to US jurisdictions.
-    transport: "internal",
-    authType: "none",
     capabilities: ["case_law", "citation_check"],
     tools: [
       { name: "search_case_law", summary: "Search US case law opinions." },

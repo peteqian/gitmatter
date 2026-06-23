@@ -12,7 +12,6 @@ import {
   purgeOldChats,
   recordAudit,
   seedBuiltinWorkflows,
-  seedMcpConnections,
 } from "@workspace/core";
 import { resolveJurisdiction } from "@workspace/registry";
 import { chatRoute } from "./routes/chat.js";
@@ -49,9 +48,8 @@ initSentry();
   logEvent("info", "ai.providers", { available });
 }
 
-// Seed system workflows + consumed-MCP connections once on boot (idempotent).
+// Seed system workflows once on boot (idempotent).
 void seedBuiltinWorkflows().catch(() => {});
-void seedMcpConnections().catch(() => {});
 
 // Retention sweeps. No scheduler here, so boot is the periodic sweep: hard-delete
 // documents past their soft-delete window, dead auth/MCP tokens, old audit events,
