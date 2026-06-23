@@ -1,7 +1,8 @@
 import { SITE } from "@/marketing/site";
 
 // Cloud-only marketing About page: what gitmatter is, in plain language any
-// lawyer can read. Credit to mike lives in the GitHub README, not here.
+// lawyer can read. Credits mikeoss as the inspiration; the one honest delta is
+// the simpler self-hosted stack with no third-party auth.
 export default function About() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-section px-6 py-section">
@@ -37,6 +38,24 @@ export default function About() {
             GitHub
           </a>
           .
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-stack">
+        <h2 className="font-heading text-2xl tracking-tight">Built on mikeoss</h2>
+        <p className="text-muted-foreground">
+          gitmatter is built on the approach of{" "}
+          <a
+            href="https://mikeoss.com"
+            target="_blank"
+            rel="noreferrer"
+            className="underline-offset-4 hover:text-foreground hover:underline"
+          >
+            mikeoss
+          </a>
+          , with full credit to the original. The difference is how it runs: a simple stack you host
+          yourself, with no third-party vendor in your sign-in, and a git-style record behind every
+          change.
         </p>
       </section>
     </div>

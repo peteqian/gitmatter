@@ -17,7 +17,7 @@ export default function CTASection() {
       </p>
       <div className="mt-section flex flex-wrap items-center gap-3">
         <Link to="/login">
-          <Button size="lg">See a demo</Button>
+          <Button size="lg">Run live</Button>
         </Link>
         <a href={SITE.docs}>
           <Button size="lg" variant="outline">

@@ -10,11 +10,11 @@ import Wordmark from "@/marketing/components/Wordmark";
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5">
+      <header className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5">
         <Link to="/" aria-label="gitmatter home">
           <Wordmark />
         </Link>
-        <nav className="flex items-center gap-1 text-sm">
+        <nav className="absolute left-1/2 flex -translate-x-1/2 items-center gap-1 text-sm">
           <Link
             to="/use-cases"
             className="rounded-md px-3 py-2 text-muted-foreground hover:text-foreground"
@@ -42,13 +42,10 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <GitBranch className="size-4" />
             GitHub
           </a>
-          <Link to="/login" className="rounded-md px-3 py-2 hover:text-foreground">
-            Log in
-          </Link>
-          <Link to="/signup" className="ml-1">
-            <Button size="sm">Get started</Button>
-          </Link>
         </nav>
+        <Link to="/signup">
+          <Button size="sm">Get started</Button>
+        </Link>
       </header>
 
       <main className="flex-1">{children}</main>
