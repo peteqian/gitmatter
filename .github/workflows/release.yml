@@ -82,6 +82,11 @@ jobs:
           # BETTER_AUTH_SECRET only clears better-auth's default-secret check.
           DATABASE_URL: postgres://build:build@127.0.0.1:5432/build
           BETTER_AUTH_SECRET: build-only-not-a-real-secret-000000
+          # Public Turnstile site key for gitmatter.com, baked into the client
+          # bundle (vite define). Cloud flavor only — self-host builds bake nothing
+          # so self-hosters supply their own. Public by design (ships to every
+          # browser). The widget must allow gitmatter.com in its hostname list.
+          TURNSTILE_SITE_KEY: ${{ matrix.deployment == 'cloud' && '0x4AAAAAADoWezFOHdsCDIF-' || '' }}
         run: cd apps/web && bun run build
 
       - name: Log in to GHCR
