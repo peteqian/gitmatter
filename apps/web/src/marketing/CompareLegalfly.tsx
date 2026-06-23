@@ -9,7 +9,6 @@ const ROWS: CompareRow[] = [
   { point: "Agentic contract review and auto-redlining", gitmatter: true, them: true },
   { point: "On-premises / self-host option", gitmatter: true, them: true },
   { point: "LLM-agnostic — multiple model providers", gitmatter: true, them: true },
-  { point: "SOC 2 / ISO 27001, no training on your data", gitmatter: true, them: true },
   {
     point: "Automatic anonymisation of personal data before processing",
     gitmatter: false,
@@ -22,7 +21,7 @@ const ROWS: CompareRow[] = [
     them: true,
   },
   {
-    point: "Git-style audit trail — author, message, diff, blame per change",
+    point: "Audit trail — author, message, diff, blame per change",
     gitmatter: true,
     them: false,
   },
@@ -43,8 +42,8 @@ export default function CompareLegalfly() {
       intro={
         <>
           LegalFly is close in shape — agentic, LLM-agnostic, with an on-prem option — and leads on
-          automatic anonymisation and built-in legal research. gitmatter's edge is the git-style
-          audit spine, driving the work from your own AI agent over MCP, and being open source.
+          automatic anonymisation and built-in legal research. gitmatter's edge is the audit spine,
+          driving the work from your own AI agent over MCP, and being open source.
         </>
       }
       rows={ROWS}

@@ -19,7 +19,7 @@ export default function Terms() {
       <p>
         gitmatter is an audited legal backend that AI agents plug into. It provides AI-assisted
         legal review — contract redline, tabular extraction, document generation, and reusable
-        workflows — on a git-style audit spine where every change is a commit with author, message,
+        workflows — on an audit spine where every change is a commit with author, message,
         field-level diff, and blame. Agents connect over MCP (bring your own agent), and features
         run on your own LLM key (bring your own key).
       </p>

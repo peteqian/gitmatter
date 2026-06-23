@@ -8,7 +8,6 @@ import ComparePage, { type CompareRow } from "@/marketing/components/ComparePage
 const ROWS: CompareRow[] = [
   { point: "Contract redline, extraction, and drafting", gitmatter: true, them: true },
   { point: "Reusable multi-step workflows", gitmatter: true, them: true },
-  { point: "SOC 2 / ISO 27001, encryption, no training on your data", gitmatter: true, them: true },
   { point: "Multiple model providers — Claude, Gemini, OpenAI", gitmatter: true, them: true },
   {
     point: "Legal & regulatory research with citations",
@@ -23,7 +22,7 @@ const ROWS: CompareRow[] = [
     note: "Harvey Vault",
   },
   {
-    point: "Git-style audit trail — author, message, diff, blame per change",
+    point: "Audit trail — author, message, diff, blame per change",
     gitmatter: true,
     them: false,
   },

@@ -54,7 +54,7 @@ export default function About() {
             mikeoss
           </a>
           , with full credit to the original. The difference is how it runs: a simple stack you host
-          yourself, with no third-party vendor in your sign-in, and a git-style record behind every
+          yourself, with no third-party vendor in your sign-in, and an audit record behind every
           change.
         </p>
       </section>

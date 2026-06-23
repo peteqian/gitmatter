@@ -93,7 +93,7 @@ export default function ComparePage(props: {
             <Button>See the use cases</Button>
           </Link>
           <a href={SITE.docs}>
-            <Button variant="outline">Read the docs</Button>
+            <Button variant="outline">Read docs</Button>
           </a>
         </div>
       </section>

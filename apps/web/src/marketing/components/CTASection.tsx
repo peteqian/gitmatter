@@ -17,11 +17,11 @@ export default function CTASection() {
       </p>
       <div className="mt-section flex flex-wrap items-center gap-3">
         <Link to="/login">
-          <Button size="lg">Run live</Button>
+          <Button size="lg">Test Demo</Button>
         </Link>
         <a href={SITE.docs}>
           <Button size="lg" variant="outline">
-            Read the docs
+            Read docs
           </Button>
         </a>
       </div>

@@ -26,7 +26,7 @@ const ROWS: CompareRow[] = [
     them: true,
   },
   {
-    point: "Git-style field-level diff and blame on every change",
+    point: "Field-level diff and blame on every change",
     gitmatter: true,
     them: false,
   },
@@ -65,14 +65,13 @@ export default function CompareGitlaw() {
           git.law and gitmatter share an idea — bringing version control to legal documents. git.law
           is an all-in-one app for startups and SMEs: draft from templates, collaborate, and e-sign
           in one place. gitmatter is an open-source backend built for legal teams — your own AI
-          agent drives it over MCP, on your own key, with a git-style audit trail behind every
-          change.
+          agent drives it over MCP, on your own key, with an audit trail behind every change.
         </>
       }
       rows={ROWS}
       pickThemTitle="Pick git.law when"
       pickThemBody="You're a startup, freelancer, or SME who wants one free app to draft from templates, negotiate, and e-sign — end to end."
-      pickUsBody="You're a legal team that needs your own AI agent to drive the work over MCP, on your own key, with a full git-style audit trail across every matter."
+      pickUsBody="You're a legal team that needs your own AI agent to drive the work over MCP, on your own key, with a full audit trail across every matter."
     />
   );
 }

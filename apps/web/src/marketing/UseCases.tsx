@@ -80,7 +80,7 @@ export default function UseCases() {
             <Button variant="outline">Compare with Harvey</Button>
           </Link>
           <a href={SITE.docs}>
-            <Button variant="outline">Read the docs</Button>
+            <Button variant="outline">Read docs</Button>
           </a>
         </div>
       </section>

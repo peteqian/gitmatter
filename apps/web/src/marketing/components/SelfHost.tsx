@@ -22,7 +22,7 @@ const POINTS: {
   {
     title: "Run on our cloud",
     body: "Skip the setup and start in the hosted app. Your files are never kept or used to train anyone's model.",
-    cta: "Run live",
+    cta: "Test Demo",
     to: "/login",
   },
 ];

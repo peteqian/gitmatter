@@ -26,10 +26,10 @@ export default function Hero() {
         </p>
         <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
           <Button size="lg" render={<Link to="/login" />}>
-            Test it out
+            Test Demo
           </Button>
           <Button size="lg" variant="outline" render={<a href={SITE.docs} />}>
-            Set it up
+            Install locally
           </Button>
         </div>
       </div>
