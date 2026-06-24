@@ -1,0 +1,40 @@
+node_modules
+.DS_Store
+dist
+dist-ssr
+*.local
+.env*
+!.env.example
+.tanstack
+.wrangler
+.output
+.vinxi
+.source
+.next
+.react-email
+next-env.d.ts
+__unconfig*
+todos.json
+
+# turbo
+.turbo
+
+# typescript
+*.tsbuildinfo
+
+# local scratch (screenshots etc)
+.scratch
+
+# gitmatter CLI build artifacts
+cli/dist/
+
+# remotion bundle output
+apps/video/build/
+
+# test artifacts
+test-results/
+
+# MCP server config (contains API keys)
+.mcp.json
+# …except the shipped agent-plugin MCP configs (no secrets — public OAuth URL)
+!plugins/*/.mcp.json

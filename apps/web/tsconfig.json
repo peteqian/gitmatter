@@ -1,0 +1,36 @@
+{
+  "include": ["**/*.ts", "**/*.tsx", "eslint.config.js", "prettier.config.js", "vite.config.ts"],
+  "exclude": [
+    "src/components/ai-elements/attachments.tsx",
+    "src/components/ai-elements/context.tsx",
+    "src/components/ai-elements/inline-citation.tsx",
+    "src/components/ai-elements/jsx-preview.tsx",
+    "src/components/ai-elements/plan.tsx",
+    "src/components/ai-elements/prompt-input.tsx",
+    "src/components/ai-elements/voice-selector.tsx"
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite-plus/client"],
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+
+    /* Linting */
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  }
+}

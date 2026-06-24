@@ -1,0 +1,139 @@
+---
+title: Self-hosting
+description: Run gitmatter on your own machine or with the full Docker stack.
+---
+
+This guide covers running gitmatter on your own infrastructure: what you need, which settings are required, how to bring up the Docker stack, and how to run the app for local development.
+
+You should be familiar with the command line (the text-based terminal on your system). Below are the commands that you (or your agent) can run to set up a local instance of gitmatter.
+
+## Prerequisites
+
+Before anything else, you need **Docker**. It runs the app and database for you, and
+it is the only thing you must install to run gitmatter. Everything below assumes it is
+already in place.
+
+- **Docker.** Install [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+  (Mac/Windows) or Docker Engine (Linux).
+- **S3-compatible object storage** for documents — Cloudflare R2, AWS S3, or MinIO.
+  There is no local-disk fallback.
+- **Two secret strings.** Generate them with `openssl`:
+
+```bash
+openssl rand -base64 32
+openssl rand -base64 32
+```
+
+Use one value for `BETTER_AUTH_SECRET` and the other for `ENCRYPTION_KEY`.
+
+## Docker quickstart
+
+This is the recommended path when you want to run gitmatter without building from source.
+
+```bash
+cp .env.example .env
+
+# Fill BETTER_AUTH_SECRET, ENCRYPTION_KEY, and S3_* in .env.
+# For the secrets, this is enough:
+openssl rand -base64 32
+
+docker compose up -d
+```
+
+Open `http://localhost:4280`.
+
+Docker Compose runs two services:
+
+- **web** - the gitmatter app. It pulls the public self-host image, applies the
+  database schema on startup, then serves the app. Document text extraction runs
+  in-process.
+- **postgres** - Postgres with pgvector.
+
+Object storage is still required. Docker runs the app and database, but uploaded
+documents must live in S3-compatible storage such as Cloudflare R2, AWS S3, or
+MinIO.
+
+We recommend [Cloudflare R2](https://www.cloudflare.com/products/r2/), but any S3-compatible storage that works with `@aws-sdk/client-s3` is fine.
+
+The default image is `ghcr.io/git-matter/gitmatter:latest`. Pin a production version
+with `GITMATTER_IMAGE`, for example:
+
+```bash
+GITMATTER_IMAGE=ghcr.io/git-matter/gitmatter:v2026.06.22
+```
+
+## Configuration
+
+Settings are read from environment variables. Copy `.env.example` to `.env` and fill in the required values.
+
+| Variable                                                                                         | Purpose                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`                                                                                   | Postgres connection string (the address and credentials for your database).                                                                                        |
+| `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`                                                          | Authentication (sign-in).                                                                                                                                          |
+| `ENCRYPTION_KEY`                                                                                 | Any non-empty string. A scrypt KDF turns it into a 32-byte AES-256-GCM key, used to encrypt user secrets (LLM keys, MCP credentials) so they are stored scrambled. |
+| `COURTLISTENER_API_TOKEN`                                                                        | Enables the built-in legal-research tools.                                                                                                                         |
+| `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE` | S3-compatible object storage (the file store for documents). The defaults target Cloudflare R2.                                                                    |
+
+<Callout type="warn">
+  Object storage is **required**. Set up an R2 bucket or any S3-compatible endpoint. There is no
+  local-filesystem fallback (gitmatter will not store files on the server's own disk instead).
+</Callout>
+
+### Cloudflare R2
+
+Cloudflare R2 is the easiest recommended S3-compatible option. Use Cloudflare's
+own docs to create the bucket and S3 API token:
+
+- [Create an R2 bucket](https://developers.cloudflare.com/r2/buckets/create-buckets/)
+- [Create R2 API tokens](https://developers.cloudflare.com/r2/api/tokens/)
+
+Then map Cloudflare's values into `.env`:
+
+| gitmatter env var     | Cloudflare R2 value                             |
+| --------------------- | ----------------------------------------------- |
+| `S3_ENDPOINT`         | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
+| `S3_ACCESS_KEY`       | R2 Access Key ID                                |
+| `S3_SECRET_KEY`       | R2 Secret Access Key                            |
+| `S3_REGION`           | `auto`                                          |
+| `S3_BUCKET`           | Bucket name, for example `gitmatter`            |
+| `S3_FORCE_PATH_STYLE` | `true`                                          |
+
+### LLM provider keys
+
+Provider keys (Claude / Gemini / OpenAI / OpenRouter) are usually added in-app under Settings, where they are encrypted and loaded at runtime. You can also set a server-wide fallback in env:
+
+```bash
+ANTHROPIC_API_KEY=...
+OPENAI_API_KEY=...
+GEMINI_API_KEY=...
+OPENROUTER_API_KEY=...
+```
+
+A user's own key always **overrides** the server key. Pick the model per chat message or per review run. OpenRouter is the zero-data-retention default (the provider that, by default, keeps and trains on nothing).
+
+For the full per-provider privacy detail, see [AI data handling](/admin/ai-data-handling).
+
+## Local development
+
+Use this path when you are changing gitmatter source code. It requires [Bun](https://bun.sh).
+
+`bun run dev` starts the supporting services (Postgres) in Docker, applies the database schema, then runs the app. Text extraction from uploaded documents runs in-process — there is no separate extraction service:
+
+```bash
+bun install
+bun run dev   # deps in Docker + web on http://localhost:4280
+```
+
+Useful flags:
+
+- `--skip-deps` — the supporting services are already running.
+- `--skip-migrate` — skip applying the database schema.
+- `--dry-run` — show what would run without running it.
+
+To do the same steps by hand (equivalent to `--skip-deps --skip-migrate`):
+
+```bash
+docker compose up -d postgres     # Postgres with pgvector
+cd packages/db && bun run migrate  # apply schema
+turbo run dev                      # web on http://localhost:4280
+```

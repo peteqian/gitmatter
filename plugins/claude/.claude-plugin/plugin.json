@@ -1,0 +1,15 @@
+{
+  "name": "gitmatter",
+  "description": "Audited legal AI over MCP — contract review, redline, tabular extraction, document generation, and a git-style audit history. Acts as your gitmatter account; every action is recorded with author, message, and field-level diff.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Gitmatter",
+    "email": "contact@gitmatter.com",
+    "url": "https://gitmatter.com"
+  },
+  "homepage": "https://gitmatter.com/docs/ai-agents/connect-an-agent",
+  "repository": "https://github.com/Git-Matter/gitmatter",
+  "license": "MIT",
+  "keywords": ["legal", "contracts", "mcp", "audit", "redline", "extraction"],
+  "defaultEnabled": false
+}
