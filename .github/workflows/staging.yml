@@ -102,6 +102,7 @@ jobs:
       - name: Trigger staging redeploy
         env:
           WEBHOOK: ${{ secrets.STAGING_DOKPLOY_WEB_WEBHOOK }}
+          DOKPLOY_HOST: dokploy.gitmatter.com
           DOKPLOY_TAILNET_IP: 100.68.201.48
         run: |
           echo "::add-mask::$WEBHOOK"
@@ -109,11 +110,11 @@ jobs:
           WEBHOOK_HOST="${WEBHOOK_HOST%%/*}"
           WEBHOOK_HOST_ONLY="${WEBHOOK_HOST%%:*}"
           WEBHOOK_PATH="/${WEBHOOK#*://*/}"
-          WEBHOOK_URL="https://${WEBHOOK_HOST_ONLY}${WEBHOOK_PATH}"
+          WEBHOOK_URL="https://${DOKPLOY_HOST}${WEBHOOK_PATH}"
           echo "::add-mask::$WEBHOOK_HOST"
           echo "::add-mask::$WEBHOOK_HOST_ONLY"
           echo "::add-mask::$WEBHOOK_URL"
-          curl --resolve "$WEBHOOK_HOST_ONLY:443:$DOKPLOY_TAILNET_IP" --connect-timeout 10 --retry 2 --retry-delay 5 -fsSL -X POST "$WEBHOOK_URL"
+          curl --resolve "$DOKPLOY_HOST:443:$DOKPLOY_TAILNET_IP" --connect-timeout 10 --retry 2 --retry-delay 5 -fsSL -X POST "$WEBHOOK_URL"
 
   # Docs is a standalone Next.js app served under /docs. It builds and ships
   # independently of the web image: next build on the runner produces a
@@ -183,6 +184,7 @@ jobs:
       - name: Trigger staging docs redeploy
         env:
           WEBHOOK: ${{ secrets.STAGING_DOKPLOY_DOCS_WEBHOOK }}
+          DOKPLOY_HOST: dokploy.gitmatter.com
           DOKPLOY_TAILNET_IP: 100.68.201.48
         run: |
           # The docs image is pushed above regardless. The redeploy only fires once
@@ -197,8 +199,8 @@ jobs:
           WEBHOOK_HOST="${WEBHOOK_HOST%%/*}"
           WEBHOOK_HOST_ONLY="${WEBHOOK_HOST%%:*}"
           WEBHOOK_PATH="/${WEBHOOK#*://*/}"
-          WEBHOOK_URL="https://${WEBHOOK_HOST_ONLY}${WEBHOOK_PATH}"
+          WEBHOOK_URL="https://${DOKPLOY_HOST}${WEBHOOK_PATH}"
           echo "::add-mask::$WEBHOOK_HOST"
           echo "::add-mask::$WEBHOOK_HOST_ONLY"
           echo "::add-mask::$WEBHOOK_URL"
-          curl --resolve "$WEBHOOK_HOST_ONLY:443:$DOKPLOY_TAILNET_IP" --connect-timeout 10 --retry 2 --retry-delay 5 -fsSL -X POST "$WEBHOOK_URL"
+          curl --resolve "$DOKPLOY_HOST:443:$DOKPLOY_TAILNET_IP" --connect-timeout 10 --retry 2 --retry-delay 5 -fsSL -X POST "$WEBHOOK_URL"
