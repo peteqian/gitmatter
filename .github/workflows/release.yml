@@ -180,9 +180,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Connect Tailscale
-        uses: tailscale/github-action@v3
+        uses: tailscale/github-action@v4
         with:
-          authkey: ${{ secrets.TS_AUTHKEY }}
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
 
       # Dokploy per-app deploy webhook over the tailnet origin (token in the URL,
       # no api-key). dokploy.gitmatter.com is Cloudflare-fronted and 403s the
@@ -208,9 +210,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Connect Tailscale
-        uses: tailscale/github-action@v3
+        uses: tailscale/github-action@v4
         with:
-          authkey: ${{ secrets.TS_AUTHKEY }}
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
 
       - name: Trigger production docs redeploy
         env:

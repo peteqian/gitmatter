@@ -90,9 +90,11 @@ jobs:
           cache-to: type=gha,mode=max,scope=cloud
 
       - name: Connect Tailscale
-        uses: tailscale/github-action@v3
+        uses: tailscale/github-action@v4
         with:
-          authkey: ${{ secrets.TS_AUTHKEY }}
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
 
       # Dokploy per-app deploy webhook (token in the URL, no api-key). Replaces the
       # /api/application.deploy + x-api-key call, which 403'd after the API key was
@@ -168,9 +170,11 @@ jobs:
           cache-to: type=gha,mode=max,scope=docs
 
       - name: Connect Tailscale
-        uses: tailscale/github-action@v3
+        uses: tailscale/github-action@v4
         with:
-          authkey: ${{ secrets.TS_AUTHKEY }}
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
 
       - name: Trigger staging docs redeploy
         env:
