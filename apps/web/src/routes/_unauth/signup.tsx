@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { signUp } from "../../lib/auth/auth-client";
-import { getSignupState } from "../../lib/auth/signup-state";
 import { AuthShell } from "./-components/AuthShell";
 import { Turnstile, turnstileEnabled } from "./-components/Turnstile";
 import { FormError } from "../../components/form/FormError";
@@ -32,12 +31,16 @@ function Signup() {
 
   useEffect(() => {
     let ignore = false;
-    getSignupState()
+    fetch("/api/config/signup")
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Could not load signup state.");
+        return (await res.json()) as { open: boolean };
+      })
       .then((state) => {
         if (!ignore) setSignupsOpen(state.open);
       })
       .catch(() => {
-        if (!ignore) setSignupsOpen(true);
+        if (!ignore) setSignupsOpen(false);
       });
     return () => {
       ignore = true;
