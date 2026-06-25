@@ -23,9 +23,14 @@ export type { ToolSpec } from "./types.js";
  */
 export function buildToolCatalog(
   actor: Actor,
-  opts: { jurisdiction: string; defaultMatterLabel: string }
+  opts: { jurisdiction: string; defaultMatterLabel: string; sourceIds?: ProviderId[] }
 ): ToolSpec[] {
-  const providerIds = new Set<ProviderId>(providersFor(opts.jurisdiction).map((p) => p.id));
+  const allowedSourceIds = opts.sourceIds ? new Set(opts.sourceIds) : null;
+  const providerIds = new Set<ProviderId>(
+    providersFor(opts.jurisdiction)
+      .filter((p) => !allowedSourceIds || allowedSourceIds.has(p.id))
+      .map((p) => p.id)
+  );
 
   // Resolve the matter a new artifact lands in: an explicit (editor-checked)
   // matterId, or the acting user's default matter. Returns null when forbidden.
