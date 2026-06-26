@@ -14,6 +14,7 @@ import { Route as AuthRouteRouteImport } from './routes/_auth/route'
 import { Route as marketingRouteRouteImport } from './routes/(marketing)/route'
 import { Route as marketingIndexRouteImport } from './routes/(marketing)/index'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
+import { Route as UnauthVerifyEmailRouteImport } from './routes/_unauth/verify-email'
 import { Route as UnauthSignupRouteImport } from './routes/_unauth/signup'
 import { Route as UnauthResetPasswordRouteImport } from './routes/_unauth/reset-password'
 import { Route as UnauthLoginRouteImport } from './routes/_unauth/login'
@@ -67,6 +68,11 @@ const ApiSplatRoute = ApiSplatRouteImport.update({
   id: '/api/$',
   path: '/api/$',
   getParentRoute: () => rootRouteImport,
+} as any)
+const UnauthVerifyEmailRoute = UnauthVerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
+  getParentRoute: () => UnauthRouteRoute,
 } as any)
 const UnauthSignupRoute = UnauthSignupRouteImport.update({
   id: '/signup',
@@ -242,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof UnauthLoginRoute
   '/reset-password': typeof UnauthResetPasswordRoute
   '/signup': typeof UnauthSignupRoute
+  '/verify-email': typeof UnauthVerifyEmailRoute
   '/api/$': typeof ApiSplatRoute
   '/compare/gitlaw': typeof marketingCompareGitlawRoute
   '/compare/harvey': typeof marketingCompareHarveyRoute
@@ -277,6 +284,7 @@ export interface FileRoutesByTo {
   '/login': typeof UnauthLoginRoute
   '/reset-password': typeof UnauthResetPasswordRoute
   '/signup': typeof UnauthSignupRoute
+  '/verify-email': typeof UnauthVerifyEmailRoute
   '/api/$': typeof ApiSplatRoute
   '/compare/gitlaw': typeof marketingCompareGitlawRoute
   '/compare/harvey': typeof marketingCompareHarveyRoute
@@ -315,6 +323,7 @@ export interface FileRoutesById {
   '/_unauth/login': typeof UnauthLoginRoute
   '/_unauth/reset-password': typeof UnauthResetPasswordRoute
   '/_unauth/signup': typeof UnauthSignupRoute
+  '/_unauth/verify-email': typeof UnauthVerifyEmailRoute
   '/api/$': typeof ApiSplatRoute
   '/(marketing)/': typeof marketingIndexRoute
   '/(marketing)/compare/gitlaw': typeof marketingCompareGitlawRoute
@@ -353,6 +362,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/verify-email'
     | '/api/$'
     | '/compare/gitlaw'
     | '/compare/harvey'
@@ -388,6 +398,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/verify-email'
     | '/api/$'
     | '/compare/gitlaw'
     | '/compare/harvey'
@@ -425,6 +436,7 @@ export interface FileRouteTypes {
     | '/_unauth/login'
     | '/_unauth/reset-password'
     | '/_unauth/signup'
+    | '/_unauth/verify-email'
     | '/api/$'
     | '/(marketing)/'
     | '/(marketing)/compare/gitlaw'
@@ -494,6 +506,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/$'
       preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_unauth/verify-email': {
+      id: '/_unauth/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof UnauthVerifyEmailRouteImport
+      parentRoute: typeof UnauthRouteRoute
     }
     '/_unauth/signup': {
       id: '/_unauth/signup'
@@ -794,6 +813,7 @@ interface UnauthRouteRouteChildren {
   UnauthLoginRoute: typeof UnauthLoginRoute
   UnauthResetPasswordRoute: typeof UnauthResetPasswordRoute
   UnauthSignupRoute: typeof UnauthSignupRoute
+  UnauthVerifyEmailRoute: typeof UnauthVerifyEmailRoute
 }
 
 const UnauthRouteRouteChildren: UnauthRouteRouteChildren = {
@@ -801,6 +821,7 @@ const UnauthRouteRouteChildren: UnauthRouteRouteChildren = {
   UnauthLoginRoute: UnauthLoginRoute,
   UnauthResetPasswordRoute: UnauthResetPasswordRoute,
   UnauthSignupRoute: UnauthSignupRoute,
+  UnauthVerifyEmailRoute: UnauthVerifyEmailRoute,
 }
 
 const UnauthRouteRouteWithChildren = UnauthRouteRoute._addFileChildren(

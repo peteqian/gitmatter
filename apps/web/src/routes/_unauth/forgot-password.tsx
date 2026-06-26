@@ -28,8 +28,9 @@ function ForgotPassword() {
     e.preventDefault();
     setError(null);
     setBusy(true);
+    const redirectTo = new URL("/reset-password", window.location.origin).toString();
     const { error: resetError } = await requestPasswordReset(
-      { email, redirectTo: "/reset-password" },
+      { email, redirectTo },
       captchaToken ? { headers: { "x-captcha-response": captchaToken } } : undefined
     );
     setBusy(false);

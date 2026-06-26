@@ -52,10 +52,12 @@ function Signup() {
     setError(null);
     if (signupsOpen === false) return setError("Signups are closed.");
     const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
     if (!trimmedName) return setError("Please enter your name.");
+    if (!trimmedEmail) return setError("Please enter your email.");
     setBusy(true);
     const { error: signUpError } = await signUp.email(
-      { name: trimmedName, email, password },
+      { name: trimmedName, email: trimmedEmail, password },
       captchaToken ? { headers: { "x-captcha-response": captchaToken } } : undefined
     );
     setBusy(false);
@@ -64,8 +66,11 @@ function Signup() {
       setCaptchaKey((k) => k + 1);
       return setError(signUpError.message ?? "Sign up failed");
     }
-    // Full reload so the server beforeLoad re-resolves the new session and SSRs
-    // the app shell (mirrors login).
+    if (import.meta.env.VITE_EMAIL_ENABLED) {
+      const params = new URLSearchParams({ email: trimmedEmail, sent: "1", next: "/assistant" });
+      window.location.href = `/verify-email?${params}`;
+      return;
+    }
     window.location.href = "/assistant";
   }
 

@@ -22,6 +22,7 @@ export const Route = createFileRoute("/_unauth/reset-password")({
 function ResetPassword() {
   const { token, error: searchError } = Route.useSearch();
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +30,7 @@ function ResetPassword() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!token) return setError("This reset link is missing a token.");
+    if (password !== confirmPassword) return setError("Passwords do not match.");
     setError(null);
     setBusy(true);
     const { error: resetError } = await resetPassword({ newPassword: password, token });
@@ -38,6 +40,8 @@ function ResetPassword() {
   }
 
   const linkError = searchError ? "This reset link is invalid or expired." : null;
+  const passwordReady = password.length >= 8 && confirmPassword.length >= 8;
+  const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
 
   return (
     <AuthShell title="Choose a new password" subtitle="Use the link from your email.">
@@ -67,10 +71,27 @@ function ResetPassword() {
                 />
                 <p className="text-xs text-muted-foreground">At least 8 characters.</p>
               </div>
+              <div className="flex flex-col gap-field">
+                <Label htmlFor="confirm-password">Confirm password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  disabled={!token || Boolean(linkError)}
+                  aria-invalid={mismatch}
+                />
+                {mismatch ? (
+                  <p className="text-xs text-destructive">Passwords do not match.</p>
+                ) : null}
+              </div>
               <FormError>{error}</FormError>
               <Button
                 type="submit"
-                disabled={busy || !token || Boolean(linkError) || password.length < 8}
+                disabled={busy || !token || Boolean(linkError) || !passwordReady || mismatch}
                 className="w-full"
               >
                 {busy ? "Saving..." : "Reset password"}

@@ -15,5 +15,6 @@ export const {
   deleteUser,
   requestPasswordReset,
   resetPassword,
+  sendVerificationEmail,
   useListPasskeys,
 } = authClient;
