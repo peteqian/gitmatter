@@ -26,6 +26,14 @@ export const auth = betterAuth({
   ...(trustedOrigins ? { trustedOrigins } : {}),
   secret: getEnv("BETTER_AUTH_SECRET"),
   rateLimit: authRateLimitFromEnv(getEnv),
+  session: {
+    // Cache the session in a signed, httpOnly cookie so read paths verify it
+    // without a DB round-trip. maxAge bounds how long a revoked session can
+    // still read — our documented revocation SLA. Mutations bypass this cache
+    // (see requireUser) so a revoked session can never write to the audit
+    // spine. Keep this window short for SOC 2 / ISO 27001 access-control.
+    cookieCache: { enabled: true, maxAge: 60 },
+  },
   database: drizzleAdapter(db, {
     provider: "pg",
     // Auth tables live in the `auth` Postgres schema; pass them explicitly.
