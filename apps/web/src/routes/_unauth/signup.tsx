@@ -4,7 +4,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { authClient, signUp } from "../../lib/auth/auth-client";
+import { signUp } from "../../lib/auth/auth-client";
 import { AuthShell } from "./-components/AuthShell";
 import { Turnstile, turnstileEnabled } from "./-components/Turnstile";
 import { FormError } from "../../components/form/FormError";
@@ -56,7 +56,7 @@ function Signup() {
     if (!trimmedName) return setError("Please enter your name.");
     if (!trimmedEmail) return setError("Please enter your email.");
     setBusy(true);
-    const { error: signUpError } = await signUp.email(
+    const { data, error: signUpError } = await signUp.email(
       { name: trimmedName, email: trimmedEmail, password },
       captchaToken ? { headers: { "x-captcha-response": captchaToken } } : undefined
     );
@@ -66,8 +66,9 @@ function Signup() {
       setCaptchaKey((k) => k + 1);
       return setError(signUpError.message ?? "Sign up failed");
     }
-    const { data: session } = await authClient.getSession();
-    if (session) {
+    // A token in the response means auto sign-in happened (email verification not
+    // required) — go straight to the app. No token means verification is needed.
+    if (data?.token) {
       window.location.href = "/assistant";
       return;
     }
