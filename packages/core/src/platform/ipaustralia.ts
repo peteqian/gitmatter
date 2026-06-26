@@ -12,35 +12,30 @@
 import { getEnv } from "../core/config.js";
 import { fetchWithTimeout } from "../core/fetch.js";
 
-const DEFAULT_API_BASE_URL = "https://test.api.ipaustralia.gov.au";
+// Every URL piece is plain-concatenated, so each ends with a trailing slash and the
+// endpoint paths below never start with one. Base ends with `/public/`, e.g.
+// `https://test.api.ipaustralia.gov.au/public/` (sandbox) or
+// `https://production.api.ipaustralia.gov.au/public/` (prod). Product paths are
+// overridable via env (fragments like `australian-patent-search-api/v1/`).
+const DEFAULT_API_BASE_URL = "https://test.api.ipaustralia.gov.au/public/";
+const DEFAULT_PATENT_PATH = "australian-patent-search-api/v1/";
+const DEFAULT_TRADE_MARK_PATH = "australian-trade-mark-search-api/v1/";
+const TOKEN_PATH = "external-token-api/v1/access_token";
 
 function apiBaseUrl(): string {
-  return cleanUrl(getEnv("IPAUSTRALIA_API_BASE_URL")?.trim() || DEFAULT_API_BASE_URL);
-}
-
-function cleanUrl(url: string): string {
-  return url.replace(/\/$/, "");
+  return getEnv("IPA_API_BASE_URL")?.trim() || DEFAULT_API_BASE_URL;
 }
 
 function tokenUrl(): string {
-  return (
-    getEnv("IPAUSTRALIA_TOKEN_URL")?.trim() ||
-    `${apiBaseUrl()}/public/external-token-api/v1/access_token`
-  );
+  return `${apiBaseUrl()}${TOKEN_PATH}`;
 }
 
 function patentBase(): string {
-  return cleanUrl(
-    getEnv("IPA_PATENT_SEARCH_API_BASE_URL")?.trim() ||
-      `${apiBaseUrl()}/public/australian-patent-search-api/v1`
-  );
+  return `${apiBaseUrl()}${getEnv("IPA_PATENT_SEARCH_API_BASE_URL")?.trim() || DEFAULT_PATENT_PATH}`;
 }
 
 function trademarkBase(): string {
-  return cleanUrl(
-    getEnv("IPA_TRADE_MARK_SEARCH_API_BASE_URL")?.trim() ||
-      `${apiBaseUrl()}/public/australian-trade-mark-search-api/v1`
-  );
+  return `${apiBaseUrl()}${getEnv("IPA_TRADE_MARK_SEARCH_API_BASE_URL")?.trim() || DEFAULT_TRADE_MARK_PATH}`;
 }
 
 type Creds = { clientId: string; clientSecret: string };
@@ -148,7 +143,7 @@ export async function searchPatents(args: {
   const data = await iaFetch<{ totalHits?: number; results?: unknown }>(
     patentBase(),
     creds,
-    "/search/quick",
+    "search/quick",
     { method: "POST", body: JSON.stringify(body) }
   );
   return {
@@ -165,7 +160,7 @@ export async function getPatent(id: string) {
   const p = await iaFetch<Record<string, unknown>>(
     patentBase(),
     creds,
-    `/patent/${encodeURIComponent(id)}`
+    `patent/${encodeURIComponent(id)}`
   );
   const biblio = (p.bibliographicData ?? {}) as Record<string, unknown>;
   return {
@@ -210,7 +205,7 @@ export async function searchTrademarks(args: {
   const data = await iaFetch<{ count?: number; trademarkIds?: string[] }>(
     trademarkBase(),
     creds,
-    "/search/quick",
+    "search/quick",
     { method: "POST", body: JSON.stringify(body) }
   );
   return { query: args.query, count: data.count ?? 0, trademarkIds: data.trademarkIds ?? [] };
@@ -229,7 +224,7 @@ export async function searchTrademarksAdvanced(args: {
   const data = await iaFetch<{ count?: number; trademarkIds?: string[]; request?: unknown }>(
     trademarkBase(),
     creds,
-    "/search/advanced",
+    "search/advanced",
     { method: "POST", body: JSON.stringify(body) }
   );
   return { count: data.count ?? 0, trademarkIds: data.trademarkIds ?? [], request: data.request };
@@ -254,7 +249,7 @@ export async function pageTrademarksAdvanced(args: {
   const data = await iaFetch<{ count?: number; trademarks?: unknown[]; request?: unknown }>(
     trademarkBase(),
     creds,
-    "/page/advanced",
+    "page/advanced",
     { method: "POST", body: JSON.stringify(body) }
   );
   return { count: data.count ?? 0, trademarks: data.trademarks ?? [], request: data.request };
@@ -266,7 +261,7 @@ export async function getTrademark(id: string) {
   const t = await iaFetch<Record<string, unknown>>(
     trademarkBase(),
     creds,
-    `/trade-mark/${encodeURIComponent(id)}`
+    `trade-mark/${encodeURIComponent(id)}`
   );
   return {
     number: t.number ?? null,

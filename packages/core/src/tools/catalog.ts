@@ -1,5 +1,5 @@
 import { type ProviderId, providersFor } from "@workspace/registry";
-import { type Actor, getUserTenant, hasMatterAccess } from "../core/index.js";
+import { type Actor, getUserTenant, hasMatterAccess, logEvent } from "../core/index.js";
 import { ensureDefaultMatter } from "../platform/index.js";
 import { buildAuditTools } from "./audit.js";
 import { buildDiscoveryTools } from "./discovery.js";
@@ -11,6 +11,47 @@ import type { ToolContext, ToolSpec } from "./types.js";
 import { buildWorkflowTools } from "./workflows.js";
 
 export type { ToolSpec } from "./types.js";
+
+// Wrap a tool handler so every call emits a start + finish log line (greppable
+// JSON, same shape as the request log). Used at both call sites — MCP and chat —
+// via the catalog, so neither can skip it. We log input *keys* only, never values,
+// to keep legal content/PII out of logs. Handlers return `{ error }` on failure
+// rather than throwing, so the finish line inspects the result for that.
+function withToolLogging(spec: ToolSpec, actor: Actor): ToolSpec {
+  const source = actor.type === "agent" ? actor.agentLabel : actor.type;
+  const base = { tool: spec.name, source, userId: actor.userId };
+  return {
+    ...spec,
+    handler: async (input) => {
+      logEvent("info", "tool_call.start", { ...base, keys: Object.keys(input) });
+      const started = performance.now();
+      try {
+        const result = await spec.handler(input);
+        const ms = Math.round(performance.now() - started);
+        const err =
+          result && typeof result === "object" && "error" in result
+            ? String((result as { error: unknown }).error).slice(0, 300)
+            : null;
+        logEvent(err ? "warn" : "info", "tool_call.finish", {
+          ...base,
+          ms,
+          ok: !err,
+          ...(err ? { error: err } : {}),
+        });
+        return result;
+      } catch (e) {
+        const ms = Math.round(performance.now() - started);
+        logEvent("error", "tool_call.finish", {
+          ...base,
+          ms,
+          ok: false,
+          error: e instanceof Error ? e.message : "failed",
+        });
+        throw e;
+      }
+    },
+  };
+}
 
 /**
  * The gitmatter tool catalog, bound to one acting user. Every tool runs as that
@@ -53,5 +94,5 @@ export function buildToolCatalog(
     ...buildDiscoveryTools(ctx),
     ...buildWorkflowTools(ctx),
     ...buildResearchTools(ctx, providerIds),
-  ];
+  ].map((t) => withToolLogging(t, actor));
 }
