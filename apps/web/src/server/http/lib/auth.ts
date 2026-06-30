@@ -61,6 +61,11 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     disableSignUp: getEnv("ALLOW_SIGNUPS") === "false",
+    // Disable auto sign-in only when verification is required (real provider).
+    // Otherwise auto sign-in hits the unverified-email path and fires a second
+    // verification email via sendOnSignIn. In dev (no provider) keep it on so
+    // signup lands straight in the app.
+    autoSignIn: !emailEnabled(),
     // Require a verified email before sign-in only once a real provider is
     // configured. In dev (console transport) this stays off so local accounts
     // remain usable without clicking a logged link.
