@@ -5,7 +5,7 @@ import {
   createGeneratedDocument,
   getDocumentDetail,
   type EditSpec,
-  proposeEdit,
+  proposeEditDetail,
   resolveEdit,
 } from "../content/index.js";
 import type { ToolContext, ToolSpec } from "./types.js";
@@ -78,8 +78,7 @@ export function buildDocumentTools({ actor, resolveMatter }: ToolContext): ToolS
         if (!(await canAccessArtifact(actor.userId, "document", documentId as string, "editor")))
           return { error: "Not found" };
         try {
-          const changeIds = await proposeEdit(actor, documentId as string, edits as EditSpec[]);
-          return { changeIds };
+          return await proposeEditDetail(actor, documentId as string, edits as EditSpec[]);
         } catch (e) {
           return { error: e instanceof Error ? e.message : "failed" };
         }
